@@ -22,6 +22,8 @@ import com.finx.notification.service.NotificationService;
 import com.finx.security.service.UserPrincipal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.finx.dispute.entity.DisputeStatus;
+import com.finx.dispute.repository.DisputeRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,6 +42,7 @@ public class EscrowService {
     private final EscrowLedgerRepository escrowLedgerRepository;
     private final DealRepository dealRepository;
     private final MilestoneRepository milestoneRepository;
+    private final DisputeRepository disputeRepository;
     private final AuditService auditService;
     private final NotificationService notificationService;
 
@@ -47,12 +50,14 @@ public class EscrowService {
                          EscrowLedgerRepository escrowLedgerRepository,
                          DealRepository dealRepository,
                          MilestoneRepository milestoneRepository,
+                         DisputeRepository disputeRepository,
                          AuditService auditService,
                          NotificationService notificationService) {
         this.escrowAccountRepository = escrowAccountRepository;
         this.escrowLedgerRepository = escrowLedgerRepository;
         this.dealRepository = dealRepository;
         this.milestoneRepository = milestoneRepository;
+        this.disputeRepository = disputeRepository;
         this.auditService = auditService;
         this.notificationService = notificationService;
     }
@@ -152,6 +157,12 @@ public class EscrowService {
 
         if (currentUser.getRole() != Role.ADMIN && !deal.getBuyerId().equals(currentUser.getId())) {
             throw new UnauthorizedException("Only the corporate buyer or an administrator can release escrow funds");
+        }
+
+        if (deal.getStatus() == DealStatus.DISPUTED ||
+                disputeRepository.existsByDealIdAndStatus(deal.getId(), DisputeStatus.OPEN) ||
+                disputeRepository.existsByMilestoneIdAndStatus(milestoneId, DisputeStatus.OPEN)) {
+            throw new BadRequestException("Cannot release escrow funds while the deal or milestone is in DISPUTED status. The dispute must be resolved by an administrator first.");
         }
 
         if (milestone.getStatus() != MilestoneStatus.APPROVED) {

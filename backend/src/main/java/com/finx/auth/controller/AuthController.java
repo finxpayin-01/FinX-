@@ -26,6 +26,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -118,9 +119,18 @@ public class AuthController {
             response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Google OAuth is not configured on the server.");
             return;
         }
+
+        String state = UUID.randomUUID().toString().replace("-", "");
+        jakarta.servlet.http.Cookie stateCookie = new jakarta.servlet.http.Cookie("oauth_state", state);
+        stateCookie.setHttpOnly(true);
+        stateCookie.setSecure(googleOAuthProperties.getRedirectUri() != null && googleOAuthProperties.getRedirectUri().startsWith("https"));
+        stateCookie.setPath("/");
+        stateCookie.setMaxAge(300); // 5 minutes TTL
+        response.addCookie(stateCookie);
+
         String redirectUri = googleOAuthProperties.getRedirectUri();
-        log.info("[GOOGLE OAUTH REDIRECT] Initiating authorization. Exact redirect_uri: '{}'", redirectUri);
-        String googleAuthUrl = googleOAuthProperties.buildAuthorizationUrl();
+        log.info("[GOOGLE OAUTH REDIRECT] Initiating authorization with state. Exact redirect_uri: '{}'", redirectUri);
+        String googleAuthUrl = googleOAuthProperties.buildAuthorizationUrl(state);
         if (googleAuthUrl == null) {
             log.error("[GOOGLE OAUTH] Failed to generate Google authorization URL for redirect_uri: '{}'", redirectUri);
             response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Failed to generate Google authorization URL.");
@@ -136,10 +146,12 @@ public class AuthController {
             @RequestParam(value = "state", required = false) String state,
             @RequestParam(value = "error", required = false) String error,
             @RequestParam(value = "error_description", required = false) String errorDescription,
+            jakarta.servlet.http.HttpServletRequest request,
             HttpServletResponse response) throws IOException {
 
-        log.info("[GOOGLE OAUTH CALLBACK] Received callback from Google. Code present: {}, Error: '{}', Configured redirect_uri: '{}'",
+        log.info("[GOOGLE OAUTH CALLBACK] Received callback from Google. Code present: {}, State present: {}, Error: '{}', Configured redirect_uri: '{}'",
                 (code != null && !code.isEmpty()),
+                (state != null && !state.isEmpty()),
                 (error != null ? error : "none"),
                 googleOAuthProperties.getRedirectUri());
 
@@ -159,14 +171,38 @@ public class AuthController {
             return;
         }
 
+        // Validate state parameter against oauth_state cookie if present
+        String cookieState = null;
+        if (request.getCookies() != null) {
+            for (jakarta.servlet.http.Cookie c : request.getCookies()) {
+                if ("oauth_state".equals(c.getName())) {
+                    cookieState = c.getValue();
+                    break;
+                }
+            }
+        }
+
+        if (cookieState != null && state != null && !cookieState.equals(state)) {
+            log.warn("[GOOGLE OAUTH CALLBACK] State mismatch! Possible CSRF attempt. Cookie: {}, Request: {}", cookieState, state);
+            response.sendRedirect(frontendRedirect + "?error=invalid_state");
+            return;
+        }
+
+        // Clear state cookie
+        jakarta.servlet.http.Cookie clearCookie = new jakarta.servlet.http.Cookie("oauth_state", "");
+        clearCookie.setPath("/");
+        clearCookie.setMaxAge(0);
+        response.addCookie(clearCookie);
+
         try {
             GoogleOAuthRequest authRequest = new GoogleOAuthRequest(code, googleOAuthProperties.getRedirectUri(), null);
 
             AuthResponse authResponse = authService.authenticateWithGoogle(authRequest);
 
             String roleStr = authResponse.getUser().getRole() != null ? authResponse.getUser().getRole().name() : "BUYER";
+            // Deliver tokens in URL fragment (#) so they are NEVER logged by proxies or sent in Referer headers
             String targetUrl = frontendRedirect +
-                    "?accessToken=" + URLEncoder.encode(authResponse.getAccessToken(), StandardCharsets.UTF_8) +
+                    "#accessToken=" + URLEncoder.encode(authResponse.getAccessToken(), StandardCharsets.UTF_8) +
                     "&refreshToken=" + URLEncoder.encode(authResponse.getRefreshToken(), StandardCharsets.UTF_8) +
                     "&role=" + URLEncoder.encode(roleStr, StandardCharsets.UTF_8);
 

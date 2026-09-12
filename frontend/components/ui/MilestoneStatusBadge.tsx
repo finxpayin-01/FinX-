@@ -10,6 +10,8 @@ export function MilestoneStatusBadge({ status }: { status: MilestoneStatus }) {
         REJECTED: 'bg-red-50 text-red-700 ring-red-600/20',
         RELEASE_PENDING: 'bg-cyan-50 text-cyan-700 ring-cyan-600/20',
         RELEASED: 'bg-green-100 text-green-800 ring-green-600/30 font-bold',
+        COMPLETED: 'bg-emerald-100 text-emerald-800 ring-emerald-600/30 font-bold',
+        CANCELLED: 'bg-slate-100 text-slate-500 ring-slate-400/20 line-through',
     };
 
     const labels: Record<MilestoneStatus, string> = {
@@ -21,6 +23,8 @@ export function MilestoneStatusBadge({ status }: { status: MilestoneStatus }) {
         REJECTED: 'Rejected (Needs Work)',
         RELEASE_PENDING: 'Escrow Action Pending',
         RELEASED: 'Escrow Released',
+        COMPLETED: 'Completed (Released)',
+        CANCELLED: 'Cancelled',
     };
 
     return (

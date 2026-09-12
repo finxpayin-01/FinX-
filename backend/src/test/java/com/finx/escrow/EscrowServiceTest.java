@@ -5,6 +5,8 @@ import com.finx.common.enums.Role;
 import com.finx.deal.entity.Deal;
 import com.finx.deal.entity.DealStatus;
 import com.finx.deal.repository.DealRepository;
+import com.finx.dispute.entity.DisputeStatus;
+import com.finx.dispute.repository.DisputeRepository;
 import com.finx.escrow.dto.response.EscrowLedgerResponse;
 import com.finx.escrow.entity.EscrowAccount;
 import com.finx.escrow.entity.EscrowLedger;
@@ -52,6 +54,9 @@ class EscrowServiceTest {
     private MilestoneRepository milestoneRepository;
 
     @Mock
+    private DisputeRepository disputeRepository;
+
+    @Mock
     private AuditService auditService;
 
     @Mock
@@ -75,6 +80,7 @@ class EscrowServiceTest {
                 escrowLedgerRepository,
                 dealRepository,
                 milestoneRepository,
+                disputeRepository,
                 auditService,
                 notificationService
         );
@@ -165,5 +171,30 @@ class EscrowServiceTest {
         assertThatThrownBy(() -> escrowService.releaseEscrow(milestoneId, "Release", buyerPrincipal))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("Insufficient escrow balance");
+    }
+
+    @Test
+    @DisplayName("Prevent release if deal status is DISPUTED")
+    void releaseEscrow_fails_whenDealIsDisputed() {
+        deal.setStatus(DealStatus.DISPUTED);
+
+        when(milestoneRepository.findByIdForUpdate(milestoneId)).thenReturn(Optional.of(milestone));
+        when(dealRepository.findByIdForUpdate(dealId)).thenReturn(Optional.of(deal));
+
+        assertThatThrownBy(() -> escrowService.releaseEscrow(milestoneId, "Release", buyerPrincipal))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("DISPUTED");
+    }
+
+    @Test
+    @DisplayName("Prevent release if open disputes exist for the deal")
+    void releaseEscrow_fails_whenOpenDisputesExist() {
+        when(milestoneRepository.findByIdForUpdate(milestoneId)).thenReturn(Optional.of(milestone));
+        when(dealRepository.findByIdForUpdate(dealId)).thenReturn(Optional.of(deal));
+        when(disputeRepository.existsByDealIdAndStatus(dealId, DisputeStatus.OPEN)).thenReturn(true);
+
+        assertThatThrownBy(() -> escrowService.releaseEscrow(milestoneId, "Release", buyerPrincipal))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("DISPUTED status");
     }
 }

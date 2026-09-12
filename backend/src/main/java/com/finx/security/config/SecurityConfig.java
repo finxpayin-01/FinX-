@@ -71,6 +71,7 @@ public class SecurityConfig {
                                 "/api/auth/oauth/**",
                                 "/api/auth/google/**",
                                 "/api/payments/webhook",
+                                "/api/payments/config",
                                 "/api/health",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
@@ -78,6 +79,8 @@ public class SecurityConfig {
                                 "/actuator/health",
                                 "/error"
                         ).permitAll()
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/finance/**").hasAnyRole("ADMIN", "FINANCE")
                         .anyRequest().authenticated()
                 );
 

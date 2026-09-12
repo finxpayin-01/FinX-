@@ -51,6 +51,7 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final AuditService auditService;
     private final com.finx.auth.config.GoogleOAuthProperties googleOAuthProperties;
+    private final com.finx.user.service.UserUidService userUidService;
     private final org.springframework.web.client.RestTemplate restTemplate;
 
     public AuthService(UserRepository userRepository,
@@ -58,7 +59,16 @@ public class AuthService {
                        PasswordEncoder passwordEncoder,
                        JwtTokenProvider jwtTokenProvider,
                        AuditService auditService) {
-        this(userRepository, refreshTokenRepository, passwordEncoder, jwtTokenProvider, auditService, new com.finx.auth.config.GoogleOAuthProperties());
+        this(userRepository, refreshTokenRepository, passwordEncoder, jwtTokenProvider, auditService, new com.finx.auth.config.GoogleOAuthProperties(), new com.finx.user.service.UserUidService(userRepository));
+    }
+
+    public AuthService(UserRepository userRepository,
+                       RefreshTokenRepository refreshTokenRepository,
+                       PasswordEncoder passwordEncoder,
+                       JwtTokenProvider jwtTokenProvider,
+                       AuditService auditService,
+                       com.finx.auth.config.GoogleOAuthProperties googleOAuthProperties) {
+        this(userRepository, refreshTokenRepository, passwordEncoder, jwtTokenProvider, auditService, googleOAuthProperties, new com.finx.user.service.UserUidService(userRepository));
     }
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -67,13 +77,15 @@ public class AuthService {
                        PasswordEncoder passwordEncoder,
                        JwtTokenProvider jwtTokenProvider,
                        AuditService auditService,
-                       com.finx.auth.config.GoogleOAuthProperties googleOAuthProperties) {
+                       com.finx.auth.config.GoogleOAuthProperties googleOAuthProperties,
+                       com.finx.user.service.UserUidService userUidService) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
         this.auditService = auditService;
-        this.googleOAuthProperties = googleOAuthProperties;
+        this.googleOAuthProperties = googleOAuthProperties != null ? googleOAuthProperties : new com.finx.auth.config.GoogleOAuthProperties();
+        this.userUidService = userUidService != null ? userUidService : new com.finx.user.service.UserUidService(userRepository);
         this.restTemplate = new org.springframework.web.client.RestTemplate();
     }
 
@@ -94,6 +106,7 @@ public class AuthService {
                 request.getRole(),
                 UserStatus.ACTIVE
         );
+        user.setUid(userUidService.generateUniqueUid());
 
         User savedUser = userRepository.saveAndFlush(user);
 
@@ -140,6 +153,14 @@ public class AuthService {
 
         if (user.getStatus() == UserStatus.SUSPENDED) {
             throw new UnauthorizedException("User account is suspended");
+        }
+
+        if (user.getUid() == null || user.getUid().isBlank()) {
+            user.setUid(userUidService.generateUniqueUid());
+            User saved = userRepository.saveAndFlush(user);
+            if (saved != null) {
+                user = saved;
+            }
         }
 
         // Issue new token pair
@@ -247,10 +268,17 @@ public class AuthService {
         }
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public UserSummaryResponse getCurrentUser(UserPrincipal principal) {
         User user = userRepository.findById(principal.getId())
                 .orElseThrow(() -> new UnauthorizedException("User profile not found"));
+        if (user.getUid() == null || user.getUid().isBlank()) {
+            user.setUid(userUidService.generateUniqueUid());
+            User saved = userRepository.saveAndFlush(user);
+            if (saved != null) {
+                user = saved;
+            }
+        }
         return UserSummaryResponse.fromEntity(user);
     }
 
@@ -355,6 +383,10 @@ public class AuthService {
             if (user.getStatus() == UserStatus.SUSPENDED) {
                 throw new UnauthorizedException("User account is suspended");
             }
+            if (user.getUid() == null || user.getUid().isBlank()) {
+                user.setUid(userUidService.generateUniqueUid());
+                user = userRepository.saveAndFlush(user);
+            }
         } else {
             isNewUser = true;
             // Map role: BUYER for Corporate users, SELLER for Vendor users. Never allow ADMIN via public flow.
@@ -375,6 +407,7 @@ public class AuthService {
                     assignedRole,
                     UserStatus.ACTIVE
             );
+            user.setUid(userUidService.generateUniqueUid());
             user = userRepository.saveAndFlush(user);
         }
 

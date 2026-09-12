@@ -132,9 +132,42 @@ public class RazorpayService {
         return properties.getKeyId();
     }
 
+    public boolean isConfigured() {
+        return properties.isConfigured();
+    }
+
+    public boolean isKeyIdPresent() {
+        return properties.getKeyId() != null && !properties.getKeyId().trim().isEmpty();
+    }
+
+    public boolean isKeySecretPresent() {
+        return properties.getKeySecret() != null && !properties.getKeySecret().trim().isEmpty();
+    }
+
+    public boolean isWebhookSecretPresent() {
+        return properties.getWebhookSecret() != null && !properties.getWebhookSecret().trim().isEmpty();
+    }
+
+    public String getKeyMode() {
+        String key = properties.getKeyId();
+        if (key == null || key.isBlank()) return "NONE";
+        if (key.trim().startsWith("rzp_test_")) return "TEST";
+        if (key.trim().startsWith("rzp_live_")) return "LIVE";
+        return "UNKNOWN";
+    }
+
+    public String getPublicKeySafe() {
+        return properties.getKeyId();
+    }
+
+    public RazorpayProperties getProperties() {
+        return properties;
+    }
+
     private void requirePaymentCredentials() {
         if (!properties.isConfigured()) {
             throw new PaymentGatewayUnavailableException("Razorpay is not configured. Payments cannot be initiated or verified.");
         }
     }
 }
+

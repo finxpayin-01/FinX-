@@ -21,10 +21,14 @@ public class DataInitializer implements ApplicationRunner {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final com.finx.user.service.UserUidService userUidService;
 
-    public DataInitializer(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public DataInitializer(UserRepository userRepository,
+                           PasswordEncoder passwordEncoder,
+                           com.finx.user.service.UserUidService userUidService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.userUidService = userUidService;
     }
 
     @Override
@@ -37,8 +41,19 @@ public class DataInitializer implements ApplicationRunner {
                     Role.ADMIN,
                     UserStatus.ACTIVE
             );
+            admin.setUid(userUidService.generateUniqueUid());
             userRepository.save(admin);
-            log.info("Default system administrator initialized: admin@finx.com");
+            log.info("Default system administrator initialized with UID '{}': admin@finx.com", admin.getUid());
+        }
+
+        // Safety startup check: backfill any existing accounts missing a UID
+        try {
+            int backfilled = userUidService.backfillMissingUids();
+            if (backfilled > 0) {
+                log.info("[STARTUP BACKFILL] Successfully backfilled UIDs for {} existing user accounts.", backfilled);
+            }
+        } catch (Exception ex) {
+            log.warn("[STARTUP BACKFILL] Note: startup UID backfill skipped or deferred: {}", ex.getMessage());
         }
     }
 }

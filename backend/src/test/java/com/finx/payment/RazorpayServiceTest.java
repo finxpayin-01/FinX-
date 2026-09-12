@@ -47,6 +47,26 @@ class RazorpayServiceTest {
         assertThat(service.verifyWebhookSignature(payload, "test_webhook_signature")).isFalse();
     }
 
+    @Test
+    void reportsConfigurationStatusAndKeyModeAccurately() {
+        RazorpayProperties properties = configuredProperties();
+        RazorpayService service = new RazorpayService(properties);
+
+        assertThat(service.isConfigured()).isTrue();
+        assertThat(service.isKeyIdPresent()).isTrue();
+        assertThat(service.isKeySecretPresent()).isTrue();
+        assertThat(service.isWebhookSecretPresent()).isTrue();
+        assertThat(service.getKeyMode()).isEqualTo("TEST");
+        assertThat(service.getPublicKeySafe()).isEqualTo("rzp_test_fixture");
+
+        RazorpayProperties unconfigured = new RazorpayProperties();
+        RazorpayService unconfiguredService = new RazorpayService(unconfigured);
+        assertThat(unconfiguredService.isConfigured()).isFalse();
+        assertThat(unconfiguredService.isKeyIdPresent()).isFalse();
+        assertThat(unconfiguredService.isKeySecretPresent()).isFalse();
+        assertThat(unconfiguredService.getKeyMode()).isEqualTo("NONE");
+    }
+
     private RazorpayProperties configuredProperties() {
         RazorpayProperties properties = new RazorpayProperties();
         properties.setKeyId("rzp_test_fixture");

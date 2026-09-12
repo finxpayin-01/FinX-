@@ -5,6 +5,7 @@ import com.finx.common.enums.Role;
 import com.finx.deal.entity.Deal;
 import com.finx.deal.entity.DealStatus;
 import com.finx.deal.repository.DealRepository;
+import com.finx.exception.BadRequestException;
 import com.finx.exception.UnauthorizedException;
 import com.finx.milestone.dto.request.CreateMilestoneRequest;
 import com.finx.milestone.dto.request.SubmitDeliverableRequest;
@@ -27,6 +28,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.util.Collections;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -196,5 +198,35 @@ class MilestoneServiceTest {
 
         assertThatThrownBy(() -> milestoneService.approveMilestone(milestone.getId(), sellerPrincipal))
                 .isInstanceOf(UnauthorizedException.class);
+    }
+
+    @Test
+    @DisplayName("Fail to create milestone if milestone amount exceeds total deal amount")
+    void createMilestone_exceedsDealTotal_ThrowsException() {
+        CreateMilestoneRequest req = new CreateMilestoneRequest();
+        req.setTitle("Overpriced Milestone");
+        req.setAmount(BigDecimal.valueOf(60000)); // Deal total is 50000
+
+        when(dealRepository.findById(dealId)).thenReturn(Optional.of(deal));
+        when(milestoneRepository.findByDealIdOrderBySequenceAsc(dealId)).thenReturn(Collections.emptyList());
+
+        assertThatThrownBy(() -> milestoneService.createMilestone(dealId, req, buyerPrincipal))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("cannot exceed deal total value");
+    }
+
+    @Test
+    @DisplayName("Fail to create milestone if deal is in terminal status (COMPLETED)")
+    void createMilestone_completedDeal_ThrowsException() {
+        deal.setStatus(DealStatus.COMPLETED);
+        CreateMilestoneRequest req = new CreateMilestoneRequest();
+        req.setTitle("Late Milestone");
+        req.setAmount(BigDecimal.valueOf(5000));
+
+        when(dealRepository.findById(dealId)).thenReturn(Optional.of(deal));
+
+        assertThatThrownBy(() -> milestoneService.createMilestone(dealId, req, buyerPrincipal))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Cannot create milestones for a COMPLETED deal");
     }
 }

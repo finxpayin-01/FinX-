@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/Card";
 import { milestoneService } from "@/services/milestone.service";
-import { paymentService, CreatePaymentOrderResponse } from "@/services/payment.service";
+import { paymentService, CreatePaymentOrderResponse, PaymentConfig } from "@/services/payment.service";
 import { Milestone } from "@/types";
 import { Button } from "@/components/ui/Button";
 import { ArrowLeft, Wallet, ShieldCheck, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
@@ -18,11 +18,20 @@ export default function FundMilestoneCheckout() {
     const { user } = useAuth();
 
     const [milestone, setMilestone] = useState<Milestone | null>(null);
+    const [paymentConfig, setPaymentConfig] = useState<PaymentConfig | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isProcessing, setIsProcessing] = useState(false);
     const [isVerifying, setIsVerifying] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
+
+    useEffect(() => {
+        paymentService.getPaymentConfig()
+            .then(setPaymentConfig)
+            .catch((err) => {
+                console.warn("Could not retrieve payment config:", err);
+            });
+    }, []);
 
     useEffect(() => {
         if (milestoneId) {
@@ -55,7 +64,7 @@ export default function FundMilestoneCheckout() {
                 // 3. Open real Razorpay checkout
                 const options = {
                     key: order.keyId,
-                    amount: order.amount,
+                    amount: Math.round(Number(order.amount) * 100),
                     currency: order.currency || "INR",
                     name: "FINX Escrow Platform",
                     description: `Escrow funding for ${order.milestoneTitle || milestone.title}`,
@@ -133,20 +142,53 @@ export default function FundMilestoneCheckout() {
                 </Button>
 
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-900">Milestone Escrow Funding</h1>
-                    <p className="text-sm text-slate-500 mt-1">Lock fiat funds into FINX escrow for milestone completion.</p>
+                    <div className="flex items-center gap-3">
+                        <h1 className="text-2xl font-bold text-slate-900">
+                            {paymentConfig?.sandboxMode || paymentConfig?.mode === "TEST"
+                                ? "FINX Escrow Funding — Test Mode"
+                                : "Milestone Escrow Funding"}
+                        </h1>
+                        {(paymentConfig?.sandboxMode || paymentConfig?.mode === "TEST") && (
+                            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+                                Sandbox / Test Mode
+                            </span>
+                        )}
+                    </div>
+                    <p className="text-sm text-slate-500 mt-1">
+                        {paymentConfig?.sandboxMode || paymentConfig?.mode === "TEST"
+                            ? "Simulated escrow funding in Razorpay Test Sandbox. Real funds are not moved."
+                            : "Lock fiat funds into FINX escrow for milestone completion."}
+                    </p>
                 </div>
 
-                {/* Security Trust Notice */}
-                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-3">
-                    <ShieldCheck size={20} className="text-emerald-600 shrink-0 mt-0.5" />
-                    <div>
-                        <h4 className="text-sm font-semibold text-emerald-900">FINX Cryptographic Escrow Vault</h4>
-                        <p className="text-xs text-emerald-800 mt-1 leading-relaxed">
-                            Your payment is deposited into an immutable escrow account. Funds are safeguarded and released to the vendor only after you inspect and approve the completed milestone deliverables.
-                        </p>
+                {/* Security / Mode Trust Notice */}
+                {paymentConfig && !paymentConfig.configured ? (
+                    <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
+                        <AlertCircle size={20} className="text-amber-600 shrink-0 mt-0.5" />
+                        <div>
+                            <h4 className="text-sm font-semibold text-amber-900">Razorpay is not configured</h4>
+                            <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+                                Payments cannot be initiated or verified because Razorpay credentials (RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET) are missing on the backend environment.
+                            </p>
+                        </div>
                     </div>
-                </div>
+                ) : (
+                    <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-3">
+                        <ShieldCheck size={20} className="text-emerald-600 shrink-0 mt-0.5" />
+                        <div>
+                            <h4 className="text-sm font-semibold text-emerald-900">
+                                {paymentConfig?.sandboxMode || paymentConfig?.mode === "TEST"
+                                    ? "FINX Escrow Funding — Test Mode"
+                                    : "FINX Cryptographic Escrow Vault"}
+                            </h4>
+                            <p className="text-xs text-emerald-800 mt-1 leading-relaxed">
+                                {paymentConfig?.sandboxMode || paymentConfig?.mode === "TEST"
+                                    ? "This payment is processed in Razorpay Test Mode. Escrow and ledger balances are tracked in the FINX platform sandbox."
+                                    : "Your payment is deposited into an immutable escrow account. Funds are safeguarded and released to the vendor only after you inspect and approve the completed milestone deliverables."}
+                            </p>
+                        </div>
+                    </div>
+                )}
 
                 {error && (
                     <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3 text-red-700 text-sm">
@@ -195,12 +237,18 @@ export default function FundMilestoneCheckout() {
                         <div className="pt-2">
                             <Button
                                 onClick={handlePayAndFund}
-                                disabled={isProcessing || isVerifying || success}
+                                disabled={isProcessing || isVerifying || success || (paymentConfig !== null && !paymentConfig.configured)}
                                 isLoading={isProcessing || isVerifying}
                                 className="w-full gap-2 bg-slate-900 hover:bg-slate-800 text-white py-3 text-base shadow-sm"
                             >
                                 <Wallet size={18} />
-                                {isVerifying ? "Verifying Payment & Crediting Escrow..." : isProcessing ? "Connecting to Razorpay..." : `Pay ₹${milestone?.amount?.toLocaleString() || "0"} & Fund Escrow`}
+                                {isVerifying
+                                    ? "Verifying Payment & Crediting Escrow..."
+                                    : isProcessing
+                                        ? "Connecting to Razorpay..."
+                                        : paymentConfig !== null && !paymentConfig.configured
+                                            ? "Gateway Not Configured"
+                                            : `Pay ₹${milestone?.amount?.toLocaleString() || "0"} & Fund Escrow`}
                             </Button>
                         </div>
                     </CardContent>

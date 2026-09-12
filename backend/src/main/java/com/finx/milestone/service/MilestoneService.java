@@ -3,8 +3,10 @@ package com.finx.milestone.service;
 import com.finx.audit.service.AuditService;
 import com.finx.common.enums.Role;
 import com.finx.deal.entity.Deal;
+import com.finx.deal.entity.DealStatus;
 import com.finx.deal.repository.DealRepository;
 import com.finx.exception.BadRequestException;
+import java.math.BigDecimal;
 import com.finx.exception.ResourceNotFoundException;
 import com.finx.exception.UnauthorizedException;
 import com.finx.milestone.dto.request.CreateMilestoneRequest;
@@ -60,6 +62,27 @@ public class MilestoneService {
 
         if (currentUser.getRole() != Role.ADMIN && !deal.getBuyerId().equals(currentUser.getId())) {
             throw new UnauthorizedException("Only the buyer or an admin can create milestones for this deal");
+        }
+
+        if (deal.getStatus() == DealStatus.COMPLETED || deal.getStatus() == DealStatus.CANCELLED) {
+            throw new BadRequestException("Cannot create milestones for a " + deal.getStatus() + " deal");
+        }
+
+        List<Milestone> existingMilestones = milestoneRepository.findByDealIdOrderBySequenceAsc(dealId);
+        BigDecimal currentAllocated = existingMilestones.stream()
+                .filter(m -> m.getStatus() != MilestoneStatus.CANCELLED)
+                .map(Milestone::getAmount)
+                .filter(java.util.Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal projectedTotal = currentAllocated.add(request.getAmount());
+        if (deal.getTotalAmount() != null && projectedTotal.compareTo(deal.getTotalAmount()) > 0) {
+            throw new BadRequestException(String.format(
+                    "Total milestone allocations (%s %s) cannot exceed deal total value (%s %s). Already allocated: %s %s.",
+                    projectedTotal, deal.getCurrency(),
+                    deal.getTotalAmount(), deal.getCurrency(),
+                    currentAllocated, deal.getCurrency()
+            ));
         }
 
         int sequence = (request.getSequence() != null && request.getSequence() > 0)
@@ -252,8 +275,10 @@ public class MilestoneService {
         Deal deal = dealRepository.findById(milestone.getDealId())
                 .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", milestone.getDealId()));
 
-        if (currentUser.getRole() != Role.ADMIN && !deal.getBuyerId().equals(currentUser.getId())) {
-            throw new UnauthorizedException("Only the corporate buyer can approve this milestone");
+        if (currentUser.getRole() != Role.ADMIN &&
+                currentUser.getRole() != Role.PROJECT_MANAGER &&
+                !deal.getBuyerId().equals(currentUser.getId())) {
+            throw new UnauthorizedException("Only the corporate buyer, project manager, or an administrator can approve this milestone");
         }
 
         if (milestone.getStatus() != MilestoneStatus.UNDER_REVIEW && milestone.getStatus() != MilestoneStatus.SUBMITTED) {
@@ -279,13 +304,13 @@ public class MilestoneService {
                 "MILESTONE_APPROVED",
                 "MILESTONE",
                 updated.getId().toString(),
-                "Buyer approved milestone: " + updated.getTitle()
+                "Approved milestone: " + updated.getTitle()
         );
 
         notificationService.sendNotification(
                 deal.getSellerId(),
                 "Milestone Approved!",
-                "Buyer approved milestone '" + updated.getTitle() + "'. Payment/Release is now eligible.",
+                "Milestone '" + updated.getTitle() + "' was approved. Payment/Release is now eligible.",
                 "/vendor/projects/" + deal.getId()
         );
 
@@ -301,8 +326,10 @@ public class MilestoneService {
         Deal deal = dealRepository.findById(milestone.getDealId())
                 .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", milestone.getDealId()));
 
-        if (currentUser.getRole() != Role.ADMIN && !deal.getBuyerId().equals(currentUser.getId())) {
-            throw new UnauthorizedException("Only the corporate buyer can reject this milestone");
+        if (currentUser.getRole() != Role.ADMIN &&
+                currentUser.getRole() != Role.PROJECT_MANAGER &&
+                !deal.getBuyerId().equals(currentUser.getId())) {
+            throw new UnauthorizedException("Only the corporate buyer, project manager, or an administrator can reject this milestone");
         }
 
         if (milestone.getStatus() != MilestoneStatus.UNDER_REVIEW && milestone.getStatus() != MilestoneStatus.SUBMITTED) {
@@ -331,13 +358,13 @@ public class MilestoneService {
                 "MILESTONE_REJECTED",
                 "MILESTONE",
                 updated.getId().toString(),
-                "Buyer rejected milestone '" + updated.getTitle() + "'. Reason: " + rejectionReason
+                "Rejected milestone '" + updated.getTitle() + "'. Reason: " + rejectionReason
         );
 
         notificationService.sendNotification(
                 deal.getSellerId(),
                 "Milestone Changes Requested",
-                "Buyer requested revisions on milestone '" + updated.getTitle() + "': " + rejectionReason,
+                "Changes requested on milestone '" + updated.getTitle() + "': " + rejectionReason,
                 "/vendor/projects/" + deal.getId()
         );
 
@@ -346,7 +373,9 @@ public class MilestoneService {
     }
 
     private void validatePartyAccess(Deal deal, UserPrincipal currentUser) {
-        if (currentUser.getRole() == Role.ADMIN) {
+        if (currentUser.getRole() == Role.ADMIN ||
+                currentUser.getRole() == Role.PROJECT_MANAGER ||
+                currentUser.getRole() == Role.FINANCE) {
             return;
         }
         boolean isParty = deal.getBuyerId().equals(currentUser.getId()) || deal.getSellerId().equals(currentUser.getId());

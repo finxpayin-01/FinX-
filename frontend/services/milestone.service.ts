@@ -80,5 +80,3 @@ export const milestoneService = {
         return milestoneService.rejectMilestone(id, reason);
     }
 };
-
-export const MILESTONE_API_DISABLED_MSG = "";

@@ -1,5 +1,6 @@
 package com.finx.notification.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.finx.notification.entity.Notification;
 
 import java.time.Instant;
@@ -10,7 +11,10 @@ public class NotificationResponse {
     private String title;
     private String message;
     private String route;
+
+    @JsonProperty("isRead")
     private boolean isRead;
+
     private Instant createdAt;
 
     public NotificationResponse() {
@@ -59,10 +63,17 @@ public class NotificationResponse {
         this.route = route;
     }
 
+    @JsonProperty("isRead")
     public boolean isRead() {
         return isRead;
     }
 
+    @JsonProperty("read")
+    public boolean getRead() {
+        return isRead;
+    }
+
+    @JsonProperty("isRead")
     public void setRead(boolean read) {
         isRead = read;
     }

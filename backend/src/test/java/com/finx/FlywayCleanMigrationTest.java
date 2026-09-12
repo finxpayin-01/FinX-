@@ -33,7 +33,7 @@ public class FlywayCleanMigrationTest {
 
         var result = flyway.migrate();
         System.out.println("Migrations successfully executed: " + result.migrationsExecuted);
-        assertTrue(result.migrationsExecuted >= 3, "Expected at least 3 migrations to execute");
+        assertTrue(result.migrationsExecuted >= 5, "Expected at least 5 migrations to execute");
 
         MigrationInfo[] infoList = flyway.info().all();
         for (MigrationInfo info : infoList) {
@@ -73,7 +73,28 @@ public class FlywayCleanMigrationTest {
             assertTrue(tables.contains("disputes"), "V3 table 'disputes' must exist");
             assertTrue(tables.contains("notifications"), "V3 table 'notifications' must exist");
 
-            System.out.println("ALL V1, V2, V3 TABLES VERIFIED IN SEQUENTIAL CLEAN ORDER!\n");
+            // V4 & V5 columns verification
+            List<String> userColumns = new ArrayList<>();
+            try (ResultSet rs = conn.getMetaData().getColumns(null, null, "%", "%")) {
+                while (rs.next()) {
+                    if ("users".equalsIgnoreCase(rs.getString("TABLE_NAME"))) {
+                        userColumns.add(rs.getString("COLUMN_NAME").toLowerCase());
+                    }
+                }
+            }
+            assertTrue(userColumns.contains("uid"), "V5 column 'uid' on 'users' must exist, found: " + userColumns);
+
+            List<String> dealColumns = new ArrayList<>();
+            try (ResultSet rs = conn.getMetaData().getColumns(null, null, "%", "%")) {
+                while (rs.next()) {
+                    if ("deals".equalsIgnoreCase(rs.getString("TABLE_NAME"))) {
+                        dealColumns.add(rs.getString("COLUMN_NAME").toLowerCase());
+                    }
+                }
+            }
+            assertTrue(dealColumns.contains("project_id"), "V4 column 'project_id' on 'deals' must exist, found: " + dealColumns);
+
+            System.out.println("ALL V1, V2, V3, V4, V5 TABLES AND COLUMNS VERIFIED IN SEQUENTIAL CLEAN ORDER!\n");
         }
     }
 }

@@ -28,7 +28,7 @@ public class User {
 
     @PrePersist
     protected void onCreate() {
-        if (this.uid == null) {
+        if (this.uid == null || this.uid.isBlank()) {
             this.uid = "USR-" + java.util.UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         }
     }

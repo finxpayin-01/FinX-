@@ -17,7 +17,7 @@ export function EscrowTimeline({ currentStatus }: { currentStatus: MilestoneStat
         if (status === 'SUBMITTED') return 2;
         if (status === 'UNDER_REVIEW') return 3;
         if (status === 'APPROVED' || status === 'RELEASE_PENDING') return 4;
-        if (status === 'RELEASED') return 5;
+        if (status === 'RELEASED' || status === 'COMPLETED') return 5;
         return 0;
     };
 

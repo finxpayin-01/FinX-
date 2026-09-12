@@ -15,11 +15,12 @@ export const authService = {
     register: async (userData: Record<string, any>): Promise<AuthResponse> => {
         // Map frontend display roles to authoritative backend roles
         let backendRole = userData.role;
-        if (backendRole === "CORPORATE" || backendRole === "PROJECT_MANAGER" || backendRole === "FINANCE") {
+        if (backendRole === "CORPORATE") {
             backendRole = "BUYER";
         } else if (backendRole === "VENDOR") {
             backendRole = "SELLER";
         }
+        // Note: PROJECT_MANAGER and FINANCE are first-class roles supported directly in backend Role enum
 
         const payload = {
             name: userData.fullName || userData.name,

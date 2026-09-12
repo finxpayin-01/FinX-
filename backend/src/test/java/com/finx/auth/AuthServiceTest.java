@@ -67,6 +67,7 @@ class AuthServiceTest {
 
         sampleUser = new User("Alice Client", "alice@example.com", encodedPassword, Role.BUYER, UserStatus.ACTIVE);
         sampleUser.setId(UUID.randomUUID());
+        sampleUser.setUid("USR-12345678");
     }
 
     @Test

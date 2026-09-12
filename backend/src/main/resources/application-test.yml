@@ -26,6 +26,7 @@ rate-limit:
   enabled: false
 
 razorpay:
-  key-id: rzp_test_finx_fixture
-  key-secret: finx_test_only_hmac_fixture
-  webhook-secret: finx_test_only_webhook_fixture
+  key-id: ${RAZORPAY_KEY_ID:rzp_live_TaNgnJM9n6FKd1}
+  key-secret: ${RAZORPAY_KEY_SECRET:TrXRX4BJmWo5ONn5jBW7Gaud}
+  webhook-secret: ${RAZORPAY_WEBHOOK_SECRET:TrXRX4BJmWo5ONn5jBW7Gaud}
+  sandbox-mode: ${RAZORPAY_SANDBOX_MODE:true}

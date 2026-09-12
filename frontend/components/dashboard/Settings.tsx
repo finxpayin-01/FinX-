@@ -7,11 +7,52 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { LogOut, User, Lock, Bell, Settings as SettingsIcon, Building, ShieldAlert, AlertCircle, RefreshCw } from "lucide-react";
+import { LogOut, User, Lock, Bell, Settings as SettingsIcon, Building, ShieldAlert, AlertCircle, RefreshCw, Copy, Check } from "lucide-react";
 
 export const FINXSettings = () => {
-    const { user, logout } = useAuth();
+    const { user, logout, setSession } = useAuth();
     const [activeTab, setActiveTab] = useState("profile");
+    const [currentUser, setCurrentUser] = useState(user);
+    const [copiedUid, setCopiedUid] = useState(false);
+
+    useEffect(() => {
+        if (user) {
+            setCurrentUser(user);
+            if (!user.uid) {
+                authService.getCurrentUser().then(fresh => {
+                    if (fresh && fresh.uid) {
+                        setCurrentUser(fresh);
+                        const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") || "" : "";
+                        const refresh = typeof window !== "undefined" ? localStorage.getItem("refreshToken") || "" : "";
+                        setSession(token, refresh, fresh);
+                    }
+                }).catch(err => {
+                    console.warn("Could not fetch fresh user profile:", err);
+                });
+            }
+        }
+    }, [user, setSession]);
+
+    const handleCopyUid = async () => {
+        const uidToCopy = currentUser?.uid || user?.uid;
+        if (!uidToCopy) return;
+        try {
+            if (navigator?.clipboard?.writeText) {
+                await navigator.clipboard.writeText(uidToCopy);
+            } else {
+                const el = document.createElement("textarea");
+                el.value = uidToCopy;
+                document.body.appendChild(el);
+                el.select();
+                document.execCommand("copy");
+                document.body.removeChild(el);
+            }
+            setCopiedUid(true);
+            setTimeout(() => setCopiedUid(false), 2000);
+        } catch (e) {
+            console.error("Failed to copy UID", e);
+        }
+    };
 
     // Local Preferences State
     const [preferences, setPreferences] = useState({
@@ -91,20 +132,54 @@ export const FINXSettings = () => {
                                 Profile updates are currently disabled pending the rollout of the Backend Profiles API.
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">User Tracker (UID)</label>
-                                <Input disabled value={user?.uid || "N/A"} className="font-mono bg-slate-50 text-slate-600" />
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <label className="block text-sm font-semibold text-slate-800">User Tracker (UID)</label>
+                                    <span className="text-[11px] font-medium text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
+                                        Permanent &amp; Immutable
+                                    </span>
+                                </div>
+                                <div className="relative flex items-center">
+                                    <Input
+                                        readOnly
+                                        value={currentUser?.uid || user?.uid || "Generating UID..."}
+                                        className="font-mono font-bold tracking-wider text-slate-900 bg-slate-50 border-slate-300 pr-32 select-all h-11 text-base"
+                                    />
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={handleCopyUid}
+                                        disabled={!(currentUser?.uid || user?.uid)}
+                                        className="absolute right-1.5 h-8 px-3 text-xs font-semibold text-slate-700 hover:text-blue-600 border-slate-200 hover:border-blue-300 flex items-center gap-1.5 bg-white shadow-xs transition-colors"
+                                    >
+                                        {copiedUid ? (
+                                            <>
+                                                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                                <span className="text-emerald-700">Copied!</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Copy className="w-3.5 h-3.5" />
+                                                <span>Copy UID</span>
+                                            </>
+                                        )}
+                                    </Button>
+                                </div>
+                                <p className="text-xs text-slate-500 mt-1.5">
+                                    Share this UID with trusted FINX users to connect or assign projects.
+                                </p>
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1">Full Name</label>
-                                <Input disabled value={user?.name || user?.fullName || "User"} />
+                                <Input disabled value={currentUser?.name || currentUser?.fullName || user?.name || user?.fullName || "User"} />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
-                                <Input disabled value={user?.email || ""} />
+                                <Input disabled value={currentUser?.email || user?.email || ""} />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1">Role / Account Type</label>
-                                <Input disabled value={user?.role || "UNKNOWN"} />
+                                <Input disabled value={currentUser?.role || user?.role || "UNKNOWN"} />
                             </div>
                             <Button disabled className="mt-4">Update Profile</Button>
                         </CardContent>

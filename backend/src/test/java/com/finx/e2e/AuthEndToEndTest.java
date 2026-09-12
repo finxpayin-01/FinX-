@@ -61,7 +61,9 @@ class AuthEndToEndTest {
                 .andExpect(jsonPath("$.data.accessToken").isNotEmpty())
                 .andExpect(jsonPath("$.data.refreshToken").isNotEmpty())
                 .andExpect(jsonPath("$.data.user.email").value(email))
-                .andExpect(jsonPath("$.data.user.role").value("BUYER"));
+                .andExpect(jsonPath("$.data.user.role").value("BUYER"))
+                .andExpect(jsonPath("$.data.user.uid").isNotEmpty())
+                .andExpect(jsonPath("$.data.user.uid").value(org.hamcrest.Matchers.matchesPattern("^USR-[0-9A-F]{8}$")));
 
         // 2. Attempt duplicate email registration -> should fail with 409 Conflict
         mockMvc.perform(post("/api/auth/register")
@@ -107,6 +109,7 @@ class AuthEndToEndTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.email").value(email))
+                .andExpect(jsonPath("$.data.uid").value(org.hamcrest.Matchers.matchesPattern("^USR-[0-9A-F]{8}$")))
                 .andExpect(jsonPath("$.data.role").value("BUYER"));
 
         // 7. Access protected /api/auth/me without token -> 401 Unauthorized
@@ -135,7 +138,8 @@ class AuthEndToEndTest {
         mockMvc.perform(get("/api/auth/me")
                         .header("Authorization", "Bearer " + newAccessToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.email").value(email));
+                .andExpect(jsonPath("$.data.email").value(email))
+                .andExpect(jsonPath("$.data.uid").value(org.hamcrest.Matchers.matchesPattern("^USR-[0-9A-F]{8}$")));
 
         // 10. Attempt to reuse OLD refresh token -> 401 Unauthorized (revoked)
         mockMvc.perform(post("/api/auth/refresh")
@@ -163,6 +167,67 @@ class AuthEndToEndTest {
 
         long auditCount = auditLogRepository.count();
         assertThat(auditCount).isGreaterThanOrEqualTo(3); // Registered, Login, Refreshed, etc.
+    }
+
+    @Test
+    @DisplayName("Verify registration works for all supported roles and aliases (BUYER, SELLER, CORPORATE, VENDOR, PROJECT_MANAGER, FINANCE)")
+    void testRegistrationWithAllSupportedRolesAndAliases() throws Exception {
+        String password = "StrongPassword123!";
+
+        // 1. BUYER
+        String buyerEmail = "test.buyer@finx.com";
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Buyer User\",\"email\":\"" + buyerEmail + "\",\"password\":\"" + password + "\",\"role\":\"BUYER\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.user.role").value("BUYER"));
+
+        // 2. SELLER
+        String sellerEmail = "test.seller@finx.com";
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Seller User\",\"email\":\"" + sellerEmail + "\",\"password\":\"" + password + "\",\"role\":\"SELLER\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.user.role").value("SELLER"));
+
+        // 3. CORPORATE alias (maps to BUYER)
+        String corporateEmail = "test.corporate@finx.com";
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Corporate User\",\"email\":\"" + corporateEmail + "\",\"password\":\"" + password + "\",\"role\":\"CORPORATE\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.user.role").value("BUYER"));
+
+        // 4. VENDOR alias (maps to SELLER)
+        String vendorEmail = "test.vendor@finx.com";
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Vendor User\",\"email\":\"" + vendorEmail + "\",\"password\":\"" + password + "\",\"role\":\"VENDOR\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.user.role").value("SELLER"));
+
+        // 5. PROJECT_MANAGER
+        String pmEmail = "test.pm@finx.com";
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"PM User\",\"email\":\"" + pmEmail + "\",\"password\":\"" + password + "\",\"role\":\"PROJECT_MANAGER\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.user.role").value("PROJECT_MANAGER"));
+
+        // 6. FINANCE
+        String financeEmail = "test.finance@finx.com";
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Finance User\",\"email\":\"" + financeEmail + "\",\"password\":\"" + password + "\",\"role\":\"FINANCE\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.user.role").value("FINANCE"));
+
+        // 7. Invalid role -> 400 Bad Request
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Invalid User\",\"email\":\"invalid.role@finx.com\",\"password\":\"" + password + "\",\"role\":\"SUPERUSER\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400));
     }
 
     @Test

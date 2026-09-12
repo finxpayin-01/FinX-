@@ -167,4 +167,63 @@ class DealServiceTest {
         assertThat(deals).hasSize(1);
         assertThat(deals.get(0).getTitle()).isEqualTo("Buyer Deal");
     }
+
+    @Test
+    @DisplayName("Successfully create deal when seller is referenced by UID (USR-XXXX)")
+    void createDeal_SuccessWithVendorUid() {
+        seller.setUid("USR-ABCD12");
+        CreateDealRequest request = new CreateDealRequest();
+        request.setSellerId("USR-ABCD12");
+        request.setTitle("Vendor UID Deal");
+        request.setTotalAmount(new BigDecimal("15000.00"));
+        request.setCurrency("INR");
+
+        when(userRepository.findByUidIgnoreCase("USR-ABCD12")).thenReturn(Optional.of(seller));
+        when(userRepository.findById(buyer.getId())).thenReturn(Optional.of(buyer));
+        when(dealRepository.saveAndFlush(any(Deal.class))).thenAnswer(invocation -> {
+            Deal d = invocation.getArgument(0);
+            d.setId(UUID.randomUUID());
+            return d;
+        });
+
+        DealResponse response = dealService.createDeal(request, buyerPrincipal);
+        assertThat(response.getSellerId()).isEqualTo(seller.getId());
+    }
+
+    @Test
+    @DisplayName("Reject deal creation when vendor UID is not found")
+    void createDeal_RejectsInvalidVendorUid() {
+        CreateDealRequest request = new CreateDealRequest();
+        request.setSellerId("USR-NONEXISTENT");
+        request.setTitle("Invalid Vendor Deal");
+        request.setTotalAmount(new BigDecimal("1000.00"));
+        request.setCurrency("INR");
+
+        when(userRepository.findByUidIgnoreCase("USR-NONEXISTENT")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> dealService.createDeal(request, buyerPrincipal))
+                .isInstanceOf(com.finx.exception.BadRequestException.class)
+                .hasMessageContaining("Vendor UID not found");
+    }
+
+    @Test
+    @DisplayName("Reject deal creation when referenced user does not have SELLER role")
+    void createDeal_RejectsNonSellerRole() {
+        User nonSeller = new User("PM User", "pm@finx.com", "hash", Role.PROJECT_MANAGER, UserStatus.ACTIVE);
+        nonSeller.setId(UUID.randomUUID());
+        nonSeller.setUid("USR-PMUSER12");
+
+        CreateDealRequest request = new CreateDealRequest();
+        request.setSellerId("USR-PMUSER12");
+        request.setTitle("Wrong Role Deal");
+        request.setTotalAmount(new BigDecimal("1000.00"));
+        request.setCurrency("INR");
+
+        when(userRepository.findByUidIgnoreCase("USR-PMUSER12")).thenReturn(Optional.of(nonSeller));
+        when(userRepository.findById(buyer.getId())).thenReturn(Optional.of(buyer));
+
+        assertThatThrownBy(() -> dealService.createDeal(request, buyerPrincipal))
+                .isInstanceOf(com.finx.exception.BadRequestException.class)
+                .hasMessageContaining("must have the SELLER role");
+    }
 }

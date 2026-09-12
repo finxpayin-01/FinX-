@@ -31,6 +31,13 @@ public class PaymentController {
         this.paymentService = paymentService;
     }
 
+    @GetMapping("/config")
+    @Operation(summary = "Get Razorpay configuration status", description = "Returns public configuration and whether Razorpay is configured")
+    public ResponseEntity<ApiResponse<java.util.Map<String, Object>>> getPaymentConfig() {
+        java.util.Map<String, Object> config = paymentService.getPaymentConfig();
+        return ResponseEntity.ok(ApiResponse.success("Payment configuration retrieved", config));
+    }
+
     @PostMapping("/create-order")
     @Operation(summary = "Create Razorpay payment order", description = "Initiates a payment order for an approved milestone")
     public ResponseEntity<ApiResponse<CreateOrderResponse>> createPaymentOrder(

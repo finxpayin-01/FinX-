@@ -8,19 +8,22 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import Link from "next/link";
-import { ShieldCheck, CheckCircle2, ChevronRight } from "lucide-react";
+import { ShieldCheck, CheckCircle2 } from "lucide-react";
 import axios from "axios";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
+
+const PASSWORD_REGEX = /^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`]).*$/;
 
 const registerSchema = z.object({
     fullName: z.string().trim().min(2, { message: "Name must be at least 2 characters" }),
     email: z.string().trim().email({ message: "Invalid email address" }),
     password: z.string()
         .min(8, { message: "Password must be at least 8 characters" })
-        .regex(/^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[@#$%^&+=!._-]).*$/, {
+        .max(100, { message: "Password must be at most 100 characters" })
+        .regex(PASSWORD_REGEX, {
             message: "Password must contain at least one digit, one lowercase letter, one uppercase letter, and one special character"
         }),
-    confirmPassword: z.string(),
+    confirmPassword: z.string().min(1, { message: "Please confirm your password" }),
     role: z.enum(["CORPORATE", "VENDOR", "PROJECT_MANAGER", "FINANCE"], { required_error: "Please select a role" }),
 }).refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match",
@@ -44,9 +47,47 @@ export default function RegisterPage() {
     });
 
     const selectedRole = watch("role");
+    const passwordValue = watch("password") || "";
+    const confirmPasswordValue = watch("confirmPassword") || "";
+
+    const passwordCriteria = [
+        {
+            id: "length",
+            label: "8+ characters",
+            met: passwordValue.length >= 8 && passwordValue.length <= 100,
+        },
+        {
+            id: "uppercase",
+            label: "One uppercase letter",
+            met: /[A-Z]/.test(passwordValue),
+        },
+        {
+            id: "lowercase",
+            label: "One lowercase letter",
+            met: /[a-z]/.test(passwordValue),
+        },
+        {
+            id: "number",
+            label: "One number",
+            met: /[0-9]/.test(passwordValue),
+        },
+        {
+            id: "special",
+            label: "One special character",
+            met: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`]/.test(passwordValue),
+        },
+        {
+            id: "match",
+            label: "Passwords match",
+            met: passwordValue.length > 0 && passwordValue === confirmPasswordValue,
+        },
+    ];
+
+    const [isPending, setIsPending] = useState<boolean>(false);
 
     const onSubmit = async (data: RegisterFormValues) => {
         setError(null);
+        setIsPending(true);
         try {
             await registerAction({
                 name: data.fullName,
@@ -55,24 +96,62 @@ export default function RegisterPage() {
                 role: data.role,
             });
             setSuccess(true);
-        } catch (err) {
-            // @ts-expect-error type any
-            const errorResponse = err.response?.data?.message || err.message || "";
-            if (err instanceof TypeError || errorResponse.toLowerCase().includes('network')) {
+        } catch (err: unknown) {
+            // @ts-expect-error axios / error inspection
+            const code = err?.code;
+            // @ts-expect-error axios / error inspection
+            const status = err?.response?.status;
+            // @ts-expect-error axios / error inspection
+            const data = err?.response?.data;
+            // @ts-expect-error axios / error inspection
+            const message = data?.message || data?.error || err?.message || "";
+
+            // Check for timeout
+            if (code === 'ECONNABORTED' || message.toLowerCase().includes('timeout') || message.toLowerCase().includes('taking longer')) {
+                setError("Registration is taking longer than expected. Please try again.");
+                return;
+            }
+
+            // Check for network failure / unreachable backend
+            if (err instanceof TypeError || message.toLowerCase().includes('network') || (axios.isAxiosError(err) && !err.response)) {
                 setError("Unable to connect to FINX. Please check your connection and try again.");
-            } else if (axios.isAxiosError(err) && err.response?.status === 409) {
+                return;
+            }
+
+            // Handle duplicate email
+            if (status === 409) {
                 setError("This email is already registered. Please sign in.");
-            } else if (axios.isAxiosError(err) && err.response?.status === 400) {
-                const backendErrors = err.response?.data?.errors;
-                if (backendErrors && typeof backendErrors === 'object') {
-                    const firstError = Object.values(backendErrors)[0];
+                return;
+            }
+
+            // Handle validation errors
+            if (status === 400) {
+                const validationErrors = data?.validationErrors || data?.errors;
+                if (validationErrors && typeof validationErrors === 'object') {
+                    const firstError = Object.values(validationErrors)[0];
                     setError(firstError as string);
                 } else {
-                    setError(errorResponse || "Validation failed. Please check your inputs.");
+                    setError(message || "Validation failed. Please check your inputs.");
                 }
-            } else {
-                setError(errorResponse || "Failed to create account. Please try again.");
+                return;
             }
+
+            // Handle unauthorized / forbidden
+            if (status === 401 || status === 403) {
+                setError(message || "Registration not permitted for this role.");
+                return;
+            }
+
+            // Handle 5xx server errors
+            if (status && status >= 500) {
+                setError("The server encountered an error processing your registration. Please try again shortly.");
+                return;
+            }
+
+            // Generic fallback without exposing stack traces
+            setError(message || "Failed to create account. Please try again.");
+        } finally {
+            setIsPending(false);
         }
     };
 
@@ -184,6 +263,33 @@ export default function RegisterPage() {
                                 />
                             </div>
 
+                            {/* Live Password Requirements Checklist */}
+                            <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-3 text-xs space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <span className="font-semibold text-slate-700">Password requirements:</span>
+                                    <span className="text-[11px] text-slate-400">Updates live</span>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    {passwordCriteria.map((item) => (
+                                        <div
+                                            key={item.id}
+                                            className={`flex items-center gap-1.5 transition-colors duration-150 ${
+                                                item.met ? "text-emerald-700 font-medium" : "text-slate-500"
+                                            }`}
+                                        >
+                                            {item.met ? (
+                                                <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
+                                            ) : (
+                                                <div className="w-3.5 h-3.5 rounded-full border border-slate-300 shrink-0 flex items-center justify-center">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                                                </div>
+                                            )}
+                                            <span>{item.label}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
                             <div className="space-y-2 pt-2">
                                 <label className="block text-sm font-medium text-slate-700">Select your Role on FINX</label>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -223,7 +329,14 @@ export default function RegisterPage() {
                                 {errors.role && <p className="mt-1 text-sm text-red-500">{errors.role.message}</p>}
                             </div>
 
-                            <Button type="submit" className="w-full mt-6" isLoading={isSubmitting} disabled={isSubmitting}>
+                            {error && (
+                                <div className="mt-4 bg-red-50 text-red-600 p-3 rounded-md text-sm border border-red-100 flex items-start gap-2">
+                                    <div className="mt-0.5">⚠️</div>
+                                    <p>{error}</p>
+                                </div>
+                            )}
+
+                            <Button type="submit" className="w-full mt-6" isLoading={isPending} disabled={isPending}>
                                 Create Account
                             </Button>
                         </form>

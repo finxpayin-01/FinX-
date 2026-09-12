@@ -24,11 +24,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const pathname = usePathname();
 
     const redirectBasedOnRole = useCallback((role: Role) => {
-        if (role === "ADMIN") router.push("/admin");
-        else if (role === "FINANCE") router.push("/finance");
-        else if (role === "PROJECT_MANAGER") router.push("/project-manager");
-        else if (role === "VENDOR" || role === "SELLER") router.push("/vendor");
-        else router.push("/corporate");
+        let target = "/corporate";
+        if (role === "ADMIN") target = "/admin";
+        else if (role === "FINANCE") target = "/finance";
+        else if (role === "PROJECT_MANAGER") target = "/project-manager";
+        else if (role === "VENDOR" || role === "SELLER") target = "/vendor";
+        
+        router.push(target);
+        if (typeof window !== "undefined") {
+            setTimeout(() => {
+                if (window.location.pathname === "/register" || window.location.pathname === "/login") {
+                    window.location.href = target;
+                }
+            }, 600);
+        }
     }, [router]);
 
     const setSession = useCallback((accessToken: string, refreshToken: string, userData: User) => {

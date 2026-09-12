@@ -10,6 +10,7 @@ import com.finx.exception.BadRequestException;
 import com.finx.milestone.entity.Milestone;
 import com.finx.milestone.repository.MilestoneRepository;
 import com.finx.notification.service.NotificationService;
+import com.finx.payment.config.RazorpayProperties;
 import com.finx.payment.dto.request.CreateOrderRequest;
 import com.finx.payment.dto.request.VerifyPaymentRequest;
 import com.finx.payment.dto.response.CreateOrderResponse;
@@ -228,5 +229,30 @@ class PaymentServiceTest {
                 .hasMessageContaining("Invalid webhook signature");
 
         verify(paymentRepository, never()).findByProviderOrderIdForUpdate(any());
+    }
+
+    @Test
+    @DisplayName("Retrieve payment configuration correctly")
+    void getPaymentConfig_returnsAccurateStatus() {
+        RazorpayProperties props = new RazorpayProperties();
+        props.setCurrency("INR");
+        props.setSandboxMode(true);
+        when(razorpayService.isConfigured()).thenReturn(true);
+        when(razorpayService.isKeyIdPresent()).thenReturn(true);
+        when(razorpayService.isKeySecretPresent()).thenReturn(true);
+        when(razorpayService.isWebhookSecretPresent()).thenReturn(true);
+        when(razorpayService.getKeyMode()).thenReturn("TEST");
+        when(razorpayService.getProperties()).thenReturn(props);
+        when(razorpayService.getPublicKeySafe()).thenReturn("rzp_test_123");
+
+        java.util.Map<String, Object> config = paymentService.getPaymentConfig();
+
+        assertThat(config.get("configured")).isEqualTo(true);
+        assertThat(config.get("keyIdPresent")).isEqualTo(true);
+        assertThat(config.get("keySecretPresent")).isEqualTo(true);
+        assertThat(config.get("mode")).isEqualTo("TEST");
+        assertThat(config.get("currency")).isEqualTo("INR");
+        assertThat(config.get("sandboxMode")).isEqualTo(true);
+        assertThat(config.get("keyId")).isEqualTo("rzp_test_123");
     }
 }

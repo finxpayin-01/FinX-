@@ -11,19 +11,23 @@
 }
 
 :root {
+  color-scheme: light;
   --background: #f8fafc; /* Slate 50 */
   --foreground: #0f172a; /* Slate 900 */
 }
 
-/* Ensure foreground remains dark slate even if system prefers dark mode, preserving FINX light theme */
+/* Enforce light color scheme and visible slate foreground across all OS themes */
 @media (prefers-color-scheme: dark) {
   :root {
+    color-scheme: light;
     --background: #f8fafc;
     --foreground: #0f172a;
   }
 }
 
+html,
 body {
+  color-scheme: light;
   background-color: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans, system-ui, sans-serif);
@@ -33,13 +37,24 @@ body {
 input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
 textarea,
 select {
-  color: #0f172a;
-  background-color: #ffffff;
+  color: #0f172a !important;
+  background-color: #ffffff !important;
+}
+
+/* Prevent browser autofill from rendering transparent or white text */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-text-fill-color: #0f172a !important;
+  -webkit-box-shadow: 0 0 0px 1000px #ffffff inset !important;
+  transition: background-color 5000s ease-in-out 0s;
 }
 
 input::placeholder,
 textarea::placeholder {
-  color: #94a3b8;
+  color: #94a3b8 !important;
   opacity: 1;
 }
 

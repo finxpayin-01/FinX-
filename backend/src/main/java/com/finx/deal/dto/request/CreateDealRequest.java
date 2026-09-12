@@ -18,8 +18,8 @@ public class CreateDealRequest {
 
     private UUID buyerId;
 
-    @NotNull(message = "Seller ID is required")
-    private UUID sellerId;
+    @NotBlank(message = "Seller ID or UID is required")
+    private String sellerId;
 
     @NotNull(message = "Total amount is required")
     @DecimalMin(value = "0.01", message = "Total amount must be at least 0.01")
@@ -34,6 +34,15 @@ public class CreateDealRequest {
     }
 
     public CreateDealRequest(String title, String description, UUID buyerId, UUID sellerId, BigDecimal totalAmount, String currency) {
+        this.title = title;
+        this.description = description;
+        this.buyerId = buyerId;
+        this.sellerId = sellerId != null ? sellerId.toString() : null;
+        this.totalAmount = totalAmount;
+        this.currency = currency;
+    }
+
+    public CreateDealRequest(String title, String description, UUID buyerId, String sellerId, BigDecimal totalAmount, String currency) {
         this.title = title;
         this.description = description;
         this.buyerId = buyerId;
@@ -66,12 +75,16 @@ public class CreateDealRequest {
         this.buyerId = buyerId;
     }
 
-    public UUID getSellerId() {
+    public String getSellerId() {
         return sellerId;
     }
 
-    public void setSellerId(UUID sellerId) {
+    public void setSellerId(String sellerId) {
         this.sellerId = sellerId;
+    }
+
+    public void setSellerId(UUID sellerId) {
+        this.sellerId = sellerId != null ? sellerId.toString() : null;
     }
 
     public BigDecimal getTotalAmount() {

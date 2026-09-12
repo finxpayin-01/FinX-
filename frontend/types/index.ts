@@ -60,7 +60,9 @@ export type MilestoneStatus =
   | "APPROVED"
   | "REJECTED"
   | "RELEASE_PENDING"
-  | "RELEASED";
+  | "RELEASED"
+  | "COMPLETED"
+  | "CANCELLED";
 
 export interface Project {
   id: string;

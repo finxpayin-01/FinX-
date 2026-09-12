@@ -372,4 +372,17 @@ public class PaymentService {
         }
         throw new UnauthorizedException("You do not have access to view this payment");
     }
+
+    public Map<String, Object> getPaymentConfig() {
+        return Map.of(
+                "configured", razorpayService.isConfigured(),
+                "keyIdPresent", razorpayService.isKeyIdPresent(),
+                "keySecretPresent", razorpayService.isKeySecretPresent(),
+                "webhookSecretPresent", razorpayService.isWebhookSecretPresent(),
+                "mode", razorpayService.getKeyMode(),
+                "currency", razorpayService.getProperties().getCurrency() != null ? razorpayService.getProperties().getCurrency() : "INR",
+                "sandboxMode", razorpayService.getProperties().isSandboxMode(),
+                "keyId", razorpayService.isConfigured() ? razorpayService.getPublicKeySafe() : ""
+        );
+    }
 }

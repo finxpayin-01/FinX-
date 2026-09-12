@@ -62,15 +62,50 @@ public class DealService {
             throw new BadRequestException("Buyer ID is required to create a deal");
         }
 
-        if (buyerId.equals(request.getSellerId())) {
+        String sellerInput = request.getSellerId() != null ? request.getSellerId().trim() : "";
+        if (sellerInput.isEmpty()) {
+            throw new BadRequestException("Seller ID or UID is required");
+        }
+
+        if (sellerInput.equalsIgnoreCase(buyerId.toString())) {
+            throw new BadRequestException("Buyer and Seller cannot be the same account");
+        }
+
+        User seller = null;
+
+        // 1. Try resolving as UUID
+        try {
+            UUID sellerUuid = UUID.fromString(sellerInput);
+            seller = userRepository.findById(sellerUuid).orElse(null);
+        } catch (IllegalArgumentException ignored) {
+            // Not a UUID, fallback to UID
+        }
+
+        // 2. Try resolving as UID
+        if (seller == null) {
+            seller = userRepository.findByUidIgnoreCase(sellerInput).orElse(null);
+        }
+
+        // 3. Try resolving with "USR-" prefix if missing
+        if (seller == null && !sellerInput.toUpperCase().startsWith("USR-")) {
+            seller = userRepository.findByUidIgnoreCase("USR-" + sellerInput.toUpperCase()).orElse(null);
+        }
+
+        // 4. Try resolving via vendorEmail if provided
+        if (seller == null && request.getVendorEmail() != null && !request.getVendorEmail().isBlank()) {
+            seller = userRepository.findByEmail(request.getVendorEmail().trim()).orElse(null);
+        }
+
+        if (seller == null) {
+            throw new BadRequestException("Vendor UID not found: " + sellerInput);
+        }
+
+        if (buyerId.equals(seller.getId())) {
             throw new BadRequestException("Buyer and Seller cannot be the same account");
         }
 
         User buyer = userRepository.findById(buyerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Buyer", "id", buyerId));
-
-        User seller = userRepository.findById(request.getSellerId())
-                .orElseThrow(() -> new ResourceNotFoundException("Seller", "id", request.getSellerId()));
 
         if (seller.getRole() != Role.SELLER) {
             throw new BadRequestException("Specified seller must have the SELLER role");
@@ -112,7 +147,9 @@ public class DealService {
         Deal deal = dealRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", id));
 
-        if (currentUser != null && currentUser.getRole() != Role.ADMIN) {
+        if (currentUser != null && currentUser.getRole() != Role.ADMIN &&
+                currentUser.getRole() != Role.PROJECT_MANAGER &&
+                currentUser.getRole() != Role.FINANCE) {
             boolean isParty = deal.getBuyerId().equals(currentUser.getId()) || deal.getSellerId().equals(currentUser.getId());
             if (!isParty) {
                 throw new UnauthorizedException("You are not authorized to view this deal");

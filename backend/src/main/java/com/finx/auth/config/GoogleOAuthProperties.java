@@ -78,17 +78,25 @@ public class GoogleOAuthProperties {
     }
 
     public String buildAuthorizationUrl() {
+        return buildAuthorizationUrl(null);
+    }
+
+    public String buildAuthorizationUrl(String state) {
         if (!isConfigured()) {
             return null;
         }
         try {
-            return "https://accounts.google.com/o/oauth2/v2/auth" +
+            String url = "https://accounts.google.com/o/oauth2/v2/auth" +
                     "?client_id=" + java.net.URLEncoder.encode(clientId, java.nio.charset.StandardCharsets.UTF_8) +
                     "&redirect_uri=" + java.net.URLEncoder.encode(redirectUri, java.nio.charset.StandardCharsets.UTF_8) +
                     "&response_type=code" +
                     "&scope=" + java.net.URLEncoder.encode("openid email profile", java.nio.charset.StandardCharsets.UTF_8) +
                     "&access_type=offline" +
                     "&prompt=select_account";
+            if (state != null && !state.trim().isEmpty()) {
+                url += "&state=" + java.net.URLEncoder.encode(state.trim(), java.nio.charset.StandardCharsets.UTF_8);
+            }
+            return url;
         } catch (Exception e) {
             log.error("Failed to encode Google authorization URL", e);
             return null;

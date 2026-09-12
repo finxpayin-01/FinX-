@@ -27,10 +27,30 @@ function GoogleCallbackContent() {
                 return;
             }
 
-            const accessToken = searchParams.get("accessToken");
-            const refreshToken = searchParams.get("refreshToken");
-            const role = searchParams.get("role") || "BUYER";
+            // 1. Extract tokens from URL hash fragment (secure: #accessToken=...) or searchParams (fallback)
+            let accessToken = searchParams.get("accessToken");
+            let refreshToken = searchParams.get("refreshToken");
+            let role = searchParams.get("role") || "BUYER";
             const code = searchParams.get("code");
+
+            if (typeof window !== "undefined" && window.location.hash) {
+                const hash = window.location.hash.startsWith("#") ? window.location.hash.substring(1) : window.location.hash;
+                const hashParams = new URLSearchParams(hash);
+                if (hashParams.get("accessToken")) {
+                    accessToken = hashParams.get("accessToken");
+                }
+                if (hashParams.get("refreshToken")) {
+                    refreshToken = hashParams.get("refreshToken");
+                }
+                if (hashParams.get("role")) {
+                    role = hashParams.get("role")!;
+                }
+                // Immediately scrub sensitive tokens from the browser URL history and address bar
+                window.history.replaceState(null, "", window.location.pathname);
+            } else if (accessToken) {
+                // If tokens arrived in query params, scrub them immediately
+                window.history.replaceState(null, "", window.location.pathname);
+            }
 
             if (accessToken && refreshToken) {
                 try {
@@ -44,6 +64,8 @@ function GoogleCallbackContent() {
 
                     // Redirect to role dashboard
                     if (user.role === "ADMIN") router.push("/admin");
+                    else if (user.role === "FINANCE") router.push("/finance");
+                    else if (user.role === "PROJECT_MANAGER") router.push("/project-manager");
                     else if (user.role === "SELLER" || user.role === "VENDOR") router.push("/vendor");
                     else router.push("/corporate");
                 } catch (e: any) {

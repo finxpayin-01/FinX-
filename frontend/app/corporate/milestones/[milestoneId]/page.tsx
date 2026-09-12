@@ -5,9 +5,10 @@ import { useParams, useRouter } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { milestoneService, MILESTONE_API_DISABLED_MSG } from "@/services/milestone.service";
+import { milestoneService } from "@/services/milestone.service";
 import { Milestone } from "@/types";
-import { ArrowLeft, HardHat, AlertCircle, RefreshCw } from "lucide-react";
+import { ArrowLeft, AlertCircle, RefreshCw } from "lucide-react";
+import { MilestoneStatusBadge } from "@/components/ui/MilestoneStatusBadge";
 
 export default function CorporateMilestoneDetailsPage() {
     const params = useParams();
@@ -24,8 +25,11 @@ export default function CorporateMilestoneDetailsPage() {
         try {
             const data = await milestoneService.getMilestone(milestoneId);
             setMilestone(data);
+            if (data?.projectId || data?.dealId) {
+                router.replace(`/corporate/projects/${data.projectId || data.dealId}/milestones/${data.id}`);
+            }
         } catch (err: any) {
-            setError(err.message || "Failed to fetch milestone details");
+            setError(err?.response?.data?.message || err.message || "Failed to fetch milestone details");
         } finally {
             setIsLoading(false);
         }
@@ -37,8 +41,6 @@ export default function CorporateMilestoneDetailsPage() {
         }
     }, [milestoneId]);
 
-    const isApiDisabled = error === MILESTONE_API_DISABLED_MSG;
-
     return (
         <DashboardLayout>
             <div className="space-y-6 max-w-4xl">
@@ -46,19 +48,7 @@ export default function CorporateMilestoneDetailsPage() {
                     <ArrowLeft size={16} /> Back to Milestones
                 </Button>
 
-                {isApiDisabled ? (
-                    <Card className="mt-8 border-dashed border-2 border-slate-200">
-                        <CardContent className="flex flex-col items-center justify-center p-12 text-center bg-slate-50">
-                            <div className="h-16 w-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mb-4">
-                                <HardHat size={32} />
-                            </div>
-                            <h2 className="text-xl font-semibold text-slate-900">Details Unavailable</h2>
-                            <p className="text-slate-500 mt-2 max-w-md">
-                                {MILESTONE_API_DISABLED_MSG} Check back later to see details and actions for milestone <strong>{milestoneId}</strong>.
-                            </p>
-                        </CardContent>
-                    </Card>
-                ) : error ? (
+                {error ? (
                     <div className="p-6 text-center text-red-600 bg-red-50 rounded-lg flex flex-col items-center">
                         <AlertCircle className="mb-2" size={24} />
                         <p>{error}</p>
@@ -67,11 +57,33 @@ export default function CorporateMilestoneDetailsPage() {
                 ) : isLoading ? (
                     <div className="p-24 text-center text-slate-500 flex flex-col items-center">
                         <RefreshCw size={32} className="animate-spin text-blue-500 mb-4" />
-                        <p>Loading milestone...</p>
+                        <p>Loading milestone details...</p>
                     </div>
-                ) : (
-                    <div>{/* Functional Details will render here when API exists */}</div>
-                )}
+                ) : milestone ? (
+                    <Card className="border border-slate-200">
+                        <CardContent className="p-6 space-y-4">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <h2 className="text-xl font-bold text-slate-900">{milestone.title}</h2>
+                                    <p className="text-sm text-slate-500 mt-1">{milestone.description}</p>
+                                </div>
+                                <MilestoneStatusBadge status={milestone.status} />
+                            </div>
+                            <div className="pt-4 border-t border-slate-100 flex gap-6 text-sm">
+                                <div>
+                                    <span className="text-slate-500">Amount:</span>{" "}
+                                    <strong className="text-slate-900">₹{Number(milestone.amount).toLocaleString("en-IN")} {milestone.currency || "INR"}</strong>
+                                </div>
+                                {milestone.dueDate && (
+                                    <div>
+                                        <span className="text-slate-500">Due Date:</span>{" "}
+                                        <strong className="text-slate-900">{new Date(milestone.dueDate).toLocaleDateString("en-IN")}</strong>
+                                    </div>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
+                ) : null}
             </div>
         </DashboardLayout>
     );

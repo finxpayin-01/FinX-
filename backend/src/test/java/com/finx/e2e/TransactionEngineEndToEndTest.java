@@ -45,6 +45,12 @@ class TransactionEngineEndToEndTest {
     @Autowired
     private RazorpayService razorpayService;
 
+    @Autowired
+    private com.finx.user.repository.UserRepository userRepository;
+
+    @Autowired
+    private com.finx.security.jwt.JwtTokenProvider jwtTokenProvider;
+
     @Test
     @DisplayName("Complete Thursday E2E Transaction Engine: Deal -> Milestone -> Deliverable -> Approve -> Pay -> Escrow Fund -> Release -> Double-Release Protection")
     void testCompleteTransactionLifecycle() throws Exception {
@@ -221,15 +227,26 @@ class TransactionEngineEndToEndTest {
                         .content("{\"comment\":\"Attempt duplicate release\"}"))
                 .andExpect(status().isBadRequest());
 
-        // 15. Verify Admin Dashboard & Audit Trail
+        // 15. Verify Admin Authorization & Audit Trail
+        // Buyer must be forbidden (403) from admin endpoints
         mockMvc.perform(get("/api/admin/dashboard")
                         .header("Authorization", "Bearer " + buyerToken))
+                .andExpect(status().isForbidden());
+
+        // Admin user has access
+        String adminEmail = "platform.admin." + timestamp + "@finx.test";
+        com.finx.user.entity.User admin = new com.finx.user.entity.User("Platform Admin", adminEmail, "hash", Role.ADMIN, com.finx.common.enums.UserStatus.ACTIVE);
+        admin = userRepository.save(admin);
+        String adminToken = jwtTokenProvider.generateAccessToken(admin);
+
+        mockMvc.perform(get("/api/admin/dashboard")
+                        .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.totalDeals").isNotEmpty())
                 .andExpect(jsonPath("$.data.totalFundsDeposited").isNotEmpty());
 
         mockMvc.perform(get("/api/admin/audit-logs")
-                        .header("Authorization", "Bearer " + buyerToken))
+                        .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").isArray());
     }

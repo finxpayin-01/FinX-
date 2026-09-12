@@ -77,8 +77,8 @@ export default function CorporateProjectsPage() {
                 description,
                 totalAmount: parseFloat(amount),
                 currency,
-                sellerId: sellerId || undefined as any,
-                vendorEmail: vendorEmail || undefined
+                sellerId: (sellerId || "").trim(),
+                vendorEmail: (vendorEmail || "").trim() || undefined
             };
             await dealService.createDeal(request);
             setIsCreateModalOpen(false);
@@ -307,18 +307,17 @@ export default function CorporateProjectsPage() {
                                                 onClick={() => setIsManualSeller(!isManualSeller)}
                                                 className="text-xs text-blue-600 hover:underline"
                                             >
-                                                {isManualSeller ? "Select from registered sellers" : "Enter UUID manually"}
+                                                {isManualSeller ? "Select from registered sellers" : "Enter Vendor UID manually"}
                                             </button>
                                         )}
                                     </div>
-
 
                                     {isManualSeller ? (
                                         <Input
                                             required
                                             value={sellerId}
                                             onChange={e => setSellerId(e.target.value)}
-                                            placeholder="Vendor UID or UUID (e.g. USR-12AB34CD)"
+                                            placeholder="Vendor UID (e.g. USR-8F3A21C7)"
                                         />
                                     ) : sellers.length > 0 ? (
                                         <select
@@ -326,13 +325,13 @@ export default function CorporateProjectsPage() {
                                             value={sellerId}
                                             onChange={e => {
                                                 setSellerId(e.target.value);
-                                                const s = sellers.find(x => x.id === e.target.value);
+                                                const s = sellers.find(x => x.id === e.target.value || x.uid === e.target.value);
                                                 if (s && !vendorEmail) setVendorEmail(s.email);
                                             }}
                                             className="w-full h-10 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                         >
                                             {sellers.map((s) => (
-                                                <option key={s.id} value={s.id} className="text-slate-900 bg-white">
+                                                <option key={s.id} value={s.uid || s.id} className="text-slate-900 bg-white">
                                                     {s.name} ({s.uid || s.id.substring(0, 8)})
                                                 </option>
                                             ))}
@@ -342,14 +341,12 @@ export default function CorporateProjectsPage() {
                                             required
                                             value={sellerId}
                                             onChange={e => setSellerId(e.target.value)}
-                                            placeholder="Vendor UID (e.g. USR-12AB34CD)"
+                                            placeholder="Vendor UID (e.g. USR-8F3A21C7)"
                                         />
                                     )}
-                                    {sellers.length === 0 && !isLoadingSellers && (
-                                        <p className="text-xs text-slate-500 mt-1">
-                                            No registered vendors found. Enter a vendor User UID manually.
-                                        </p>
-                                    )}
+                                    <p className="text-xs text-slate-500 mt-1">
+                                        Enter or select the Vendor's public User Tracker UID (e.g. USR-8F3A21C7) to assign to this deal.
+                                    </p>
                                 </div>
 
                                 <div className="pt-2 border-t border-slate-100">
