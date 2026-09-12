@@ -1,0 +1,148 @@
+WARNING: A restricted method in java.lang.System has been called
+WARNING: java.lang.System::load has been called by org.fusesource.jansi.internal.JansiLoader in an unnamed module (file:/C:/Users/moham/.m2/wrapper/dists/apache-maven-3.9.9/8e74001100ff70d6af083c5511fcc5ec49282d7017cde82c3698eee8fdf86698/lib/jansi-2.4.1.jar)
+WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for callers in this module
+WARNING: Restricted methods will be blocked in a future release unless native access is enabled
+
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper (file:/C:/Users/moham/.m2/wrapper/dists/apache-maven-3.9.9/8e74001100ff70d6af083c5511fcc5ec49282d7017cde82c3698eee8fdf86698/lib/guava-33.2.1-jre.jar)
+WARNING: Please consider reporting this to the maintainers of class com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] -----------------------< com.finx:finx-backend >------------------------
+[INFO] Building finx-backend 1.0.0
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] >>> spring-boot:3.4.3:run (default-cli) > test-compile @ finx-backend >>>
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ finx-backend ---
+[INFO] Copying 4 resources from src\main\resources to target\classes
+[INFO] Copying 4 resources from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ finx-backend ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ finx-backend ---
+[INFO] skip non existing resourceDirectory C:\Users\moham\Downloads\FinX-\backend\src\test\resources
+[INFO] 
+[INFO] --- compiler:3.13.0:testCompile (default-testCompile) @ finx-backend ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] <<< spring-boot:3.4.3:run (default-cli) < test-compile @ finx-backend <<<
+[INFO] 
+[INFO] 
+[INFO] --- spring-boot:3.4.3:run (default-cli) @ finx-backend ---
+[INFO] Attaching agents: []
+18:13:29.385 [main] INFO com.finx.FinxApplication -- Loading environment variables from: C:\Users\moham\Downloads\FinX-\backend\.env
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.4.3)
+
+2026-09-12 18:13:29.878 [main] INFO  com.finx.FinxApplication - Starting FinxApplication using Java 25.0.3 with PID 23844 (C:\Users\moham\Downloads\FinX-\backend\target\classes started by moham in C:\Users\moham\Downloads\FinX-\backend)
+2026-09-12 18:13:29.879 [main] DEBUG com.finx.FinxApplication - Running with Spring Boot v3.4.3, Spring v6.2.3
+2026-09-12 18:13:29.879 [main] INFO  com.finx.FinxApplication - The following 1 profile is active: "local"
+2026-09-12 18:13:30.570 [main] INFO  o.s.d.r.c.RepositoryConfigurationDelegate - Multiple Spring Data modules found, entering strict repository configuration mode
+2026-09-12 18:13:30.570 [main] INFO  o.s.d.r.c.RepositoryConfigurationDelegate - Bootstrapping Spring Data Redis repositories in DEFAULT mode.
+2026-09-12 18:13:30.587 [main] INFO  o.s.d.r.c.RepositoryConfigurationDelegate - Finished Spring Data repository scanning in 4 ms. Found 0 Redis repository interfaces.
+2026-09-12 18:13:30.889 [main] INFO  o.s.d.r.c.RepositoryConfigurationDelegate - Multiple Spring Data modules found, entering strict repository configuration mode
+2026-09-12 18:13:30.890 [main] INFO  o.s.d.r.c.RepositoryConfigurationDelegate - Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-09-12 18:13:31.053 [main] INFO  o.s.d.r.c.RepositoryConfigurationDelegate - Finished Spring Data repository scanning in 159 ms. Found 11 JPA repository interfaces.
+2026-09-12 18:13:31.057 [main] INFO  o.s.d.r.c.RepositoryConfigurationDelegate - Multiple Spring Data modules found, entering strict repository configuration mode
+2026-09-12 18:13:31.058 [main] INFO  o.s.d.r.c.RepositoryConfigurationDelegate - Bootstrapping Spring Data Redis repositories in DEFAULT mode.
+2026-09-12 18:13:31.081 [main] INFO  o.s.d.r.c.RepositoryConfigurationExtensionSupport - Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finx.audit.repository.AuditLogRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-09-12 18:13:31.081 [main] INFO  o.s.d.r.c.RepositoryConfigurationExtensionSupport - Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finx.auth.repository.RefreshTokenRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-09-12 18:13:31.081 [main] INFO  o.s.d.r.c.RepositoryConfigurationExtensionSupport - Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finx.deal.repository.DealRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-09-12 18:13:31.081 [main] INFO  o.s.d.r.c.RepositoryConfigurationExtensionSupport - Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finx.dispute.repository.DisputeRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-09-12 18:13:31.081 [main] INFO  o.s.d.r.c.RepositoryConfigurationExtensionSupport - Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finx.escrow.repository.EscrowAccountRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-09-12 18:13:31.083 [main] INFO  o.s.d.r.c.RepositoryConfigurationExtensionSupport - Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finx.escrow.repository.EscrowLedgerRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-09-12 18:13:31.083 [main] INFO  o.s.d.r.c.RepositoryConfigurationExtensionSupport - Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finx.milestone.repository.DeliverableRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-09-12 18:13:31.083 [main] INFO  o.s.d.r.c.RepositoryConfigurationExtensionSupport - Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finx.milestone.repository.MilestoneRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-09-12 18:13:31.083 [main] INFO  o.s.d.r.c.RepositoryConfigurationExtensionSupport - Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finx.notification.repository.NotificationRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-09-12 18:13:31.083 [main] INFO  o.s.d.r.c.RepositoryConfigurationExtensionSupport - Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finx.payment.repository.PaymentRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-09-12 18:13:31.083 [main] INFO  o.s.d.r.c.RepositoryConfigurationExtensionSupport - Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finx.user.repository.UserRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-09-12 18:13:31.083 [main] INFO  o.s.d.r.c.RepositoryConfigurationDelegate - Finished Spring Data repository scanning in 24 ms. Found 0 Redis repository interfaces.
+WARNING: A restricted method in java.lang.System has been called
+WARNING: java.lang.System::load has been called by org.apache.tomcat.jni.Library in an unnamed module (file:/C:/Users/moham/.m2/repository/org/apache/tomcat/embed/tomcat-embed-core/10.1.36/tomcat-embed-core-10.1.36.jar)
+WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for callers in this module
+WARNING: Restricted methods will be blocked in a future release unless native access is enabled
+
+2026-09-12 18:13:31.767 [main] INFO  o.s.b.w.e.tomcat.TomcatWebServer - Tomcat initialized with port 8080 (http)
+2026-09-12 18:13:31.780 [main] INFO  o.a.catalina.core.StandardService - Starting service [Tomcat]
+2026-09-12 18:13:31.780 [main] INFO  o.a.catalina.core.StandardEngine - Starting Servlet engine: [Apache Tomcat/10.1.36]
+2026-09-12 18:13:31.843 [main] INFO  o.a.c.c.C.[Tomcat].[localhost].[/] - Initializing Spring embedded WebApplicationContext
+2026-09-12 18:13:31.844 [main] INFO  o.s.b.w.s.c.ServletWebServerApplicationContext - Root WebApplicationContext: initialization completed in 1924 ms
+2026-09-12 18:13:32.031 [main] INFO  com.finx.config.DatabaseConfig - Detected standard URI database connection string (Supabase/Render). Converting to JDBC...
+2026-09-12 18:13:32.034 [main] INFO  com.finx.config.DatabaseConfig - [DATABASE TARGET] PostgreSQL host=aws-0-ap-southeast-1.pooler.supabase.com, port=6543, path=/postgres, username=postgres.rhmoxuwxbsxezubrvmkj
+2026-09-12 18:13:32.039 [main] INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Starting...
+2026-09-12 18:13:33.369 [main] INFO  com.zaxxer.hikari.pool.HikariPool - HikariPool-1 - Added connection org.postgresql.jdbc.PgConnection@b144175
+2026-09-12 18:13:33.370 [main] INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Start completed.
+2026-09-12 18:13:33.501 [main] INFO  com.finx.config.FlywayConfig - [FLYWAY] Starting managed migration strategy...
+2026-09-12 18:13:33.615 [main] INFO  com.finx.config.FlywayConfig - [FLYWAY CHECK] Existing schema status: 'users' table exists = true, 'flyway_schema_history' exists = true
+2026-09-12 18:13:33.615 [main] INFO  com.finx.config.FlywayConfig - [FLYWAY REPAIR] Running flyway.repair()...
+2026-09-12 18:13:34.246 [main] INFO  org.flywaydb.core.FlywayExecutor - Database: jdbc:postgresql://aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true&prepareThreshold=0 (PostgreSQL 17.6)
+2026-09-12 18:13:35.438 [main] INFO  o.f.c.i.s.JdbcTableSchemaHistory - Repair of failed migration in Schema History table "public"."flyway_schema_history" not necessary. No failed migration detected.
+2026-09-12 18:13:35.760 [main] INFO  o.f.core.internal.command.DbRepair - Successfully repaired schema history table "public"."flyway_schema_history" (execution time 00:00.773s).
+2026-09-12 18:13:36.559 [main] INFO  com.finx.config.FlywayConfig - [FLYWAY MIGRATE] Executing flyway.migrate()...
+2026-09-12 18:13:37.657 [main] INFO  o.f.core.internal.command.DbValidate - Successfully validated 4 migrations (execution time 00:00.337s)
+2026-09-12 18:13:38.685 [main] INFO  o.f.core.internal.command.DbMigrate - Current version of schema "public": 3
+2026-09-12 18:13:38.958 [main] INFO  o.f.core.internal.command.DbMigrate - Migrating schema "public" to version "4 - harden payment and escrow integrity"
+2026-09-12 18:13:40.569 [main] INFO  o.f.core.internal.command.DbMigrate - Successfully applied 1 migration to schema "public", now at version v4 (execution time 00:00.728s)
+2026-09-12 18:13:41.063 [main] INFO  com.finx.config.FlywayConfig - [FLYWAY MIGRATE] Database migrations completed successfully!
+2026-09-12 18:13:41.160 [main] INFO  o.h.jpa.internal.util.LogHelper - HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-09-12 18:13:41.200 [main] INFO  org.hibernate.Version - HHH000412: Hibernate ORM core version 6.6.8.Final
+2026-09-12 18:13:41.232 [main] INFO  o.h.c.i.RegionFactoryInitiator - HHH000026: Second-level cache disabled
+2026-09-12 18:13:41.460 [main] INFO  o.s.o.j.p.SpringPersistenceUnitInfo - No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-09-12 18:13:41.638 [main] WARN  org.hibernate.orm.deprecation - HHH90000025: H2Dialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2026-09-12 18:13:41.876 [main] INFO  o.hibernate.orm.connections.pooling - HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-1)']
+	Database driver: undefined/unknown
+	Database version: 17.6
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-09-12 18:13:42.764 [main] INFO  o.h.e.t.j.p.i.JtaPlatformInitiator - HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-09-12 18:13:46.465 [main] INFO  o.s.o.j.LocalContainerEntityManagerFactoryBean - Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-09-12 18:13:46.788 [main] DEBUG c.f.s.jwt.JwtAuthenticationFilter - Filter 'jwtAuthenticationFilter' configured for use
+2026-09-12 18:13:46.788 [main] DEBUG c.f.s.ratelimit.AuthRateLimitFilter - Filter 'authRateLimitFilter' configured for use
+2026-09-12 18:13:46.828 [main] INFO  o.s.d.j.r.query.QueryEnhancerFactory - Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-09-12 18:13:47.243 [main] INFO  c.f.a.config.GoogleOAuthProperties - ================================================================================
+2026-09-12 18:13:47.243 [main] INFO  c.f.a.config.GoogleOAuthProperties - [OAUTH CONFIGURATION] Google OAuth 2.0 is CONFIGURED and ACTIVE.
+2026-09-12 18:13:47.243 [main] INFO  c.f.a.config.GoogleOAuthProperties - Client ID: 66903565...
+2026-09-12 18:13:47.243 [main] INFO  c.f.a.config.GoogleOAuthProperties - Client Secret: [CONFIGURED - NEVER LOGGED]
+2026-09-12 18:13:47.243 [main] INFO  c.f.a.config.GoogleOAuthProperties - Backend Redirect URI: http://localhost:8080/api/auth/google/callback
+2026-09-12 18:13:47.243 [main] INFO  c.f.a.config.GoogleOAuthProperties - Frontend Redirect URL: http://localhost:3000/auth/callback/google
+2026-09-12 18:13:47.243 [main] INFO  c.f.a.config.GoogleOAuthProperties - ================================================================================
+2026-09-12 18:13:47.469 [main] WARN  c.f.p.config.RazorpayProperties - ================================================================================
+2026-09-12 18:13:47.469 [main] WARN  c.f.p.config.RazorpayProperties - [PAYMENT CONFIGURATION] Razorpay keys not configured.
+2026-09-12 18:13:47.469 [main] WARN  c.f.p.config.RazorpayProperties - Payments and webhook verification are disabled until Razorpay credentials are configured.
+2026-09-12 18:13:47.469 [main] WARN  c.f.p.config.RazorpayProperties - Configure RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, and RAZORPAY_WEBHOOK_SECRET before accepting payments.
+2026-09-12 18:13:47.469 [main] WARN  c.f.p.config.RazorpayProperties - ================================================================================
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::allocateMemory has been called by io.netty.util.internal.PlatformDependent0$2 (file:/C:/Users/moham/.m2/repository/io/netty/netty-common/4.1.118.Final/netty-common-4.1.118.Final.jar)
+WARNING: Please consider reporting this to the maintainers of class io.netty.util.internal.PlatformDependent0$2
+WARNING: sun.misc.Unsafe::allocateMemory will be removed in a future release
+2026-09-12 18:13:47.856 [main] INFO  com.finx.config.RedisConfig - RedisTemplate configured successfully for caching, notification queues, and rate limiting
+2026-09-12 18:13:48.054 [main] INFO  o.s.s.c.a.a.c.InitializeUserDetailsBeanManagerConfigurer$InitializeUserDetailsManagerConfigurer - Global AuthenticationManager configured with UserDetailsService bean with name customUserDetailsService
+2026-09-12 18:13:48.372 [main] INFO  o.s.b.a.e.web.EndpointLinksResolver - Exposing 3 endpoints beneath base path '/actuator'
+2026-09-12 18:13:48.999 [main] INFO  o.s.b.w.e.tomcat.TomcatWebServer - Tomcat started on port 8080 (http) with context path '/'
+2026-09-12 18:13:49.011 [main] INFO  com.finx.FinxApplication - Started FinxApplication in 19.527 seconds (process running for 19.88)
+2026-09-12 18:14:03.360 [SpringApplicationShutdownHook] INFO  o.s.b.w.e.tomcat.GracefulShutdown - Commencing graceful shutdown. Waiting for active requests to complete
+2026-09-12 18:14:03.368 [tomcat-shutdown] INFO  o.s.b.w.e.tomcat.GracefulShutdown - Graceful shutdown complete
+2026-09-12 18:14:03.389 [SpringApplicationShutdownHook] INFO  o.s.o.j.LocalContainerEntityManagerFactoryBean - Closing JPA EntityManagerFactory for persistence unit 'default'
+2026-09-12 18:14:03.390 [SpringApplicationShutdownHook] INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Shutdown initiated...
+2026-09-12 18:14:03.640 [SpringApplicationShutdownHook] INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Shutdown completed.
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  36.971 s
+[INFO] Finished at: 2026-09-12T18:14:03+05:30
+[INFO] ------------------------------------------------------------------------
+Terminate batch job (Y/N)? 

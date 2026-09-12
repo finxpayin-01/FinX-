@@ -14,7 +14,9 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
         const currentType = isPasswordType && showPassword ? "text" : type;
 
         const inputProps = { ...props };
-        if ('value' in inputProps && inputProps.value === undefined) {
+        if (inputProps.value !== undefined) {
+            inputProps.value = inputProps.value === null ? "" : inputProps.value;
+        } else if ('value' in inputProps) {
             inputProps.value = "";
         }
 
