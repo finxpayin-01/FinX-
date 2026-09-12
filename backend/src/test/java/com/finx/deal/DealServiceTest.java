@@ -10,6 +10,7 @@ import com.finx.deal.entity.Deal;
 import com.finx.deal.entity.DealStatus;
 import com.finx.deal.repository.DealRepository;
 import com.finx.deal.service.DealService;
+import com.finx.escrow.service.EscrowService;
 import com.finx.exception.BadRequestException;
 import com.finx.exception.ResourceNotFoundException;
 import com.finx.exception.UnauthorizedException;
@@ -52,6 +53,9 @@ class DealServiceTest {
     @Mock
     private org.springframework.context.ApplicationEventPublisher eventPublisher;
 
+    @Mock
+    private EscrowService escrowService;
+
     private DealService dealService;
 
     private User buyer;
@@ -61,7 +65,7 @@ class DealServiceTest {
 
     @BeforeEach
     void setUp() {
-        dealService = new DealService(dealRepository, userRepository, auditService, notificationService, eventPublisher);
+        dealService = new DealService(dealRepository, userRepository, auditService, notificationService, eventPublisher, escrowService);
 
         buyer = new User("Buyer One", "buyer@finx.com", "hash", Role.BUYER, UserStatus.ACTIVE);
         buyer.setId(UUID.randomUUID());

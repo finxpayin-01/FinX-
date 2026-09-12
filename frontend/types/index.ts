@@ -176,6 +176,9 @@ export interface EscrowAccount {
   id: string;
   dealId: string;
   balance: number;
+  totalFunded?: number;
+  totalReleased?: number;
+  availableBalance?: number;
   currency: string;
   status: 'ACTIVE' | 'FROZEN' | 'CLOSED';
   createdAt: string;

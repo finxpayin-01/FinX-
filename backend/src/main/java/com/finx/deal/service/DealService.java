@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import com.finx.notification.service.NotificationService;
 import com.finx.deal.dto.request.RejectDealRequest;
 import org.springframework.transaction.annotation.Transactional;
+import com.finx.escrow.service.EscrowService;
 import com.finx.deal.event.DealCreatedEvent;
 
 import java.time.Instant;
@@ -37,17 +38,20 @@ public class DealService {
     private final AuditService auditService;
     private final NotificationService notificationService;
     private final ApplicationEventPublisher eventPublisher;
+    private final EscrowService escrowService;
 
     public DealService(DealRepository dealRepository,
                        UserRepository userRepository,
                        AuditService auditService,
                        NotificationService notificationService,
-                       ApplicationEventPublisher eventPublisher) {
+                       ApplicationEventPublisher eventPublisher,
+                       EscrowService escrowService) {
         this.dealRepository = dealRepository;
         this.userRepository = userRepository;
         this.auditService = auditService;
         this.notificationService = notificationService;
         this.eventPublisher = eventPublisher;
+        this.escrowService = escrowService;
     }
 
     @Transactional
@@ -127,6 +131,7 @@ public class DealService {
         );
 
         Deal savedDeal = dealRepository.saveAndFlush(deal);
+        escrowService.ensureEscrowAccount(savedDeal.getId(), savedDeal.getCurrency());
 
         auditService.logEvent(
                 buyerId,
@@ -233,6 +238,7 @@ public class DealService {
         deal.setAcceptedAt(Instant.now());
         deal.setAcceptedBy(currentUser.getId());
         Deal updated = dealRepository.saveAndFlush(deal);
+        escrowService.ensureEscrowAccount(updated.getId(), updated.getCurrency());
 
         UUID actorId = currentUser.getId();
         auditService.logEvent(

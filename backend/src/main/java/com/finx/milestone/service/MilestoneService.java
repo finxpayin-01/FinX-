@@ -5,6 +5,7 @@ import com.finx.common.enums.Role;
 import com.finx.deal.entity.Deal;
 import com.finx.deal.entity.DealStatus;
 import com.finx.deal.repository.DealRepository;
+import com.finx.escrow.service.EscrowService;
 import com.finx.exception.BadRequestException;
 import java.math.BigDecimal;
 import com.finx.exception.ResourceNotFoundException;
@@ -42,17 +43,20 @@ public class MilestoneService {
     private final DealRepository dealRepository;
     private final AuditService auditService;
     private final NotificationService notificationService;
+    private final EscrowService escrowService;
 
     public MilestoneService(MilestoneRepository milestoneRepository,
                             DeliverableRepository deliverableRepository,
                             DealRepository dealRepository,
                             AuditService auditService,
-                            NotificationService notificationService) {
+                            NotificationService notificationService,
+                            EscrowService escrowService) {
         this.milestoneRepository = milestoneRepository;
         this.deliverableRepository = deliverableRepository;
         this.dealRepository = dealRepository;
         this.auditService = auditService;
         this.notificationService = notificationService;
+        this.escrowService = escrowService;
     }
 
     @Transactional
@@ -104,6 +108,7 @@ public class MilestoneService {
         );
 
         Milestone saved = milestoneRepository.saveAndFlush(milestone);
+        escrowService.ensureEscrowAccount(deal.getId(), deal.getCurrency());
 
         auditService.logEvent(
                 currentUser.getId(),
