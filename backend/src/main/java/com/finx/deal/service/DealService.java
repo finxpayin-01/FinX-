@@ -17,9 +17,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import com.finx.notification.service.NotificationService;
+import com.finx.deal.dto.request.RejectDealRequest;
 import org.springframework.transaction.annotation.Transactional;
 import com.finx.deal.event.DealCreatedEvent;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -32,16 +35,18 @@ public class DealService {
     private final DealRepository dealRepository;
     private final UserRepository userRepository;
     private final AuditService auditService;
-
+    private final NotificationService notificationService;
     private final ApplicationEventPublisher eventPublisher;
 
     public DealService(DealRepository dealRepository,
                        UserRepository userRepository,
                        AuditService auditService,
+                       NotificationService notificationService,
                        ApplicationEventPublisher eventPublisher) {
         this.dealRepository = dealRepository;
         this.userRepository = userRepository;
         this.auditService = auditService;
+        this.notificationService = notificationService;
         this.eventPublisher = eventPublisher;
     }
 
@@ -118,7 +123,7 @@ public class DealService {
                 seller.getId(),
                 request.getTotalAmount(),
                 request.getCurrency(),
-                DealStatus.DRAFT
+                DealStatus.PENDING_ACCEPTANCE
         );
 
         Deal savedDeal = dealRepository.saveAndFlush(deal);
@@ -131,8 +136,15 @@ public class DealService {
                 "Created deal: " + savedDeal.getTitle() + " (" + savedDeal.getTotalAmount() + " " + savedDeal.getCurrency() + ")"
         );
 
-        log.info("Deal created successfully: id={} buyer={} seller={} amount={}",
-                savedDeal.getId(), buyerId, seller.getId(), savedDeal.getTotalAmount());
+        notificationService.sendNotification(
+                seller.getId(),
+                "New Project Invitation",
+                "New project invitation from " + (buyer.getName() != null ? buyer.getName() : "Corporate Buyer") + " for '" + savedDeal.getTitle() + "'",
+                "/vendor/projects/" + savedDeal.getId()
+        );
+
+        log.info("Deal created successfully: id={} buyer={} seller={} amount={} status={}",
+                savedDeal.getId(), buyerId, seller.getId(), savedDeal.getTotalAmount(), savedDeal.getStatus());
 
         if (request.getVendorEmail() != null && !request.getVendorEmail().trim().isEmpty()) {
             eventPublisher.publishEvent(new DealCreatedEvent(savedDeal, request.getVendorEmail().trim()));
@@ -197,8 +209,20 @@ public class DealService {
         Deal deal = dealRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", id));
 
-        if (currentUser != null && currentUser.getRole() != Role.ADMIN && !deal.getSellerId().equals(currentUser.getId())) {
-            throw new UnauthorizedException("Only the assigned seller can accept this deal");
+        if (currentUser == null) {
+            throw new UnauthorizedException("Authentication required to accept this deal");
+        }
+
+        if (deal.getBuyerId().equals(currentUser.getId())) {
+            throw new UnauthorizedException("Buyer cannot accept their own project invitation");
+        }
+
+        if (currentUser.getRole() != Role.ADMIN && !deal.getSellerId().equals(currentUser.getId())) {
+            throw new UnauthorizedException("Only the assigned vendor can accept this deal");
+        }
+
+        if (deal.getStatus() == DealStatus.ACTIVE) {
+            throw new BadRequestException("Deal is already accepted and active");
         }
 
         if (deal.getStatus() != DealStatus.DRAFT && deal.getStatus() != DealStatus.PENDING_ACCEPTANCE) {
@@ -206,18 +230,84 @@ public class DealService {
         }
 
         deal.setStatus(DealStatus.ACTIVE);
+        deal.setAcceptedAt(Instant.now());
+        deal.setAcceptedBy(currentUser.getId());
         Deal updated = dealRepository.saveAndFlush(deal);
 
-        UUID actorId = currentUser != null ? currentUser.getId() : deal.getSellerId();
+        UUID actorId = currentUser.getId();
         auditService.logEvent(
                 actorId,
-                "DEAL_ACCEPTED",
+                "PROJECT_ACCEPTED",
                 "DEAL",
                 updated.getId().toString(),
-                "Deal accepted and activated by seller: " + updated.getTitle()
+                "Project accepted and activated by vendor: " + updated.getTitle()
+        );
+
+        User seller = userRepository.findById(deal.getSellerId()).orElse(null);
+        String sellerName = (seller != null && seller.getName() != null) ? seller.getName() : "Vendor";
+        notificationService.sendNotification(
+                deal.getBuyerId(),
+                "Project Accepted",
+                sellerName + " accepted " + updated.getTitle(),
+                "/corporate/projects/" + updated.getId()
         );
 
         log.info("Deal accepted and activated: id={} actor={}", updated.getId(), actorId);
+        return DealResponse.fromEntity(updated);
+    }
+
+    @Transactional
+    public DealResponse rejectDeal(UUID id, RejectDealRequest request, UserPrincipal currentUser) {
+        Deal deal = dealRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", id));
+
+        if (currentUser == null) {
+            throw new UnauthorizedException("Authentication required to reject this deal");
+        }
+
+        if (deal.getBuyerId().equals(currentUser.getId())) {
+            throw new UnauthorizedException("Buyer cannot reject their own project invitation");
+        }
+
+        if (currentUser.getRole() != Role.ADMIN && !deal.getSellerId().equals(currentUser.getId())) {
+            throw new UnauthorizedException("Only the assigned vendor can reject this deal");
+        }
+
+        if (deal.getStatus() == DealStatus.REJECTED) {
+            throw new BadRequestException("Deal is already rejected");
+        }
+
+        if (deal.getStatus() != DealStatus.DRAFT && deal.getStatus() != DealStatus.PENDING_ACCEPTANCE) {
+            throw new BadRequestException("Deal cannot be rejected from status: " + deal.getStatus());
+        }
+
+        String reason = (request != null && request.getReason() != null) ? request.getReason().trim() : null;
+
+        deal.setStatus(DealStatus.REJECTED);
+        deal.setRejectedAt(Instant.now());
+        deal.setRejectedBy(currentUser.getId());
+        deal.setRejectionReason(reason);
+        Deal updated = dealRepository.saveAndFlush(deal);
+
+        UUID actorId = currentUser.getId();
+        auditService.logEvent(
+                actorId,
+                "PROJECT_REJECTED",
+                "DEAL",
+                updated.getId().toString(),
+                "Project rejected by vendor: " + updated.getTitle() + (reason != null && !reason.isBlank() ? " (Reason: " + reason + ")" : "")
+        );
+
+        User seller = userRepository.findById(deal.getSellerId()).orElse(null);
+        String sellerName = (seller != null && seller.getName() != null) ? seller.getName() : "Vendor";
+        notificationService.sendNotification(
+                deal.getBuyerId(),
+                "Project Declined",
+                sellerName + " rejected " + updated.getTitle() + (reason != null && !reason.isBlank() ? ": " + reason : ""),
+                "/corporate/projects/" + updated.getId()
+        );
+
+        log.info("Deal rejected: id={} actor={} reason={}", updated.getId(), actorId, reason);
         return DealResponse.fromEntity(updated);
     }
 

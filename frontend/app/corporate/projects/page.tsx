@@ -107,18 +107,20 @@ export default function CorporateProjectsPage() {
     };
 
     const StatusBadge = ({ status }: { status: DealStatus }) => {
-        const styles = {
+        const styles: Record<string, string> = {
             DRAFT: "bg-gray-100 text-gray-700",
-            PENDING_ACCEPTANCE: "bg-amber-100 text-amber-700",
+            PENDING_ACCEPTANCE: "bg-amber-100 text-amber-800 border border-amber-200",
             ACTIVE: "bg-blue-100 text-blue-700",
             COMPLETED: "bg-emerald-100 text-emerald-700",
             CANCELLED: "bg-red-100 text-red-700",
-            DISPUTED: "bg-orange-100 text-orange-700"
+            DISPUTED: "bg-orange-100 text-orange-700",
+            REJECTED: "bg-rose-100 text-rose-700 border border-rose-200"
         };
         const defaultStyle = "bg-slate-100 text-slate-700";
+        const label = status === "PENDING_ACCEPTANCE" ? "Pending Acceptance" : status.replace("_", " ");
         return (
             <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${styles[status] || defaultStyle}`}>
-                {status.replace("_", " ")}
+                {label}
             </span>
         );
     };
@@ -161,10 +163,11 @@ export default function CorporateProjectsPage() {
                                 onChange={e => setStatusFilter(e.target.value as any)}
                             >
                                 <option value="ALL">All Statuses</option>
-                                <option value="DRAFT">Draft</option>
                                 <option value="PENDING_ACCEPTANCE">Pending Acceptance</option>
                                 <option value="ACTIVE">Active</option>
+                                <option value="DRAFT">Draft</option>
                                 <option value="COMPLETED">Completed</option>
+                                <option value="REJECTED">Rejected</option>
                                 <option value="CANCELLED">Cancelled</option>
                                 <option value="DISPUTED">Disputed</option>
                             </select>

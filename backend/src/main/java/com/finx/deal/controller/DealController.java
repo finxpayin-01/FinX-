@@ -58,7 +58,7 @@ public class DealController {
         return ResponseEntity.ok(ApiResponse.success("Deal fetched successfully", response));
     }
 
-    @PatchMapping("/{id}/accept")
+    @RequestMapping(value = "/{id}/accept", method = {RequestMethod.POST, RequestMethod.PATCH})
     @Operation(summary = "Accept Deal", description = "Seller accepts the assigned deal, transitioning it to ACTIVE")
     public ResponseEntity<ApiResponse<DealResponse>> acceptDeal(
             @PathVariable UUID id,
@@ -66,6 +66,17 @@ public class DealController {
     ) {
         DealResponse response = dealService.acceptDeal(id, currentUser);
         return ResponseEntity.ok(ApiResponse.success("Deal accepted successfully", response));
+    }
+
+    @RequestMapping(value = "/{id}/reject", method = {RequestMethod.POST, RequestMethod.PATCH})
+    @Operation(summary = "Reject Deal", description = "Seller rejects the assigned deal with optional reason, transitioning it to REJECTED")
+    public ResponseEntity<ApiResponse<DealResponse>> rejectDeal(
+            @PathVariable UUID id,
+            @RequestBody(required = false) com.finx.deal.dto.request.RejectDealRequest request,
+            @AuthenticationPrincipal UserPrincipal currentUser
+    ) {
+        DealResponse response = dealService.rejectDeal(id, request, currentUser);
+        return ResponseEntity.ok(ApiResponse.success("Deal rejected successfully", response));
     }
 
     @PatchMapping("/{id}/cancel")

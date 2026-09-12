@@ -36,18 +36,20 @@ export default function VendorProjectsPage() {
     }, []);
 
     const StatusBadge = ({ status }: { status: DealStatus }) => {
-        const styles = {
+        const styles: Record<string, string> = {
             DRAFT: "bg-gray-100 text-gray-700",
-            PENDING_ACCEPTANCE: "bg-amber-100 text-amber-700",
+            PENDING_ACCEPTANCE: "bg-amber-100 text-amber-800 border border-amber-200",
             ACTIVE: "bg-blue-100 text-blue-700",
             COMPLETED: "bg-emerald-100 text-emerald-700",
             CANCELLED: "bg-red-100 text-red-700",
-            DISPUTED: "bg-orange-100 text-orange-700"
+            DISPUTED: "bg-orange-100 text-orange-700",
+            REJECTED: "bg-rose-100 text-rose-700 border border-rose-200"
         };
         const defaultStyle = "bg-slate-100 text-slate-700";
+        const label = status === "PENDING_ACCEPTANCE" ? "Awaiting Acceptance" : status.replace("_", " ");
         return (
             <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${styles[status] || defaultStyle}`}>
-                {status.replace("_", " ")}
+                {label}
             </span>
         );
     };
@@ -85,10 +87,11 @@ export default function VendorProjectsPage() {
                                 onChange={e => setStatusFilter(e.target.value as any)}
                             >
                                 <option value="ALL" className="text-slate-900 bg-white">All Statuses</option>
-                                <option value="DRAFT" className="text-slate-900 bg-white">Draft</option>
                                 <option value="PENDING_ACCEPTANCE" className="text-slate-900 bg-white">Pending Acceptance</option>
                                 <option value="ACTIVE" className="text-slate-900 bg-white">Active</option>
+                                <option value="DRAFT" className="text-slate-900 bg-white">Draft</option>
                                 <option value="COMPLETED" className="text-slate-900 bg-white">Completed</option>
+                                <option value="REJECTED" className="text-slate-900 bg-white">Rejected</option>
                                 <option value="CANCELLED" className="text-slate-900 bg-white">Cancelled</option>
                                 <option value="DISPUTED" className="text-slate-900 bg-white">Disputed</option>
                             </select>

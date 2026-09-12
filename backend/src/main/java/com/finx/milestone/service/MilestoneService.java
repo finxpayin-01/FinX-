@@ -231,6 +231,10 @@ public class MilestoneService {
             throw new UnauthorizedException("Only the assigned vendor can submit deliverables for this milestone");
         }
 
+        if (deal.getStatus() != com.finx.deal.entity.DealStatus.ACTIVE) {
+            throw new BadRequestException("Cannot submit deliverables: project is not active (current status: " + deal.getStatus() + ")");
+        }
+
         if (milestone.getStatus() == MilestoneStatus.APPROVED || milestone.getStatus() == MilestoneStatus.COMPLETED) {
             throw new BadRequestException("Cannot submit deliverables for an already approved or completed milestone");
         }

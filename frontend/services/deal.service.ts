@@ -40,6 +40,12 @@ export const dealService = {
         return data;
     },
 
+    rejectDeal: async (id: string, reason?: string): Promise<Deal> => {
+        const response = await api.post<ApiResponse<Deal> | Deal>(`/deals/${id}/reject`, { reason });
+        const data = (response.data as ApiResponse<Deal>)?.data || (response.data as Deal);
+        return data;
+    },
+
     cancelDeal: async (id: string): Promise<Deal> => {
         const response = await api.patch<ApiResponse<Deal> | Deal>(`/deals/${id}/cancel`);
         const data = (response.data as ApiResponse<Deal>)?.data || (response.data as Deal);

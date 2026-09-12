@@ -52,11 +52,27 @@ export default function ProjectDetailsPage() {
     };
 
     useEffect(() => {
-        if (projectId) {
-            fetchDeal();
-            fetchMilestones();
+        if (!projectId) return;
+        fetchDeal();
+        fetchMilestones();
+
+        let intervalId: any;
+        // Auto-refresh while waiting for vendor acceptance
+        if (deal?.status === "PENDING_ACCEPTANCE" || deal?.status === "DRAFT") {
+            intervalId = setInterval(() => {
+                dealService.getDealById(projectId).then(updated => {
+                    if (updated && updated.status !== deal.status) {
+                        setDeal(updated);
+                        fetchMilestones();
+                    }
+                }).catch(() => {});
+            }, 6000);
         }
-    }, [projectId]);
+
+        return () => {
+            if (intervalId) clearInterval(intervalId);
+        };
+    }, [projectId, deal?.status]);
 
     const handleCancelDeal = async () => {
         if (!deal) return;
@@ -80,16 +96,18 @@ export default function ProjectDetailsPage() {
     const StatusBadge = ({ status }: { status: string }) => {
         const styles: Record<string, string> = {
             DRAFT: "bg-gray-100 text-gray-700 border-gray-200",
-            PENDING_ACCEPTANCE: "bg-amber-100 text-amber-700 border-amber-200",
+            PENDING_ACCEPTANCE: "bg-amber-100 text-amber-800 border-amber-300",
             ACTIVE: "bg-blue-100 text-blue-700 border-blue-200",
             COMPLETED: "bg-emerald-100 text-emerald-700 border-emerald-200",
             CANCELLED: "bg-red-100 text-red-700 border-red-200",
-            DISPUTED: "bg-orange-100 text-orange-700 border-orange-200"
+            DISPUTED: "bg-orange-100 text-orange-700 border-orange-200",
+            REJECTED: "bg-rose-100 text-rose-700 border-rose-200"
         };
         const defaultStyle = "bg-slate-100 text-slate-700 border-slate-200";
+        const label = status === "PENDING_ACCEPTANCE" ? "Waiting for Vendor Acceptance" : status.replace("_", " ");
         return (
             <span className={`px-3 py-1 text-sm font-semibold rounded-full border ${styles[status] || defaultStyle}`}>
-                {status.replace("_", " ")}
+                {label}
             </span>
         );
     };
@@ -235,17 +253,63 @@ export default function ProjectDetailsPage() {
                                 </Link>
                             </div>
 
-                            {/* Vendor Acceptance Notice */}
+                            {/* Vendor Acceptance Notice / Project State Notice */}
                             {(deal.status === "DRAFT" || deal.status === "PENDING_ACCEPTANCE") && (
                                 <div className="p-4 rounded-xl bg-amber-50/90 border border-amber-200/80 flex items-start gap-3 shadow-xs">
                                     <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
                                     <div>
-                                        <h4 className="text-sm font-semibold text-amber-900">
-                                            Waiting for Vendor to accept this project
-                                        </h4>
+                                        <div className="flex items-center gap-2">
+                                            <h4 className="text-sm font-semibold text-amber-900">
+                                                Waiting for Vendor Acceptance
+                                            </h4>
+                                            <span className="flex h-2 w-2 relative">
+                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                                                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                                            </span>
+                                        </div>
                                         <p className="text-xs text-amber-700 mt-1 leading-relaxed">
-                                            This project is currently in draft awaiting vendor acceptance. You can configure milestones now so they are ready for execution upon vendor sign-off.
+                                            Project invitation has been sent to the assigned vendor. You can configure and review milestones now so work can begin immediately once accepted.
                                         </p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {deal.status === "ACTIVE" && (
+                                <div className="p-4 rounded-xl bg-emerald-50/90 border border-emerald-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                                    <div className="flex items-center gap-3">
+                                        <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
+                                        <div>
+                                            <h4 className="text-sm font-semibold text-emerald-900">
+                                                Vendor Accepted · Project Active
+                                            </h4>
+                                            <p className="text-xs text-emerald-700 mt-0.5 leading-relaxed">
+                                                The assigned vendor accepted this project. You can now fund milestones to authorize deliverable execution.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    {deal.acceptedAt && (
+                                        <span className="text-xs text-emerald-800 bg-emerald-100/70 px-2.5 py-1 rounded-md font-mono shrink-0">
+                                            Accepted: {new Date(deal.acceptedAt).toLocaleDateString()}
+                                        </span>
+                                    )}
+                                </div>
+                            )}
+
+                            {deal.status === "REJECTED" && (
+                                <div className="p-4 rounded-xl bg-rose-50/90 border border-rose-200/80 flex items-start gap-3 shadow-xs">
+                                    <XCircle className="h-5 w-5 text-rose-600 mt-0.5 shrink-0" />
+                                    <div className="space-y-1">
+                                        <h4 className="text-sm font-semibold text-rose-900">
+                                            Vendor Rejected Project
+                                        </h4>
+                                        <p className="text-xs text-rose-700 leading-relaxed">
+                                            The assigned vendor declined this invitation. Reason: <strong>{deal.rejectionReason || "No specific reason provided."}</strong>
+                                        </p>
+                                        {deal.rejectedAt && (
+                                            <p className="text-xs text-rose-500 font-mono pt-1">
+                                                Declined on: {new Date(deal.rejectedAt).toLocaleString()}
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
                             )}

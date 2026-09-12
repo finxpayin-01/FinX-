@@ -95,7 +95,7 @@ class TransactionEngineEndToEndTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dealRequest)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.status").value("DRAFT"))
+                .andExpect(jsonPath("$.data.status").value("PENDING_ACCEPTANCE"))
                 .andReturn();
         JsonNode dealJson = objectMapper.readTree(dealResult.getResponse().getContentAsString());
         UUID dealId = UUID.fromString(dealJson.get("data").get("id").asText());
@@ -104,7 +104,9 @@ class TransactionEngineEndToEndTest {
         mockMvc.perform(patch("/api/deals/" + dealId + "/accept")
                         .header("Authorization", "Bearer " + sellerToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("ACTIVE"));
+                .andExpect(jsonPath("$.data.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.data.acceptedBy").value(sellerId.toString()))
+                .andExpect(jsonPath("$.data.acceptedAt").isNotEmpty());
 
         // 5. Buyer Creates Milestone for Deal
         CreateMilestoneRequest milestoneRequest = new CreateMilestoneRequest();
