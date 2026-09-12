@@ -35,88 +35,54 @@
 [32m[PASS][0m Registered vendor found in seller dropdown list (Apex Solutions Vendor)
 
 --- Phase 8: Corporate Creates Deal ---
-[32m[PASS][0m Deal created successfully (got 201)
-[32m[PASS][0m Deal assigned valid ID: 089af367-b95e-416e-969c-394c33a87eec
-[32m[PASS][0m Initial deal status is DRAFT/PENDING_ACCEPTANCE (got PENDING_ACCEPTANCE)
-[32m[PASS][0m Deal total amount is 15000 (got 15000)
-[32m[PASS][0m Deal buyer matches Corporate ID
-[32m[PASS][0m Deal seller matches Vendor ID
+[31m[FAIL][0m Deal created successfully (got 400)
+[31m[FAIL][0m Deal assigned valid ID: undefined
+[31m[FAIL][0m Initial deal status is DRAFT/PENDING_ACCEPTANCE (got 400)
+[31m[FAIL][0m Deal total amount is 15000 (got undefined)
+[31m[FAIL][0m Deal buyer matches Corporate ID
+[31m[FAIL][0m Deal seller matches Vendor ID
 
 --- Phase 9: Fetch Deal Details & Deal Listing ---
-[32m[PASS][0m GET /api/deals/{id} returns 200 OK
-[32m[PASS][0m Deal title matches
+[31m[FAIL][0m GET /api/deals/{id} returns 200 OK
+[31m[FAIL][0m Deal title matches
 [32m[PASS][0m GET /api/deals returns 200 OK
-[32m[PASS][0m Created deal is present in corporate deals list
+[31m[FAIL][0m Created deal is present in corporate deals list
 
 --- Phase 10: Vendor Views & Accepts Deal ---
 [32m[PASS][0m Vendor GET /api/deals returns 200 OK
-[32m[PASS][0m Assigned deal is visible in vendor deals list
-[32m[PASS][0m Vendor accepted deal returns 200 OK (got 200)
-[32m[PASS][0m Deal status successfully transitioned to ACTIVE (got ACTIVE)
+[31m[FAIL][0m Assigned deal is visible in vendor deals list
+[31m[FAIL][0m Vendor accepted deal returns 200 OK (got 500)
+[31m[FAIL][0m Deal status successfully transitioned to ACTIVE (got 500)
 
 --- Phase 11: Corporate Creates Milestone for Deal ---
-[32m[PASS][0m Milestone created successfully (got 201)
-[32m[PASS][0m Milestone assigned ID: be8e1461-e2fc-48e5-a2b9-67ea9e43d3d3
-[32m[PASS][0m Initial milestone status is PENDING (got PENDING)
-[32m[PASS][0m Milestone amount is 10000 (got 10000)
+[31m[FAIL][0m Milestone created successfully (got 500)
+[31m[FAIL][0m Milestone assigned ID: undefined
+[31m[FAIL][0m Initial milestone status is PENDING (got 500)
+[31m[FAIL][0m Milestone amount is 10000 (got undefined)
 
 --- Phase 12: Vendor Starts Milestone ---
-[32m[PASS][0m Vendor started milestone returns 200 OK (got 200)
-[32m[PASS][0m Milestone status transitioned to IN_PROGRESS (got IN_PROGRESS)
+[31m[FAIL][0m Vendor started milestone returns 200 OK (got 500)
+[31m[FAIL][0m Milestone status transitioned to IN_PROGRESS (got 500)
 
 --- Phase 13: Vendor Submits Deliverable ---
-[32m[PASS][0m Deliverable submitted successfully (got 201)
-[32m[PASS][0m Deliverable assigned ID: a9f5d34c-badf-4522-980d-99a87f3eec57
-[32m[PASS][0m Deliverable status is PENDING
-[32m[PASS][0m Fetch milestone details returns 200 OK
-[32m[PASS][0m Milestone status is UNDER_REVIEW (got UNDER_REVIEW)
+[31m[FAIL][0m Deliverable submitted successfully (got 500)
+[31m[FAIL][0m Deliverable assigned ID: undefined
+[31m[FAIL][0m Deliverable status is PENDING
+[31m[FAIL][0m Fetch milestone details returns 200 OK
+[31m[FAIL][0m Milestone status is UNDER_REVIEW (got 500)
 
 --- Phase 14: Security Authorization & Milestone Approval ---
-[32m[PASS][0m Vendor approving own milestone is rejected with 401 (got 401)
-[32m[PASS][0m Corporate milestone approval returns 200 OK (got 200)
-[32m[PASS][0m Milestone status transitioned to APPROVED (got APPROVED)
+[31m[FAIL][0m Vendor approving own milestone is rejected with 401 (got 500)
+[31m[FAIL][0m Corporate milestone approval returns 200 OK (got 500)
+[31m[FAIL][0m Milestone status transitioned to APPROVED (got 500)
 
 --- Phase 15: Razorpay Payment Order Creation ---
-[32m[PASS][0m Payment order created (got 200)
-[32m[PASS][0m Razorpay order ID returned: order_62b771d414344e
-[32m[PASS][0m FINX payment ID returned: 4a95fa75-a5a3-4ccc-af02-9265ea531b94
+[31m[FAIL][0m Payment order created (got 400)
+[31m[FAIL][0m Razorpay order ID returned: undefined
+[31m[FAIL][0m FINX payment ID returned: undefined
 
 --- Phase 16: Payment Verification & Escrow Funding ---
-[32m[PASS][0m Payment verified successfully (got 200)
-[32m[PASS][0m Payment status marked SUCCESS (got SUCCESS)
-
---- Phase 17: Escrow Balance & Ledger Verification ---
-[32m[PASS][0m GET escrow account returns 200 OK
-[32m[PASS][0m Escrow balance is 10000 (got 10000)
-[32m[PASS][0m GET escrow ledger returns 200 OK
-[32m[PASS][0m Escrow ledger contains 1 entries
-[32m[PASS][0m First ledger entry type is FUND
-[32m[PASS][0m Ledger entry amount is 10000
-
---- Phase 18: Escrow Release to Vendor ---
-[32m[PASS][0m Escrow release returns 200 OK (got 200)
-[32m[PASS][0m Release ledger entry type is RELEASE
-[32m[PASS][0m Escrow balance after release is 0
-
---- Phase 19: Double-Release Prevention ---
-[32m[PASS][0m Duplicate release is rejected with 400 Bad Request (got 400)
-
---- Phase 20: Admin Dashboard & Audit Logs ---
-[32m[PASS][0m GET /api/admin/dashboard returns 200 OK
-[32m[PASS][0m Admin dashboard returns totalDeals metric
-[32m[PASS][0m GET /api/admin/audit-logs returns 200 OK
-[32m[PASS][0m Audit log contains 15 logged business events
-
---- Phase 21: Deal Cancellation Flow ---
-[32m[PASS][0m Cancel deal returns 200 OK
-[32m[PASS][0m Cancelled deal status is CANCELLED (got CANCELLED)
-
---- Phase 22: Frontend Route Integrity (No 404s, No Under Construction) ---
-Fatal test execution error: [TypeError: fetch failed] {
-  [cause]: AggregateError [ECONNREFUSED]: 
-      at internalConnectMultiple (node:net:1193:18)
-      at afterConnectMultiple (node:net:1783:7) {
-    code: 'ECONNREFUSED',
-    [errors]: [ [Error], [Error] ]
-  }
-}
+Fatal test execution error: Error: BLOCKED — DEPENDENCY: FINX_E2E_RAZORPAY_KEY_SECRET is required for a real Razorpay sandbox verification.
+    at hmacSignature (file:///C:/Users/moham/Downloads/FinX-/test-e2e-workflow.mjs:15:15)
+    at runTests (file:///C:/Users/moham/Downloads/FinX-/test-e2e-workflow.mjs:316:36)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
