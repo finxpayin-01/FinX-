@@ -95,16 +95,16 @@ class TransactionEngineEndToEndTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dealRequest)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.status").value("PENDING_ACCEPTANCE"))
+                .andExpect(jsonPath("$.data.status").value("PENDING_VENDOR_ACCEPTANCE"))
                 .andReturn();
         JsonNode dealJson = objectMapper.readTree(dealResult.getResponse().getContentAsString());
         UUID dealId = UUID.fromString(dealJson.get("data").get("id").asText());
 
-        // 4. Seller Accepts Deal -> ACTIVE
+        // 4. Seller Accepts Deal -> ACCEPTED
         mockMvc.perform(patch("/api/deals/" + dealId + "/accept")
                         .header("Authorization", "Bearer " + sellerToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.data.status").value("ACCEPTED"))
                 .andExpect(jsonPath("$.data.acceptedBy").value(sellerId.toString()))
                 .andExpect(jsonPath("$.data.acceptedAt").isNotEmpty());
 

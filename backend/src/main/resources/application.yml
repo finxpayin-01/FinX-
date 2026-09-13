@@ -115,3 +115,6 @@ spring.mail.password: \${SMTP_PASS:password123}
 spring.mail.properties.mail.smtp.auth: true
 spring.mail.properties.mail.smtp.starttls.enable: true
 
+mailersend:
+  api-key: ${MAILERSEND_API_KEY:}
+  domain: ${MAILERSEND_DOMAIN:}

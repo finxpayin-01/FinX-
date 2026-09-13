@@ -124,7 +124,7 @@ class SecurityHardenedTest {
         mockMvc.perform(patch("/api/deals/" + dealAId + "/accept")
                         .header("Authorization", "Bearer " + sellerA.token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("ACTIVE"));
+                .andExpect(jsonPath("$.data.status").value("ACCEPTED"));
 
         // 7. Buyer A creates Milestone 1 on Deal A
         CreateMilestoneRequest msReq = new CreateMilestoneRequest();

@@ -51,3 +51,8 @@ cors:
   allowed-headers: "*"
   allow-credentials: true
   max-age: 3600
+
+# MailerSend Notification Configuration
+mailersend:
+  api-key: ${MAILERSEND_API_KEY:}
+  domain: ${MAILERSEND_DOMAIN:}

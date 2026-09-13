@@ -19,6 +19,32 @@ public class GoogleOAuthProperties {
 
     @PostConstruct
     public void validateConfiguration() {
+        // Direct environment variable fallbacks
+        if (this.clientId == null || this.clientId.trim().isEmpty()) {
+            String envId = System.getenv("GOOGLE_CLIENT_ID");
+            if (envId != null && !envId.trim().isEmpty()) {
+                this.clientId = envId.trim();
+            }
+        }
+        if (this.clientSecret == null || this.clientSecret.trim().isEmpty()) {
+            String envSecret = System.getenv("GOOGLE_CLIENT_SECRET");
+            if (envSecret != null && !envSecret.trim().isEmpty()) {
+                this.clientSecret = envSecret.trim();
+            }
+        }
+        if (this.redirectUri == null || this.redirectUri.trim().isEmpty()) {
+            String envRedirect = System.getenv("GOOGLE_REDIRECT_URI");
+            if (envRedirect != null && !envRedirect.trim().isEmpty()) {
+                this.redirectUri = envRedirect.trim();
+            }
+        }
+        if (this.frontendRedirectUrl == null || this.frontendRedirectUrl.trim().isEmpty()) {
+            String envFrontend = System.getenv("FRONTEND_OAUTH_CALLBACK_URL");
+            if (envFrontend != null && !envFrontend.trim().isEmpty()) {
+                this.frontendRedirectUrl = envFrontend.trim();
+            }
+        }
+
         // Dynamic resolution for Render and Production environments
         String renderExternalUrl = System.getenv("RENDER_EXTERNAL_URL");
         if (renderExternalUrl != null && !renderExternalUrl.trim().isEmpty()) {

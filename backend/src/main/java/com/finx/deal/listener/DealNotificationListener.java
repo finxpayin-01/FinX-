@@ -12,10 +12,10 @@ public class DealNotificationListener {
 
     private static final Logger log = LoggerFactory.getLogger(DealNotificationListener.class);
 
-    @org.springframework.beans.factory.annotation.Value("${mailersend.api-key}")
+    @org.springframework.beans.factory.annotation.Value("${mailersend.api-key:${MAILERSEND_API_KEY:}}")
     private String mailerSendApiKey;
 
-    @org.springframework.beans.factory.annotation.Value("${mailersend.domain}")
+    @org.springframework.beans.factory.annotation.Value("${mailersend.domain:${MAILERSEND_DOMAIN:}}")
     private String mailerSendDomain;
 
     public DealNotificationListener() {
