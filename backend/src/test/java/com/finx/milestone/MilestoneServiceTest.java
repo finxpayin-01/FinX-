@@ -83,7 +83,7 @@ class MilestoneServiceTest {
         sellerId = UUID.randomUUID();
         dealId = UUID.randomUUID();
 
-        deal = new Deal("Test Deal", "Desc", buyerId, sellerId, BigDecimal.valueOf(50000), "INR", DealStatus.ACTIVE);
+        deal = new Deal("Test Deal", "Desc", buyerId, sellerId, BigDecimal.valueOf(50000), "INR", DealStatus.ACCEPTED);
         deal.setId(dealId);
 
         User buyerUser = new User("Buyer", "buyer@finx.test", "pass", Role.BUYER, com.finx.common.enums.UserStatus.ACTIVE);

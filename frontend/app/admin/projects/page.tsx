@@ -28,17 +28,21 @@ export default function AdminProjectsPage() {
         return matchesSearch && matchesStatus;
     });
 
-    const activeCount = deals.filter(d => d.status === "ACTIVE").length;
+    const activeCount = deals.filter(d => ['ACCEPTED', 'MILESTONES_PENDING', 'AWAITING_FUNDING', 'FUNDED', 'IN_PROGRESS'].includes(d.status)).length;
     const completedCount = deals.filter(d => d.status === "COMPLETED").length;
     const totalVolume = deals.reduce((acc, d) => acc + (Number(d.totalAmount) || 0), 0);
 
     const getStatusBadge = (status: string) => {
         switch (status) {
-            case "ACTIVE":
+            case "ACCEPTED":
+            case "MILESTONES_PENDING":
+            case "AWAITING_FUNDING":
+            case "FUNDED":
+            case "IN_PROGRESS":
                 return "bg-emerald-50 text-emerald-700 border-emerald-200";
             case "COMPLETED":
                 return "bg-blue-50 text-blue-700 border-blue-200";
-            case "PENDING_ACCEPTANCE":
+            case "PENDING_VENDOR_ACCEPTANCE":
                 return "bg-amber-50 text-amber-700 border-amber-200";
             case "DISPUTED":
                 return "bg-red-50 text-red-700 border-red-200";
@@ -141,12 +145,16 @@ export default function AdminProjectsPage() {
                                     className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                                 >
                                     <option value="ALL" className="text-slate-900 bg-white">All Statuses</option>
-                                    <option value="ACTIVE" className="text-slate-900 bg-white">ACTIVE</option>
-                                    <option value="PENDING_ACCEPTANCE" className="text-slate-900 bg-white">PENDING_ACCEPTANCE</option>
-                                    <option value="DRAFT" className="text-slate-900 bg-white">DRAFT</option>
-                                    <option value="COMPLETED" className="text-slate-900 bg-white">COMPLETED</option>
-                                    <option value="CANCELLED" className="text-slate-900 bg-white">CANCELLED</option>
-                                    <option value="DISPUTED" className="text-slate-900 bg-white">DISPUTED</option>
+                                    <option value="PENDING_VENDOR_ACCEPTANCE" className="text-slate-900 bg-white">Pending Acceptance</option>
+                                    <option value="ACCEPTED" className="text-slate-900 bg-white">Accepted</option>
+                                    <option value="MILESTONES_PENDING" className="text-slate-900 bg-white">Milestones Pending</option>
+                                    <option value="AWAITING_FUNDING" className="text-slate-900 bg-white">Awaiting Funding</option>
+                                    <option value="FUNDED" className="text-slate-900 bg-white">Funded</option>
+                                    <option value="IN_PROGRESS" className="text-slate-900 bg-white">In Progress</option>
+                                    <option value="DRAFT" className="text-slate-900 bg-white">Draft</option>
+                                    <option value="COMPLETED" className="text-slate-900 bg-white">Completed</option>
+                                    <option value="CANCELLED" className="text-slate-900 bg-white">Cancelled</option>
+                                    <option value="DISPUTED" className="text-slate-900 bg-white">Disputed</option>
                                 </select>
                             </div>
                         </div>

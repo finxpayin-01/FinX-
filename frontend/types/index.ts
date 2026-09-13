@@ -68,11 +68,11 @@ export interface Project {
   id: string;
   title: string;
   description?: string;
-  status: 'DRAFT' | 'ACTIVE' | 'COMPLETED' | 'DISPUTED';
+  status: 'DRAFT' | 'ACCEPTED' | 'COMPLETED' | 'DISPUTED';
   amount: number;
 }
 
-export type DealStatus = 'DRAFT' | 'PENDING_ACCEPTANCE' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED' | 'DISPUTED' | 'REJECTED';
+export type DealStatus = 'DRAFT' | 'PENDING_VENDOR_ACCEPTANCE' | 'ACCEPTED' | 'MILESTONES_PENDING' | 'AWAITING_FUNDING' | 'FUNDED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'DISPUTED' | 'REJECTED';
 
 export interface Deal {
   id: string;

@@ -90,7 +90,7 @@ class EscrowServiceTest {
         dealId = UUID.randomUUID();
         milestoneId = UUID.randomUUID();
 
-        deal = new Deal("Escrow Deal", "Desc", buyerId, sellerId, BigDecimal.valueOf(50000), "INR", DealStatus.ACTIVE);
+        deal = new Deal("Escrow Deal", "Desc", buyerId, sellerId, BigDecimal.valueOf(50000), "INR", DealStatus.ACCEPTED);
         deal.setId(dealId);
 
         milestone = new Milestone(dealId, "Phase 1", "Desc", 1, BigDecimal.valueOf(10000), "INR", null);

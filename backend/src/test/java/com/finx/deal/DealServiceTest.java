@@ -102,7 +102,7 @@ class DealServiceTest {
         assertThat(response.getBuyerId()).isEqualTo(buyer.getId());
         assertThat(response.getSellerId()).isEqualTo(seller.getId());
         assertThat(response.getTotalAmount()).isEqualByComparingTo(new BigDecimal("50000.00"));
-        assertThat(response.getStatus()).isEqualTo(DealStatus.PENDING_ACCEPTANCE);
+        assertThat(response.getStatus()).isEqualTo(DealStatus.PENDING_VENDOR_ACCEPTANCE);
 
         verify(auditService, times(1)).logEvent(
                 eq(buyer.getId()),
@@ -178,7 +178,7 @@ class DealServiceTest {
     @Test
     @DisplayName("List deals for buyer returns buyer deals")
     void getDealsForBuyer_ReturnsDeals() {
-        Deal deal = new Deal("Buyer Deal", "Desc", buyer.getId(), seller.getId(), new BigDecimal("5000.00"), "USD", DealStatus.ACTIVE);
+        Deal deal = new Deal("Buyer Deal", "Desc", buyer.getId(), seller.getId(), new BigDecimal("5000.00"), "USD", DealStatus.ACCEPTED);
         when(dealRepository.findByBuyerId(buyer.getId())).thenReturn(List.of(deal));
 
         List<DealResponse> deals = dealService.getDealsForBuyer(buyer.getId());
@@ -248,7 +248,7 @@ class DealServiceTest {
     @Test
     @DisplayName("Assigned vendor successfully accepts a pending project")
     void acceptDeal_Success() {
-        Deal deal = new Deal("Web Development", "Desc", buyer.getId(), seller.getId(), new BigDecimal("30000.00"), "INR", DealStatus.PENDING_ACCEPTANCE);
+        Deal deal = new Deal("Web Development", "Desc", buyer.getId(), seller.getId(), new BigDecimal("30000.00"), "INR", DealStatus.PENDING_VENDOR_ACCEPTANCE);
         deal.setId(UUID.randomUUID());
 
         when(dealRepository.findById(deal.getId())).thenReturn(Optional.of(deal));
@@ -258,12 +258,12 @@ class DealServiceTest {
         DealResponse response = dealService.acceptDeal(deal.getId(), sellerPrincipal);
 
         assertThat(response).isNotNull();
-        assertThat(response.getStatus()).isEqualTo(DealStatus.ACTIVE);
+        assertThat(response.getStatus()).isEqualTo(DealStatus.ACCEPTED);
         assertThat(response.getAcceptedBy()).isEqualTo(seller.getId());
         assertThat(response.getAcceptedAt()).isNotNull();
 
         verify(dealRepository, times(1)).saveAndFlush(argThat(d ->
-                d.getStatus() == DealStatus.ACTIVE &&
+                d.getStatus() == DealStatus.ACCEPTED &&
                 d.getAcceptedBy().equals(seller.getId()) &&
                 d.getAcceptedAt() != null
         ));
@@ -287,7 +287,7 @@ class DealServiceTest {
     @Test
     @DisplayName("Buyer attempting to accept own project is denied with UnauthorizedException")
     void acceptDeal_BuyerDenied_ThrowsUnauthorizedException() {
-        Deal deal = new Deal("Web Development", "Desc", buyer.getId(), seller.getId(), new BigDecimal("30000.00"), "INR", DealStatus.PENDING_ACCEPTANCE);
+        Deal deal = new Deal("Web Development", "Desc", buyer.getId(), seller.getId(), new BigDecimal("30000.00"), "INR", DealStatus.PENDING_VENDOR_ACCEPTANCE);
         deal.setId(UUID.randomUUID());
 
         when(dealRepository.findById(deal.getId())).thenReturn(Optional.of(deal));
@@ -307,7 +307,7 @@ class DealServiceTest {
         otherSeller.setId(UUID.randomUUID());
         UserPrincipal otherSellerPrincipal = UserPrincipal.create(otherSeller);
 
-        Deal deal = new Deal("Web Development", "Desc", buyer.getId(), seller.getId(), new BigDecimal("30000.00"), "INR", DealStatus.PENDING_ACCEPTANCE);
+        Deal deal = new Deal("Web Development", "Desc", buyer.getId(), seller.getId(), new BigDecimal("30000.00"), "INR", DealStatus.PENDING_VENDOR_ACCEPTANCE);
         deal.setId(UUID.randomUUID());
 
         when(dealRepository.findById(deal.getId())).thenReturn(Optional.of(deal));
@@ -322,7 +322,7 @@ class DealServiceTest {
     @Test
     @DisplayName("Unauthenticated request to accept deal is denied with UnauthorizedException")
     void acceptDeal_Unauthenticated_ThrowsUnauthorizedException() {
-        Deal deal = new Deal("Web Development", "Desc", buyer.getId(), seller.getId(), new BigDecimal("30000.00"), "INR", DealStatus.PENDING_ACCEPTANCE);
+        Deal deal = new Deal("Web Development", "Desc", buyer.getId(), seller.getId(), new BigDecimal("30000.00"), "INR", DealStatus.PENDING_VENDOR_ACCEPTANCE);
         deal.setId(UUID.randomUUID());
 
         when(dealRepository.findById(deal.getId())).thenReturn(Optional.of(deal));
@@ -335,7 +335,7 @@ class DealServiceTest {
     @Test
     @DisplayName("Accepting an already ACTIVE deal throws BadRequestException")
     void acceptDeal_AlreadyActive_ThrowsBadRequestException() {
-        Deal deal = new Deal("Web Development", "Desc", buyer.getId(), seller.getId(), new BigDecimal("30000.00"), "INR", DealStatus.ACTIVE);
+        Deal deal = new Deal("Web Development", "Desc", buyer.getId(), seller.getId(), new BigDecimal("30000.00"), "INR", DealStatus.ACCEPTED);
         deal.setId(UUID.randomUUID());
 
         when(dealRepository.findById(deal.getId())).thenReturn(Optional.of(deal));
@@ -361,7 +361,7 @@ class DealServiceTest {
     @Test
     @DisplayName("Assigned vendor successfully rejects a project with reason")
     void rejectDeal_Success() {
-        Deal deal = new Deal("Mobile App", "Desc", buyer.getId(), seller.getId(), new BigDecimal("50000.00"), "INR", DealStatus.PENDING_ACCEPTANCE);
+        Deal deal = new Deal("Mobile App", "Desc", buyer.getId(), seller.getId(), new BigDecimal("50000.00"), "INR", DealStatus.PENDING_VENDOR_ACCEPTANCE);
         deal.setId(UUID.randomUUID());
 
         when(dealRepository.findById(deal.getId())).thenReturn(Optional.of(deal));
@@ -402,7 +402,7 @@ class DealServiceTest {
     @Test
     @DisplayName("Buyer attempting to reject own project is denied with UnauthorizedException")
     void rejectDeal_BuyerDenied_ThrowsUnauthorizedException() {
-        Deal deal = new Deal("Mobile App", "Desc", buyer.getId(), seller.getId(), new BigDecimal("50000.00"), "INR", DealStatus.PENDING_ACCEPTANCE);
+        Deal deal = new Deal("Mobile App", "Desc", buyer.getId(), seller.getId(), new BigDecimal("50000.00"), "INR", DealStatus.PENDING_VENDOR_ACCEPTANCE);
         deal.setId(UUID.randomUUID());
 
         when(dealRepository.findById(deal.getId())).thenReturn(Optional.of(deal));
@@ -419,7 +419,7 @@ class DealServiceTest {
         otherSeller.setId(UUID.randomUUID());
         UserPrincipal otherSellerPrincipal = UserPrincipal.create(otherSeller);
 
-        Deal deal = new Deal("Mobile App", "Desc", buyer.getId(), seller.getId(), new BigDecimal("50000.00"), "INR", DealStatus.PENDING_ACCEPTANCE);
+        Deal deal = new Deal("Mobile App", "Desc", buyer.getId(), seller.getId(), new BigDecimal("50000.00"), "INR", DealStatus.PENDING_VENDOR_ACCEPTANCE);
         deal.setId(UUID.randomUUID());
 
         when(dealRepository.findById(deal.getId())).thenReturn(Optional.of(deal));
@@ -445,13 +445,13 @@ class DealServiceTest {
     @Test
     @DisplayName("Rejecting an ACTIVE deal throws BadRequestException")
     void rejectDeal_ActiveDeal_ThrowsBadRequestException() {
-        Deal deal = new Deal("Mobile App", "Desc", buyer.getId(), seller.getId(), new BigDecimal("50000.00"), "INR", DealStatus.ACTIVE);
+        Deal deal = new Deal("Mobile App", "Desc", buyer.getId(), seller.getId(), new BigDecimal("50000.00"), "INR", DealStatus.ACCEPTED);
         deal.setId(UUID.randomUUID());
 
         when(dealRepository.findById(deal.getId())).thenReturn(Optional.of(deal));
 
         assertThatThrownBy(() -> dealService.rejectDeal(deal.getId(), new RejectDealRequest("No"), sellerPrincipal))
                 .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("Deal cannot be rejected from status: ACTIVE");
+                .hasMessageContaining("Deal cannot be rejected from status: ACCEPTED");
     }
 }

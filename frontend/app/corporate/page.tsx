@@ -20,7 +20,8 @@ export default function CorporateDashboard() {
     }, []);
 
     const totalDeals = deals.length;
-    const activeDeals = deals.filter(d => d.status === 'ACTIVE').length;
+    const activeStatuses = ['ACCEPTED', 'MILESTONES_PENDING', 'AWAITING_FUNDING', 'FUNDED', 'IN_PROGRESS'];
+    const activeDeals = deals.filter(d => activeStatuses.includes(d.status)).length;
     const totalAmount = deals.reduce((sum, d) => sum + (d.totalAmount || 0), 0);
 
     return (

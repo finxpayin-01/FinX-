@@ -38,15 +38,19 @@ export default function VendorProjectsPage() {
     const StatusBadge = ({ status }: { status: DealStatus }) => {
         const styles: Record<string, string> = {
             DRAFT: "bg-gray-100 text-gray-700",
-            PENDING_ACCEPTANCE: "bg-amber-100 text-amber-800 border border-amber-200",
-            ACTIVE: "bg-blue-100 text-blue-700",
+            PENDING_VENDOR_ACCEPTANCE: "bg-amber-100 text-amber-800 border border-amber-200",
+            ACCEPTED: "bg-blue-100 text-blue-700",
+            MILESTONES_PENDING: "bg-indigo-100 text-indigo-700",
+            AWAITING_FUNDING: "bg-purple-100 text-purple-700",
+            FUNDED: "bg-emerald-100 text-emerald-800",
+            IN_PROGRESS: "bg-teal-100 text-teal-800",
             COMPLETED: "bg-emerald-100 text-emerald-700",
             CANCELLED: "bg-red-100 text-red-700",
             DISPUTED: "bg-orange-100 text-orange-700",
             REJECTED: "bg-rose-100 text-rose-700 border border-rose-200"
         };
         const defaultStyle = "bg-slate-100 text-slate-700";
-        const label = status === "PENDING_ACCEPTANCE" ? "Awaiting Acceptance" : status.replace("_", " ");
+        const label = status === "PENDING_VENDOR_ACCEPTANCE" ? "New Deal Request" : status.replace(/_/g, " ");
         return (
             <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${styles[status] || defaultStyle}`}>
                 {label}
@@ -87,9 +91,12 @@ export default function VendorProjectsPage() {
                                 onChange={e => setStatusFilter(e.target.value as any)}
                             >
                                 <option value="ALL" className="text-slate-900 bg-white">All Statuses</option>
-                                <option value="PENDING_ACCEPTANCE" className="text-slate-900 bg-white">Pending Acceptance</option>
-                                <option value="ACTIVE" className="text-slate-900 bg-white">Active</option>
-                                <option value="DRAFT" className="text-slate-900 bg-white">Draft</option>
+                                <option value="PENDING_VENDOR_ACCEPTANCE" className="text-slate-900 bg-white">Action Required</option>
+                                <option value="ACCEPTED" className="text-slate-900 bg-white">Accepted</option>
+                                <option value="MILESTONES_PENDING" className="text-slate-900 bg-white">Milestones Pending</option>
+                                <option value="AWAITING_FUNDING" className="text-slate-900 bg-white">Awaiting Funding</option>
+                                <option value="FUNDED" className="text-slate-900 bg-white">Funded / Active</option>
+                                <option value="IN_PROGRESS" className="text-slate-900 bg-white">In Progress</option>
                                 <option value="COMPLETED" className="text-slate-900 bg-white">Completed</option>
                                 <option value="REJECTED" className="text-slate-900 bg-white">Rejected</option>
                                 <option value="CANCELLED" className="text-slate-900 bg-white">Cancelled</option>

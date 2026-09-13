@@ -112,14 +112,14 @@ public class DisputeService {
 
         Dispute updated = disputeRepository.saveAndFlush(dispute);
 
-        // If no remaining open disputes on this deal, restore deal status to ACTIVE
+        // If no remaining open disputes on this deal, restore deal status to ACCEPTED
         boolean hasRemainingDisputes = disputeRepository.existsByDealIdAndStatus(dispute.getDealId(), DisputeStatus.OPEN);
         if (!hasRemainingDisputes) {
             Deal deal = dealRepository.findById(dispute.getDealId()).orElse(null);
-            if (deal != null && deal.getStatus() == DealStatus.DISPUTED) {
-                deal.setStatus(DealStatus.ACTIVE);
+            if (deal.getStatus() != DealStatus.ACCEPTED && deal.getStatus() != DealStatus.IN_PROGRESS && deal.getStatus() != DealStatus.DISPUTED) {
+                deal.setStatus(DealStatus.ACCEPTED);
                 dealRepository.saveAndFlush(deal);
-                log.info("All open disputes resolved on deal {}. Deal status restored to ACTIVE", deal.getId());
+                log.info("All open disputes resolved on deal {}. Deal status restored to ACCEPTED", deal.getId());
             }
         }
 

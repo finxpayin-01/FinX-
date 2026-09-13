@@ -32,9 +32,10 @@ export default function VendorEscrowDashboard() {
     }, []);
 
     const totalDeals = deals.length;
-    const activeDeals = deals.filter(d => d.status === 'ACTIVE').length;
+    const activeStatuses = ['ACCEPTED', 'MILESTONES_PENDING', 'AWAITING_FUNDING', 'FUNDED', 'IN_PROGRESS'];
+    const activeDeals = deals.filter(d => activeStatuses.includes(d.status)).length;
     const totalValue = deals.reduce((sum, d) => sum + (d.totalAmount || 0), 0);
-    const activeValue = deals.filter(d => d.status === 'ACTIVE').reduce((sum, d) => sum + (d.totalAmount || 0), 0);
+    const activeValue = deals.filter(d => activeStatuses.includes(d.status)).reduce((sum, d) => sum + (d.totalAmount || 0), 0);
 
     return (
         <DashboardLayout>

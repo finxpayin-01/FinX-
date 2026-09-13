@@ -95,7 +95,7 @@ public class AdminController {
 
         long totalUsers = userRepository.count();
         long totalDeals = allDeals.size();
-        long activeDeals = allDeals.stream().filter(d -> d.getStatus() == DealStatus.ACTIVE).count();
+        long activeDeals = allDeals.stream().filter(d -> d.getStatus() == DealStatus.ACCEPTED).count();
         long completedDeals = allDeals.stream().filter(d -> d.getStatus() == DealStatus.COMPLETED).count();
         long totalDisputes = disputeRepository.count();
 

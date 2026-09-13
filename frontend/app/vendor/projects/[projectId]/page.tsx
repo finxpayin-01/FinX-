@@ -9,10 +9,10 @@ import { dealService } from "@/services/deal.service";
 import { milestoneService } from "@/services/milestone.service";
 import { Deal, Milestone } from "@/types";
 import { MilestoneStatusBadge } from "@/components/ui/MilestoneStatusBadge";
-import { 
-    ArrowLeft, RefreshCw, AlertCircle, Calendar, DollarSign, 
-    User, ShieldCheck, CheckCircle2, XCircle, Clock, 
-    Layers, AlertTriangle, FileText, Send 
+import {
+    ArrowLeft, RefreshCw, AlertCircle, Calendar, DollarSign,
+    User, ShieldCheck, CheckCircle2, XCircle, Clock,
+    Layers, AlertTriangle, FileText, Send
 } from "lucide-react";
 
 export default function VendorProjectDetailsPage() {
@@ -104,15 +104,19 @@ export default function VendorProjectDetailsPage() {
     const StatusBadge = ({ status }: { status: string }) => {
         const styles: Record<string, string> = {
             DRAFT: "bg-gray-100 text-gray-700 border-gray-200",
-            PENDING_ACCEPTANCE: "bg-amber-100 text-amber-800 border-amber-300",
-            ACTIVE: "bg-blue-100 text-blue-700 border-blue-200",
+            PENDING_VENDOR_ACCEPTANCE: "bg-amber-100 text-amber-800 border-amber-300",
+            ACCEPTED: "bg-blue-100 text-blue-700 border-blue-200",
+            MILESTONES_PENDING: "bg-indigo-100 text-indigo-700 border-indigo-200",
+            AWAITING_FUNDING: "bg-purple-100 text-purple-700 border-purple-200",
+            FUNDED: "bg-emerald-100 text-emerald-800 border-emerald-300",
+            IN_PROGRESS: "bg-teal-100 text-teal-800 border-teal-200",
             COMPLETED: "bg-emerald-100 text-emerald-700 border-emerald-200",
             CANCELLED: "bg-red-100 text-red-700 border-red-200",
             DISPUTED: "bg-orange-100 text-orange-700 border-orange-200",
             REJECTED: "bg-rose-100 text-rose-700 border-rose-200"
         };
         const defaultStyle = "bg-slate-100 text-slate-700 border-slate-200";
-        const label = status === "PENDING_ACCEPTANCE" ? "Awaiting Your Acceptance" : status.replace("_", " ");
+        const label = status === "PENDING_VENDOR_ACCEPTANCE" ? "Awaiting Your Acceptance" : status.replace(/_/g, " ");
         return (
             <span className={`px-3 py-1 text-xs font-semibold rounded-full border ${styles[status] || defaultStyle}`}>
                 {label}
@@ -120,8 +124,8 @@ export default function VendorProjectDetailsPage() {
         );
     };
 
-    const isPending = deal && (deal.status === 'PENDING_ACCEPTANCE' || deal.status === 'DRAFT');
-    const isActive = deal && deal.status === 'ACTIVE';
+    const isPending = deal && (deal.status === 'PENDING_VENDOR_ACCEPTANCE' || deal.status === 'DRAFT');
+    const isActive = deal && ['ACCEPTED', 'MILESTONES_PENDING', 'AWAITING_FUNDING', 'FUNDED', 'IN_PROGRESS'].includes(deal.status);
     const isRejected = deal && deal.status === 'REJECTED';
 
     return (

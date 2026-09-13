@@ -127,7 +127,7 @@ public class DealService {
                 seller.getId(),
                 request.getTotalAmount(),
                 request.getCurrency(),
-                DealStatus.PENDING_ACCEPTANCE
+                DealStatus.PENDING_VENDOR_ACCEPTANCE
         );
 
         Deal savedDeal = dealRepository.saveAndFlush(deal);
@@ -226,15 +226,15 @@ public class DealService {
             throw new UnauthorizedException("Only the assigned vendor can accept this deal");
         }
 
-        if (deal.getStatus() == DealStatus.ACTIVE) {
+        if (deal.getStatus() == DealStatus.ACCEPTED) {
             throw new BadRequestException("Deal is already accepted and active");
         }
 
-        if (deal.getStatus() != DealStatus.DRAFT && deal.getStatus() != DealStatus.PENDING_ACCEPTANCE) {
+        if (deal.getStatus() != DealStatus.DRAFT && deal.getStatus() != DealStatus.PENDING_VENDOR_ACCEPTANCE) {
             throw new BadRequestException("Deal cannot be accepted from status: " + deal.getStatus());
         }
 
-        deal.setStatus(DealStatus.ACTIVE);
+        deal.setStatus(DealStatus.ACCEPTED);
         deal.setAcceptedAt(Instant.now());
         deal.setAcceptedBy(currentUser.getId());
         Deal updated = dealRepository.saveAndFlush(deal);
@@ -283,7 +283,7 @@ public class DealService {
             throw new BadRequestException("Deal is already rejected");
         }
 
-        if (deal.getStatus() != DealStatus.DRAFT && deal.getStatus() != DealStatus.PENDING_ACCEPTANCE) {
+        if (deal.getStatus() != DealStatus.DRAFT && deal.getStatus() != DealStatus.PENDING_VENDOR_ACCEPTANCE) {
             throw new BadRequestException("Deal cannot be rejected from status: " + deal.getStatus());
         }
 

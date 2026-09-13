@@ -28,7 +28,8 @@ export default function ProjectManagerProjectsPage() {
         return matchesSearch && matchesStatus;
     });
 
-    const activeCount = deals.filter(d => d.status === "ACTIVE").length;
+    const activeStatuses = ['ACCEPTED', 'MILESTONES_PENDING', 'AWAITING_FUNDING', 'FUNDED', 'IN_PROGRESS'];
+    const activeCount = deals.filter(d => activeStatuses.includes(d.status)).length;
     const completedCount = deals.filter(d => d.status === "COMPLETED").length;
 
     return (
@@ -107,11 +108,16 @@ export default function ProjectManagerProjectsPage() {
                                     className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                                 >
                                     <option value="ALL" className="text-slate-900 bg-white">All Statuses</option>
-                                    <option value="ACTIVE" className="text-slate-900 bg-white">ACTIVE</option>
-                                    <option value="PENDING_ACCEPTANCE" className="text-slate-900 bg-white">PENDING_ACCEPTANCE</option>
-                                    <option value="COMPLETED" className="text-slate-900 bg-white">COMPLETED</option>
-                                    <option value="DRAFT" className="text-slate-900 bg-white">DRAFT</option>
-                                    <option value="DISPUTED" className="text-slate-900 bg-white">DISPUTED</option>
+                                    <option value="PENDING_VENDOR_ACCEPTANCE" className="text-slate-900 bg-white">Pending Acceptance</option>
+                                    <option value="ACCEPTED" className="text-slate-900 bg-white">Accepted</option>
+                                    <option value="MILESTONES_PENDING" className="text-slate-900 bg-white">Milestones Pending</option>
+                                    <option value="AWAITING_FUNDING" className="text-slate-900 bg-white">Awaiting Funding</option>
+                                    <option value="FUNDED" className="text-slate-900 bg-white">Funded</option>
+                                    <option value="IN_PROGRESS" className="text-slate-900 bg-white">In Progress</option>
+                                    <option value="DRAFT" className="text-slate-900 bg-white">Draft</option>
+                                    <option value="COMPLETED" className="text-slate-900 bg-white">Completed</option>
+                                    <option value="CANCELLED" className="text-slate-900 bg-white">Cancelled</option>
+                                    <option value="DISPUTED" className="text-slate-900 bg-white">Disputed</option>
                                 </select>
                             </div>
                         </div>
@@ -160,12 +166,11 @@ export default function ProjectManagerProjectsPage() {
                                             {d.currency} {Number(d.totalAmount).toLocaleString()}
                                         </td>
                                         <td className="p-4">
-                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded text-xs font-semibold ${
-                                                d.status === "ACTIVE" ? "bg-emerald-50 text-emerald-700" :
-                                                d.status === "COMPLETED" ? "bg-blue-50 text-blue-700" :
-                                                d.status === "DISPUTED" ? "bg-red-50 text-red-700" :
-                                                "bg-slate-100 text-slate-700"
-                                            }`}>
+                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded text-xs font-semibold ${activeStatuses.includes(d.status) ? "bg-emerald-50 text-emerald-700" :
+                                                    d.status === "COMPLETED" ? "bg-blue-50 text-blue-700" :
+                                                        d.status === "DISPUTED" ? "bg-red-50 text-red-700" :
+                                                            "bg-slate-100 text-slate-700"
+                                                }`}>
                                                 {d.status}
                                             </span>
                                         </td>

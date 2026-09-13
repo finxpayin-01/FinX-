@@ -262,11 +262,10 @@ function CorporateMilestonesContent() {
                                 ? `All funds for ${selectedDeal?.title} (₹${totalValue.toLocaleString("en-IN")}) are already allocated.`
                                 : "Create a new milestone for this project"
                         }
-                        className={`gap-2 font-medium shadow-sm transition-all ${
-                            isFullyAllocated
+                        className={`gap-2 font-medium shadow-sm transition-all ${isFullyAllocated
                                 ? "bg-slate-200 text-slate-500 cursor-not-allowed hover:bg-slate-200"
                                 : "bg-blue-600 hover:bg-blue-700 text-white"
-                        }`}
+                            }`}
                     >
                         <Plus size={16} /> Create Milestone
                     </Button>
@@ -292,7 +291,7 @@ function CorporateMilestonesContent() {
                 {selectedDeal && (
                     <div className="space-y-4">
                         {/* Vendor Acceptance Notice */}
-                        {(selectedDeal.status === "DRAFT" || selectedDeal.status === "PENDING_ACCEPTANCE") && (
+                        {(selectedDeal.status === "DRAFT" || selectedDeal.status === "PENDING_VENDOR_ACCEPTANCE") && (
                             <div className="p-4 rounded-xl bg-amber-50/90 border border-amber-200/80 flex items-start gap-3 shadow-xs">
                                 <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
                                 <div>
@@ -368,13 +367,12 @@ function CorporateMilestonesContent() {
                             </div>
                             <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
                                 <div
-                                    className={`h-2.5 rounded-full transition-all duration-500 ${
-                                        percentAllocated >= 100
+                                    className={`h-2.5 rounded-full transition-all duration-500 ${percentAllocated >= 100
                                             ? "bg-amber-500"
                                             : percentAllocated > 75
-                                            ? "bg-blue-600"
-                                            : "bg-indigo-600"
-                                    }`}
+                                                ? "bg-blue-600"
+                                                : "bg-indigo-600"
+                                        }`}
                                     style={{ width: `${percentAllocated}%` }}
                                 />
                             </div>

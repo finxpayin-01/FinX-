@@ -20,8 +20,9 @@ export default function VendorDashboard() {
     }, []);
 
     const totalDeals = deals.length;
-    const activeDeals = deals.filter(d => d.status === 'ACTIVE').length;
-    const pendingDeals = deals.filter(d => d.status === 'PENDING_ACCEPTANCE');
+    const activeStatuses = ['ACCEPTED', 'MILESTONES_PENDING', 'AWAITING_FUNDING', 'FUNDED', 'IN_PROGRESS'];
+    const activeDeals = deals.filter(d => activeStatuses.includes(d.status)).length;
+    const pendingDeals = deals.filter(d => d.status === 'PENDING_VENDOR_ACCEPTANCE');
 
     return (
         <DashboardLayout>

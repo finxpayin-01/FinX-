@@ -68,7 +68,10 @@ public class MilestoneService {
             throw new UnauthorizedException("Only the buyer or an admin can create milestones for this deal");
         }
 
-        if (deal.getStatus() == DealStatus.COMPLETED || deal.getStatus() == DealStatus.CANCELLED) {
+        if (deal.getStatus() != DealStatus.ACCEPTED && 
+            deal.getStatus() != DealStatus.MILESTONES_PENDING && 
+            deal.getStatus() != DealStatus.AWAITING_FUNDING &&
+            deal.getStatus() != DealStatus.IN_PROGRESS) {
             throw new BadRequestException("Cannot create milestones for a " + deal.getStatus() + " deal");
         }
 
@@ -236,7 +239,7 @@ public class MilestoneService {
             throw new UnauthorizedException("Only the assigned vendor can submit deliverables for this milestone");
         }
 
-        if (deal.getStatus() != com.finx.deal.entity.DealStatus.ACTIVE) {
+        if (deal.getStatus() != com.finx.deal.entity.DealStatus.ACCEPTED) {
             throw new BadRequestException("Cannot submit deliverables: project is not active (current status: " + deal.getStatus() + ")");
         }
 
