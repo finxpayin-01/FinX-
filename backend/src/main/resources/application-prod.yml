@@ -13,7 +13,8 @@ spring:
       idle-timeout: 30000
       pool-name: FinxHikariProdPool
       max-lifetime: 600000
-      connection-timeout: 20000
+      connection-timeout: 60000
+      initialization-fail-timeout: 60000
   jpa:
     hibernate:
       ddl-auto: validate

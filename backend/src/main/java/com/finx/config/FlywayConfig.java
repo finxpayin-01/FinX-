@@ -73,9 +73,30 @@ public class FlywayConfig {
             }
 
             // 4. Execute all pending migrations
-            log.info("[FLYWAY MIGRATE] Executing flyway.migrate()...");
-            flyway.migrate();
-            log.info("[FLYWAY MIGRATE] Database migrations completed successfully!");
+            int maxRetries = 5;
+            int attempt = 0;
+            while (true) {
+                try {
+                    log.info("[FLYWAY MIGRATE] Executing flyway.migrate(), attempt {}/{}...", attempt + 1, maxRetries);
+                    flyway.migrate();
+                    log.info("[FLYWAY MIGRATE] Database migrations completed successfully!");
+                    break;
+                } catch (Exception e) {
+                    attempt++;
+                    log.error("[FLYWAY ERROR] Migration failed on attempt {}: {}", attempt, e.getMessage());
+                    if (attempt >= maxRetries) {
+                        log.error("[FLYWAY FATAL] Giving up after {} attempts. Rethrowing exception...", maxRetries);
+                        throw e; // Rethrow to fail fast if DB is really down
+                    }
+                    try {
+                        log.info("[FLYWAY RETRY] Waiting 10 seconds before retrying...");
+                        Thread.sleep(10000);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("Flyway migration interrupted", ie);
+                    }
+                }
+            }
         };
     }
 }

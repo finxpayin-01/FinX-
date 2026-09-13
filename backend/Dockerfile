@@ -28,6 +28,5 @@ USER finxuser
 
 EXPOSE 8080
 
-ENV JAVA_OPTS="-Xms128m -Xmx384m -XX:+UseG1GC"
-
+ENV JAVA_OPTS="-Xms128m -Xmx256m -XX:MaxMetaspaceSize=128m -Xss512k -XX:+UseSerialGC"
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]

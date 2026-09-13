@@ -33,17 +33,21 @@ public class DataInitializer implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        if (!userRepository.existsByRole(Role.ADMIN)) {
-            User admin = new User(
-                    "FINX System Administrator",
-                    "admin@finx.com",
-                    passwordEncoder.encode("Admin@Finx2026!"),
-                    Role.ADMIN,
-                    UserStatus.ACTIVE
-            );
-            admin.setUid(userUidService.generateUniqueUid());
-            userRepository.save(admin);
-            log.info("Default system administrator initialized with UID '{}': admin@finx.com", admin.getUid());
+        try {
+            if (!userRepository.existsByRole(Role.ADMIN)) {
+                User admin = new User(
+                        "FINX System Administrator",
+                        "admin@finx.com",
+                        passwordEncoder.encode("Admin@Finx2026!"),
+                        Role.ADMIN,
+                        UserStatus.ACTIVE
+                );
+                admin.setUid(userUidService.generateUniqueUid());
+                userRepository.save(admin);
+                log.info("Default system administrator initialized with UID '{}': admin@finx.com", admin.getUid());
+            }
+        } catch (Exception ex) {
+            log.warn("[STARTUP ERROR] Admin initialization failed due to: {}", ex.getMessage());
         }
 
         // Safety startup check: backfill any existing accounts missing a UID

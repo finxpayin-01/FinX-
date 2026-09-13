@@ -60,7 +60,8 @@ public class DatabaseConfig {
                 config.setMaximumPoolSize(10);
                 config.setMinimumIdle(2);
                 config.setIdleTimeout(30000);
-                config.setConnectionTimeout(20000);
+                config.setConnectionTimeout(60000); // 60s to allow serverless waking up
+                config.setInitializationFailTimeout(60000); // Wait up to 60s during startup
                 config.setMaxLifetime(1200000);
 
                 log.info("[DATABASE TARGET] PostgreSQL host={}, port={}, path={}, username={}", host, port, path, config.getUsername());
