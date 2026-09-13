@@ -8,7 +8,8 @@ spring:
     name: finx-backend
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
-
+  config:
+    import: optional:file:.env[.properties]
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://${SUPABASE_DB_HOST:localhost}:${SUPABASE_DB_PORT:5432}/${SUPABASE_DB_NAME:finx_db}}
     username: ${SPRING_DATASOURCE_USERNAME:${SUPABASE_DB_USERNAME:finx_user}}
@@ -115,7 +116,6 @@ spring.mail.username: ${SMTP_USER:finx-test@ethereal.email}
 spring.mail.password: ${SMTP_PASS:password123}
 spring.mail.properties.mail.smtp.auth: true
 spring.mail.properties.mail.smtp.starttls.enable: true
-
 mailersend:
   api-key: ${MAILERSEND_API_KEY:}
   domain: ${MAILERSEND_DOMAIN:}
