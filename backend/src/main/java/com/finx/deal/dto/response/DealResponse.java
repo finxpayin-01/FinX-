@@ -18,6 +18,11 @@ public class DealResponse {
     private BigDecimal totalAmount;
     private String currency;
     private DealStatus status;
+    private Instant acceptedAt;
+    private UUID acceptedBy;
+    private Instant rejectedAt;
+    private UUID rejectedBy;
+    private String rejectionReason;
     private Instant createdAt;
     private Instant updatedAt;
 
@@ -26,6 +31,7 @@ public class DealResponse {
 
     public DealResponse(UUID id, String projectId, String title, String description, UUID buyerId, UUID sellerId,
                         BigDecimal totalAmount, String currency, DealStatus status,
+                        Instant acceptedAt, UUID acceptedBy, Instant rejectedAt, UUID rejectedBy, String rejectionReason,
                         Instant createdAt, Instant updatedAt) {
         this.id = id;
         this.projectId = projectId;
@@ -36,6 +42,11 @@ public class DealResponse {
         this.totalAmount = totalAmount;
         this.currency = currency;
         this.status = status;
+        this.acceptedAt = acceptedAt;
+        this.acceptedBy = acceptedBy;
+        this.rejectedAt = rejectedAt;
+        this.rejectedBy = rejectedBy;
+        this.rejectionReason = rejectionReason;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
@@ -51,6 +62,11 @@ public class DealResponse {
                 deal.getTotalAmount(),
                 deal.getCurrency(),
                 deal.getStatus(),
+                deal.getAcceptedAt(),
+                deal.getAcceptedBy(),
+                deal.getRejectedAt(),
+                deal.getRejectedBy(),
+                deal.getRejectionReason(),
                 deal.getCreatedAt(),
                 deal.getUpdatedAt()
         );
@@ -126,6 +142,46 @@ public class DealResponse {
 
     public void setStatus(DealStatus status) {
         this.status = status;
+    }
+
+    public Instant getAcceptedAt() {
+        return acceptedAt;
+    }
+
+    public void setAcceptedAt(Instant acceptedAt) {
+        this.acceptedAt = acceptedAt;
+    }
+
+    public UUID getAcceptedBy() {
+        return acceptedBy;
+    }
+
+    public void setAcceptedBy(UUID acceptedBy) {
+        this.acceptedBy = acceptedBy;
+    }
+
+    public Instant getRejectedAt() {
+        return rejectedAt;
+    }
+
+    public void setRejectedAt(Instant rejectedAt) {
+        this.rejectedAt = rejectedAt;
+    }
+
+    public UUID getRejectedBy() {
+        return rejectedBy;
+    }
+
+    public void setRejectedBy(UUID rejectedBy) {
+        this.rejectedBy = rejectedBy;
+    }
+
+    public String getRejectionReason() {
+        return rejectionReason;
+    }
+
+    public void setRejectionReason(String rejectionReason) {
+        this.rejectionReason = rejectionReason;
     }
 
     public Instant getCreatedAt() {

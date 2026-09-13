@@ -5,6 +5,7 @@ import com.finx.common.enums.Role;
 import com.finx.deal.entity.Deal;
 import com.finx.deal.entity.DealStatus;
 import com.finx.deal.repository.DealRepository;
+import com.finx.escrow.service.EscrowService;
 import com.finx.exception.BadRequestException;
 import com.finx.exception.UnauthorizedException;
 import com.finx.milestone.dto.request.CreateMilestoneRequest;
@@ -55,6 +56,9 @@ class MilestoneServiceTest {
     @Mock
     private NotificationService notificationService;
 
+    @Mock
+    private EscrowService escrowService;
+
     private MilestoneService milestoneService;
 
     private UUID buyerId;
@@ -71,7 +75,8 @@ class MilestoneServiceTest {
                 deliverableRepository,
                 dealRepository,
                 auditService,
-                notificationService
+                notificationService,
+                escrowService
         );
 
         buyerId = UUID.randomUUID();

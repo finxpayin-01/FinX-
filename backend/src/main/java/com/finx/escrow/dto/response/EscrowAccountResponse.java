@@ -12,6 +12,9 @@ public class EscrowAccountResponse {
     private UUID id;
     private UUID dealId;
     private BigDecimal balance;
+    private BigDecimal totalFunded;
+    private BigDecimal totalReleased;
+    private BigDecimal availableBalance;
     private String currency;
     private EscrowAccountStatus status;
     private Instant createdAt;
@@ -25,6 +28,9 @@ public class EscrowAccountResponse {
         response.setId(account.getId());
         response.setDealId(account.getDealId());
         response.setBalance(account.getBalance());
+        response.setTotalFunded(account.getTotalFunded());
+        response.setTotalReleased(account.getTotalReleased());
+        response.setAvailableBalance(account.getAvailableBalance());
         response.setCurrency(account.getCurrency());
         response.setStatus(account.getStatus());
         response.setCreatedAt(account.getCreatedAt());
@@ -54,6 +60,30 @@ public class EscrowAccountResponse {
 
     public void setBalance(BigDecimal balance) {
         this.balance = balance;
+    }
+
+    public BigDecimal getTotalFunded() {
+        return totalFunded;
+    }
+
+    public void setTotalFunded(BigDecimal totalFunded) {
+        this.totalFunded = totalFunded;
+    }
+
+    public BigDecimal getTotalReleased() {
+        return totalReleased;
+    }
+
+    public void setTotalReleased(BigDecimal totalReleased) {
+        this.totalReleased = totalReleased;
+    }
+
+    public BigDecimal getAvailableBalance() {
+        return availableBalance != null ? availableBalance : balance;
+    }
+
+    public void setAvailableBalance(BigDecimal availableBalance) {
+        this.availableBalance = availableBalance;
     }
 
     public String getCurrency() {

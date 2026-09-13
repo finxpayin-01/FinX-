@@ -3,12 +3,15 @@ package com.finx.payment.service;
 import com.finx.audit.service.AuditService;
 import com.finx.common.enums.Role;
 import com.finx.deal.entity.Deal;
+import com.finx.deal.entity.DealStatus;
 import com.finx.deal.repository.DealRepository;
+import com.finx.escrow.entity.EscrowAccount;
 import com.finx.escrow.service.EscrowService;
 import com.finx.exception.BadRequestException;
 import com.finx.exception.ResourceNotFoundException;
 import com.finx.exception.UnauthorizedException;
 import com.finx.milestone.entity.Milestone;
+import com.finx.milestone.entity.MilestoneStatus;
 import com.finx.milestone.repository.MilestoneRepository;
 import com.finx.notification.service.NotificationService;
 import com.finx.payment.dto.request.CreateOrderRequest;
@@ -26,6 +29,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -40,8 +44,8 @@ public class PaymentService {
     private final PaymentRepository paymentRepository;
     private final DealRepository dealRepository;
     private final MilestoneRepository milestoneRepository;
-    private final RazorpayService razorpayService;
     private final EscrowService escrowService;
+    private final RazorpayService razorpayService;
     private final AuditService auditService;
     private final NotificationService notificationService;
 
@@ -75,6 +79,28 @@ public class PaymentService {
 
         if (currentUser.getRole() != Role.ADMIN && !deal.getBuyerId().equals(currentUser.getId())) {
             throw new UnauthorizedException("Only the corporate buyer can initiate payment for this deal");
+        }
+
+        if (deal.getSellerId() == null) {
+            throw new BadRequestException("Cannot initiate payment: No vendor is assigned to this project.");
+        }
+
+        if (deal.getStatus() == DealStatus.CANCELLED || deal.getStatus() == DealStatus.REJECTED || deal.getStatus() == DealStatus.COMPLETED) {
+            throw new BadRequestException("Cannot initiate payment for a " + deal.getStatus() + " deal.");
+        }
+
+        if (milestone.getStatus() == MilestoneStatus.COMPLETED) {
+            throw new BadRequestException("This milestone has already been completed and released.");
+        }
+
+        if (milestone.getAmount() == null || milestone.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BadRequestException("Milestone amount must be greater than zero.");
+        }
+
+        // Ensure escrow account exists before initiating payment order
+        EscrowAccount escrowAccount = escrowService.ensureEscrowAccount(deal.getId(), deal.getCurrency());
+        if (escrowAccount == null) {
+            throw new BadRequestException("Could not initialize internal escrow account for this deal.");
         }
 
         // Check if already funded / successful payment exists for this milestone
@@ -289,6 +315,24 @@ public class PaymentService {
             }
 
             Payment payment = paymentOpt.get();
+
+            String currency = paymentNode.path("currency").asText("");
+            long amountPaise = paymentNode.path("amount").asLong(0);
+
+            // Validate currency: must be INR
+            if (currency != null && !currency.isBlank() && !"INR".equalsIgnoreCase(currency)) {
+                log.warn("Webhook rejected: unsupported currency {} for payment {}", currency, payment.getId());
+                throw new BadRequestException("Invalid payment currency: expected INR");
+            }
+
+            // Validate amount matching: paise must match payment amount * 100
+            if (amountPaise > 0) {
+                BigDecimal expectedPaise = payment.getAmount().multiply(BigDecimal.valueOf(100));
+                if (expectedPaise.compareTo(BigDecimal.valueOf(amountPaise)) != 0) {
+                    log.warn("Webhook rejected: amount mismatch. Expected paise: {}, received: {}", expectedPaise, amountPaise);
+                    throw new BadRequestException("Amount mismatch between webhook and payment record");
+                }
+            }
 
             // Idempotency: If payment already completed/success, do not fund or process again!
             if (payment.getStatus() == PaymentStatus.SUCCESS) {

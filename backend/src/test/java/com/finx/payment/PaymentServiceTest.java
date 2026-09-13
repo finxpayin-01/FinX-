@@ -5,8 +5,10 @@ import com.finx.common.enums.Role;
 import com.finx.deal.entity.Deal;
 import com.finx.deal.entity.DealStatus;
 import com.finx.deal.repository.DealRepository;
+import com.finx.escrow.entity.EscrowAccount;
 import com.finx.escrow.service.EscrowService;
 import com.finx.exception.BadRequestException;
+import com.finx.exception.UnauthorizedException;
 import com.finx.milestone.entity.Milestone;
 import com.finx.milestone.repository.MilestoneRepository;
 import com.finx.notification.service.NotificationService;
@@ -70,6 +72,7 @@ class PaymentServiceTest {
     private UUID milestoneId;
     private Deal deal;
     private Milestone milestone;
+    private EscrowAccount escrowAccount;
     private UserPrincipal buyerPrincipal;
 
     @BeforeEach
@@ -95,6 +98,9 @@ class PaymentServiceTest {
         milestone = new Milestone(dealId, "Phase 1", "Desc", 1, BigDecimal.valueOf(10000), "INR", null);
         milestone.setId(milestoneId);
 
+        escrowAccount = new EscrowAccount(dealId, BigDecimal.ZERO, "INR");
+        escrowAccount.setId(UUID.randomUUID());
+
         User buyerUser = new User("Buyer", "buyer@finx.test", "pass", Role.BUYER, com.finx.common.enums.UserStatus.ACTIVE);
         buyerUser.setId(buyerId);
         buyerPrincipal = UserPrincipal.create(buyerUser);
@@ -107,6 +113,7 @@ class PaymentServiceTest {
 
         when(dealRepository.findById(dealId)).thenReturn(Optional.of(deal));
         when(milestoneRepository.findByIdForUpdate(milestoneId)).thenReturn(Optional.of(milestone));
+        when(escrowService.ensureEscrowAccount(dealId, "INR")).thenReturn(escrowAccount);
         when(paymentRepository.findByMilestoneIdAndStatus(milestoneId, PaymentStatus.SUCCESS)).thenReturn(Optional.empty());
         when(razorpayService.createOrder(any(), any(), any())).thenReturn("order_test_12345");
         when(razorpayService.getPublicKey()).thenReturn("rzp_test_key");
@@ -120,6 +127,7 @@ class PaymentServiceTest {
 
         assertThat(res.getOrderId()).isEqualTo("order_test_12345");
         assertThat(res.getAmount()).isEqualByComparingTo(BigDecimal.valueOf(10000));
+        verify(escrowService).ensureEscrowAccount(dealId, "INR");
         verify(auditService).logEvent(eq(buyerId), eq("PAYMENT_CREATED"), eq("PAYMENT"), any(), any());
     }
 
@@ -254,5 +262,108 @@ class PaymentServiceTest {
         assertThat(config.get("currency")).isEqualTo("INR");
         assertThat(config.get("sandboxMode")).isEqualTo(true);
         assertThat(config.get("keyId")).isEqualTo("rzp_test_123");
+    }
+
+    @Test
+    @DisplayName("Reject payment order initiation if user is not the corporate buyer")
+    void createPaymentOrder_wrongBuyerDenied() {
+        CreateOrderRequest req = new CreateOrderRequest(dealId, milestoneId);
+        User otherUser = new User("Other", "other@finx.test", "pass", Role.BUYER, com.finx.common.enums.UserStatus.ACTIVE);
+        otherUser.setId(UUID.randomUUID());
+        UserPrincipal otherPrincipal = UserPrincipal.create(otherUser);
+
+        when(dealRepository.findById(dealId)).thenReturn(Optional.of(deal));
+        when(milestoneRepository.findByIdForUpdate(milestoneId)).thenReturn(Optional.of(milestone));
+
+        assertThatThrownBy(() -> paymentService.createPaymentOrder(req, otherPrincipal))
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessageContaining("Only the corporate buyer can initiate payment");
+    }
+
+    @Test
+    @DisplayName("Reject payment order if no vendor is assigned to the deal")
+    void createPaymentOrder_noVendorAssignedDenied() {
+        deal.setSellerId(null);
+        CreateOrderRequest req = new CreateOrderRequest(dealId, milestoneId);
+
+        when(dealRepository.findById(dealId)).thenReturn(Optional.of(deal));
+        when(milestoneRepository.findByIdForUpdate(milestoneId)).thenReturn(Optional.of(milestone));
+
+        assertThatThrownBy(() -> paymentService.createPaymentOrder(req, buyerPrincipal))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("No vendor is assigned to this project");
+    }
+
+    @Test
+    @DisplayName("Reject payment order if milestone is already completed")
+    void createPaymentOrder_alreadyCompletedMilestoneDenied() {
+        milestone.setStatus(com.finx.milestone.entity.MilestoneStatus.COMPLETED);
+        CreateOrderRequest req = new CreateOrderRequest(dealId, milestoneId);
+
+        when(dealRepository.findById(dealId)).thenReturn(Optional.of(deal));
+        when(milestoneRepository.findByIdForUpdate(milestoneId)).thenReturn(Optional.of(milestone));
+
+        assertThatThrownBy(() -> paymentService.createPaymentOrder(req, buyerPrincipal))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("already been completed");
+    }
+
+    @Test
+    @DisplayName("Process payment.failed webhook: sets payment status FAILED and does not credit escrow")
+    void processWebhook_failedPayment_creditsZero() {
+        Payment payment = new Payment(dealId, milestoneId, buyerId, BigDecimal.valueOf(10000), "INR", "order_webhook_fail", null);
+        payment.setId(UUID.randomUUID());
+
+        String payload = "{\"event\":\"payment.failed\",\"payload\":{\"payment\":{\"entity\":{\"id\":\"pay_failed_1\",\"order_id\":\"order_webhook_fail\",\"status\":\"failed\",\"currency\":\"INR\",\"amount\":1000000}}}}";
+        String signature = "valid_sig";
+
+        when(razorpayService.verifyWebhookSignature(payload, signature)).thenReturn(true);
+        when(paymentRepository.findByProviderOrderIdForUpdate("order_webhook_fail")).thenReturn(Optional.of(payment));
+        when(paymentRepository.saveAndFlush(any(Payment.class))).thenAnswer(i -> i.getArgument(0));
+
+        java.util.Map<String, Object> result = paymentService.processWebhook(payload, signature);
+
+        assertThat(result.get("status")).isEqualTo("failed");
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.FAILED);
+        verify(escrowService, never()).fundEscrow(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Reject webhook when payment currency is not INR")
+    void processWebhook_currencyMismatch_rejected() {
+        Payment payment = new Payment(dealId, milestoneId, buyerId, BigDecimal.valueOf(10000), "INR", "order_webhook_usd", null);
+        payment.setId(UUID.randomUUID());
+
+        String payload = "{\"event\":\"payment.captured\",\"payload\":{\"payment\":{\"entity\":{\"id\":\"pay_usd_1\",\"order_id\":\"order_webhook_usd\",\"status\":\"captured\",\"currency\":\"USD\",\"amount\":1000000}}}}";
+        String signature = "valid_sig";
+
+        when(razorpayService.verifyWebhookSignature(payload, signature)).thenReturn(true);
+        when(paymentRepository.findByProviderOrderIdForUpdate("order_webhook_usd")).thenReturn(Optional.of(payment));
+
+        assertThatThrownBy(() -> paymentService.processWebhook(payload, signature))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Invalid payment currency: expected INR");
+
+        verify(escrowService, never()).fundEscrow(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Reject webhook when amount does not match payment record")
+    void processWebhook_amountMismatch_rejected() {
+        Payment payment = new Payment(dealId, milestoneId, buyerId, BigDecimal.valueOf(10000), "INR", "order_webhook_amt", null);
+        payment.setId(UUID.randomUUID());
+
+        // 500000 paise = 5000 INR, but payment expects 1000000 paise = 10000 INR
+        String payload = "{\"event\":\"payment.captured\",\"payload\":{\"payment\":{\"entity\":{\"id\":\"pay_amt_1\",\"order_id\":\"order_webhook_amt\",\"status\":\"captured\",\"currency\":\"INR\",\"amount\":500000}}}}";
+        String signature = "valid_sig";
+
+        when(razorpayService.verifyWebhookSignature(payload, signature)).thenReturn(true);
+        when(paymentRepository.findByProviderOrderIdForUpdate("order_webhook_amt")).thenReturn(Optional.of(payment));
+
+        assertThatThrownBy(() -> paymentService.processWebhook(payload, signature))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Amount mismatch");
+
+        verify(escrowService, never()).fundEscrow(any(), any(), any(), any(), any(), any());
     }
 }

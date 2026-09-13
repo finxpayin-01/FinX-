@@ -24,6 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.finx.dispute.entity.DisputeStatus;
 import com.finx.dispute.repository.DisputeRepository;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -63,11 +64,25 @@ public class EscrowService {
     }
 
     @Transactional
+    public EscrowAccount ensureEscrowAccount(UUID dealId, String currency) {
+        String curr = (currency != null && !currency.isBlank()) ? currency.toUpperCase() : "INR";
+        Optional<EscrowAccount> existing = escrowAccountRepository.findByDealId(dealId);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+        try {
+            EscrowAccount newAccount = new EscrowAccount(dealId, BigDecimal.ZERO, curr);
+            return escrowAccountRepository.saveAndFlush(newAccount);
+        } catch (DataIntegrityViolationException e) {
+            // Concurrent creation race condition safe fallback
+            return escrowAccountRepository.findByDealId(dealId)
+                    .orElseThrow(() -> new BadRequestException("Could not initialize escrow account for deal"));
+        }
+    }
+
+    @Transactional
     public EscrowAccount getOrCreateEscrowAccount(UUID dealId, String currency) {
-        return escrowAccountRepository.findByDealIdForUpdate(dealId).orElseGet(() -> {
-            EscrowAccount account = new EscrowAccount(dealId, BigDecimal.ZERO, currency);
-            return escrowAccountRepository.saveAndFlush(account);
-        });
+        return ensureEscrowAccount(dealId, currency);
     }
 
     @Transactional
@@ -116,6 +131,7 @@ public class EscrowService {
 
         BigDecimal newBalance = account.getBalance().add(amount);
         account.setBalance(newBalance);
+        account.setTotalFunded(account.getTotalFunded().add(amount));
         escrowAccountRepository.saveAndFlush(account);
 
         EscrowLedger ledger = new EscrowLedger(
@@ -176,10 +192,10 @@ public class EscrowService {
         }
 
         EscrowAccount account = escrowAccountRepository.findByDealIdForUpdate(deal.getId())
-                .orElseThrow(() -> new BadRequestException("No escrow account found for this deal"));
+                .orElseGet(() -> ensureEscrowAccount(deal.getId(), deal.getCurrency()));
 
         if (account.getBalance().compareTo(milestone.getAmount()) < 0) {
-            throw new BadRequestException("Insufficient escrow balance. Available: " + account.getBalance() + " " + account.getCurrency() + ", Required: " + milestone.getAmount() + " " + account.getCurrency());
+            throw new BadRequestException("Insufficient escrow balance. Available: " + account.getBalance() + " " + account.getCurrency() + ", Required: " + milestone.getAmount() + " " + account.getCurrency() + ". Please fund the milestone before releasing funds.");
         }
 
         BigDecimal newBalance = account.getBalance().subtract(milestone.getAmount());
@@ -188,6 +204,7 @@ public class EscrowService {
         }
 
         account.setBalance(newBalance);
+        account.setTotalReleased(account.getTotalReleased().add(milestone.getAmount()));
         escrowAccountRepository.saveAndFlush(account);
 
         String releaseDescription = (comment != null && !comment.isBlank())

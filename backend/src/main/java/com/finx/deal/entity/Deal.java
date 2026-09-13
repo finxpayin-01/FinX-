@@ -55,6 +55,21 @@ public class Deal {
     @Column(name = "status", nullable = false, length = 50)
     private DealStatus status = DealStatus.DRAFT;
 
+    @Column(name = "accepted_at")
+    private Instant acceptedAt;
+
+    @Column(name = "accepted_by")
+    private UUID acceptedBy;
+
+    @Column(name = "rejected_at")
+    private Instant rejectedAt;
+
+    @Column(name = "rejected_by")
+    private UUID rejectedBy;
+
+    @Column(name = "rejection_reason")
+    private String rejectionReason;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -154,6 +169,46 @@ public class Deal {
 
     public Instant getUpdatedAt() {
         return updatedAt;
+    }
+
+    public Instant getAcceptedAt() {
+        return acceptedAt;
+    }
+
+    public void setAcceptedAt(Instant acceptedAt) {
+        this.acceptedAt = acceptedAt;
+    }
+
+    public UUID getAcceptedBy() {
+        return acceptedBy;
+    }
+
+    public void setAcceptedBy(UUID acceptedBy) {
+        this.acceptedBy = acceptedBy;
+    }
+
+    public Instant getRejectedAt() {
+        return rejectedAt;
+    }
+
+    public void setRejectedAt(Instant rejectedAt) {
+        this.rejectedAt = rejectedAt;
+    }
+
+    public UUID getRejectedBy() {
+        return rejectedBy;
+    }
+
+    public void setRejectedBy(UUID rejectedBy) {
+        this.rejectedBy = rejectedBy;
+    }
+
+    public String getRejectionReason() {
+        return rejectionReason;
+    }
+
+    public void setRejectionReason(String rejectionReason) {
+        this.rejectionReason = rejectionReason;
     }
 
     @Override

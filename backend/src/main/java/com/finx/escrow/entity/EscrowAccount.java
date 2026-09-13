@@ -27,6 +27,12 @@ public class EscrowAccount {
     @Column(name = "balance", nullable = false, precision = 15, scale = 2)
     private BigDecimal balance = BigDecimal.ZERO;
 
+    @Column(name = "total_funded", nullable = false, precision = 15, scale = 2)
+    private BigDecimal totalFunded = BigDecimal.ZERO;
+
+    @Column(name = "total_released", nullable = false, precision = 15, scale = 2)
+    private BigDecimal totalReleased = BigDecimal.ZERO;
+
     @Column(name = "currency", nullable = false, length = 10)
     private String currency = "INR";
 
@@ -52,6 +58,8 @@ public class EscrowAccount {
     public EscrowAccount(UUID dealId, BigDecimal balance, String currency) {
         this.dealId = dealId;
         this.balance = balance != null ? balance : BigDecimal.ZERO;
+        this.totalFunded = balance != null ? balance : BigDecimal.ZERO;
+        this.totalReleased = BigDecimal.ZERO;
         this.currency = currency != null ? currency.toUpperCase() : "INR";
         this.status = EscrowAccountStatus.ACTIVE;
     }
@@ -78,6 +86,26 @@ public class EscrowAccount {
 
     public void setBalance(BigDecimal balance) {
         this.balance = balance;
+    }
+
+    public BigDecimal getTotalFunded() {
+        return totalFunded != null ? totalFunded : BigDecimal.ZERO;
+    }
+
+    public void setTotalFunded(BigDecimal totalFunded) {
+        this.totalFunded = totalFunded;
+    }
+
+    public BigDecimal getTotalReleased() {
+        return totalReleased != null ? totalReleased : BigDecimal.ZERO;
+    }
+
+    public void setTotalReleased(BigDecimal totalReleased) {
+        this.totalReleased = totalReleased;
+    }
+
+    public BigDecimal getAvailableBalance() {
+        return balance != null ? balance : BigDecimal.ZERO;
     }
 
     public String getCurrency() {

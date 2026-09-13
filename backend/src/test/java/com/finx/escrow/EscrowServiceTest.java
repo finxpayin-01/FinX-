@@ -197,4 +197,56 @@ class EscrowServiceTest {
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("DISPUTED status");
     }
+
+    @Test
+    @DisplayName("ensureEscrowAccount: creates new escrow account when none exists")
+    void ensureEscrowAccount_createsNewWhenMissing() {
+        when(escrowAccountRepository.findByDealId(dealId)).thenReturn(Optional.empty());
+        when(escrowAccountRepository.saveAndFlush(any(EscrowAccount.class))).thenAnswer(i -> {
+            EscrowAccount ea = i.getArgument(0);
+            ea.setId(UUID.randomUUID());
+            return ea;
+        });
+
+        EscrowAccount created = escrowService.ensureEscrowAccount(dealId, "INR");
+
+        assertThat(created).isNotNull();
+        assertThat(created.getDealId()).isEqualTo(dealId);
+        assertThat(created.getBalance()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(created.getTotalFunded()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(created.getTotalReleased()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(created.getCurrency()).isEqualTo("INR");
+        verify(escrowAccountRepository).saveAndFlush(any(EscrowAccount.class));
+    }
+
+    @Test
+    @DisplayName("ensureEscrowAccount: returns existing account idempotently without creating duplicate")
+    void ensureEscrowAccount_returnsExistingIdempotently() {
+        when(escrowAccountRepository.findByDealId(dealId)).thenReturn(Optional.of(escrowAccount));
+
+        EscrowAccount returned = escrowService.ensureEscrowAccount(dealId, "INR");
+
+        assertThat(returned).isSameAs(escrowAccount);
+        verify(escrowAccountRepository, never()).saveAndFlush(any(EscrowAccount.class));
+    }
+
+    @Test
+    @DisplayName("releaseEscrow: auto-ensures escrow account if missing and rejects unfunded release with clear message")
+    void releaseEscrow_autoEnsuresAccountAndRejectsUnfunded() {
+        when(milestoneRepository.findByIdForUpdate(milestoneId)).thenReturn(Optional.of(milestone));
+        when(dealRepository.findByIdForUpdate(dealId)).thenReturn(Optional.of(deal));
+        when(escrowLedgerRepository.findByMilestoneIdAndTransactionType(milestoneId, TransactionType.RELEASE)).thenReturn(Optional.empty());
+        when(escrowAccountRepository.findByDealIdForUpdate(dealId)).thenReturn(Optional.empty());
+        when(escrowAccountRepository.findByDealId(dealId)).thenReturn(Optional.empty());
+        when(escrowAccountRepository.saveAndFlush(any(EscrowAccount.class))).thenAnswer(i -> {
+            EscrowAccount ea = i.getArgument(0);
+            ea.setId(UUID.randomUUID());
+            return ea;
+        });
+
+        assertThatThrownBy(() -> escrowService.releaseEscrow(milestoneId, "Release", buyerPrincipal))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Insufficient escrow balance")
+                .hasMessageContaining("Please fund the milestone before releasing funds");
+    }
 }

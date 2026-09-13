@@ -6,5 +6,6 @@ public enum DealStatus {
     ACTIVE,
     COMPLETED,
     CANCELLED,
-    DISPUTED
+    DISPUTED,
+    REJECTED
 }

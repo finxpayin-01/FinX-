@@ -72,7 +72,7 @@ export interface Project {
   amount: number;
 }
 
-export type DealStatus = 'DRAFT' | 'PENDING_ACCEPTANCE' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED' | 'DISPUTED';
+export type DealStatus = 'DRAFT' | 'PENDING_ACCEPTANCE' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED' | 'DISPUTED' | 'REJECTED';
 
 export interface Deal {
   id: string;
@@ -84,6 +84,11 @@ export interface Deal {
   totalAmount: number;
   currency: string;
   status: DealStatus;
+  acceptedAt?: string;
+  acceptedBy?: string;
+  rejectedAt?: string;
+  rejectedBy?: string;
+  rejectionReason?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -98,6 +103,11 @@ export interface DealResponse {
   totalAmount: number;
   currency: string;
   status: DealStatus;
+  acceptedAt?: string;
+  acceptedBy?: string;
+  rejectedAt?: string;
+  rejectedBy?: string;
+  rejectionReason?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -166,6 +176,9 @@ export interface EscrowAccount {
   id: string;
   dealId: string;
   balance: number;
+  totalFunded?: number;
+  totalReleased?: number;
+  availableBalance?: number;
   currency: string;
   status: 'ACTIVE' | 'FROZEN' | 'CLOSED';
   createdAt: string;
