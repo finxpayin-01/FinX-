@@ -55,10 +55,36 @@ jobs:
         env:
           NEXT_PUBLIC_API_URL: http://localhost:8080/api
 
+  contracts-test:
+    name: Solidity Build, Unit, Fuzz and Invariant Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: contracts/package-lock.json
+      - name: Install pinned contract tooling without lifecycle scripts
+        working-directory: contracts
+        run: npm ci --ignore-scripts
+      - name: Check formatting
+        working-directory: contracts
+        run: npm run format:check
+      - name: Compile and check contract sizes
+        working-directory: contracts
+        run: npm run build
+      - name: Unit, adversarial, fuzz and invariant tests
+        working-directory: contracts
+        run: npm test
+      - name: Dependency vulnerability gate
+        working-directory: contracts
+        run: npm audit --audit-level=high
+
   deploy:
     name: Trigger Render Deployment
     runs-on: ubuntu-latest
-    needs: [backend-test, frontend-build]
+    needs: [backend-test, frontend-build, contracts-test]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
       - name: Trigger Render Deploy Hook (if configured)
