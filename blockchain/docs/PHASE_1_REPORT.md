@@ -26,7 +26,7 @@ Existing CI now runs contract formatting, size/build, unit/fuzz/invariant tests 
 | Failure exit propagation | Deliberate invalid Forge command returned nonzero through custom launcher |
 | Git whitespace check | Passed |
 
-Found and corrected during validation: Windows UTF-8 byte-order marks; upstream npm install's Unix environment syntax; Forge npm wrapper masking failed child exit codes; obsolete testFail naming; getter consuming an expectRevert assertion. Pinned direct-binary launcher and script-disabled installation are documented in contracts/README.md. Initial failed runs were not treated as successful validation.
+Found and corrected during validation: Windows UTF-8 byte-order marks; upstream npm install's Unix environment syntax; Forge npm wrapper masking failed child exit codes; obsolete testFail naming; getter consuming an expectRevert assertion. Pinned direct-binary launcher and script-disabled installation are documented in ../contracts/README.md. Initial failed runs were not treated as successful validation.
 
 ## Gas observations
 

@@ -30,4 +30,4 @@ Only `fundEscrow()` recognizes custody: a raw ERC20 transfer is an uncredited do
 
 Tests cover lifecycle, role/state violations, replay, donation exclusion, false/no-return/fee/callback tokens, asset pauses, boundaries and delayed governance. Fuzz uses 512 amounts/outcomes; invariant handler uses 128 runs x 64 steps and checks actual balances plus per-milestone totals. Expected invalid actions are caught by the handler; unexpected handler reverts fail the suite. These are initial tests, not an independent audit or full Phase 2 completion.
 
-Read [contract design](../docs/blockchain/CONTRACT_DESIGN.md), [architecture](../docs/blockchain/TARGET_ARCHITECTURE.md), [threat model](../docs/blockchain/THREAT_MODEL.md) and [phase report](../docs/blockchain/PHASE_1_REPORT.md). Public testnet deployment belongs to Phase 3 after test/security review and actual external configuration.
+Read [contract design](../docs/CONTRACT_DESIGN.md), [architecture](../docs/TARGET_ARCHITECTURE.md), [threat model](../docs/THREAT_MODEL.md) and [phase report](../docs/PHASE_1_REPORT.md). Public testnet deployment belongs to Phase 3 after test/security review and actual external configuration.

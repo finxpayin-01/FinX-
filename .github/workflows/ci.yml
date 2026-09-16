@@ -64,21 +64,21 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: contracts/package-lock.json
+          cache-dependency-path: blockchain/contracts/package-lock.json
       - name: Install pinned contract tooling without lifecycle scripts
-        working-directory: contracts
+        working-directory: blockchain/contracts
         run: npm ci --ignore-scripts
       - name: Check formatting
-        working-directory: contracts
+        working-directory: blockchain/contracts
         run: npm run format:check
       - name: Compile and check contract sizes
-        working-directory: contracts
+        working-directory: blockchain/contracts
         run: npm run build
       - name: Unit, adversarial, fuzz and invariant tests
-        working-directory: contracts
+        working-directory: blockchain/contracts
         run: npm test
       - name: Dependency vulnerability gate
-        working-directory: contracts
+        working-directory: blockchain/contracts
         run: npm audit --audit-level=high
 
   deploy:
