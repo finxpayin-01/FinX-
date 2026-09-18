@@ -94,7 +94,12 @@ public class FlywayCleanMigrationTest {
             }
             assertTrue(dealColumns.contains("project_id"), "V4 column 'project_id' on 'deals' must exist, found: " + dealColumns);
 
-            System.out.println("ALL V1, V2, V3, V4, V5 TABLES AND COLUMNS VERIFIED IN SEQUENTIAL CLEAN ORDER!\n");
+            // V9 tables & columns
+            assertTrue(tables.contains("project_manager_invitations"), "V9 table 'project_manager_invitations' must exist");
+            assertTrue(userColumns.contains("pm_id"), "V9 column 'pm_id' on 'users' must exist, found: " + userColumns);
+            assertTrue(dealColumns.contains("project_manager_id"), "V9 column 'project_manager_id' on 'deals' must exist, found: " + dealColumns);
+
+            System.out.println("ALL V1 - V9 TABLES AND COLUMNS VERIFIED IN SEQUENTIAL CLEAN ORDER!\n");
         }
     }
 }

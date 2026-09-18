@@ -6,11 +6,16 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { dealService } from "@/services/deal.service";
-import { Deal, Milestone } from "@/types";
+import { projectManagerService } from "@/services/project-manager.service";
+import { Deal, Milestone, DealProjectManagerInfo, ProjectManagerSummary } from "@/types";
 import { milestoneService } from "@/services/milestone.service";
 import { MilestoneStatusBadge } from "@/components/ui/MilestoneStatusBadge";
 import Link from "next/link";
-import { ArrowLeft, RefreshCw, AlertCircle, Calendar, DollarSign, User, ShieldCheck, XCircle, CheckCircle2, Plus, Eye, CreditCard, AlertTriangle, Layers, Building2 } from "lucide-react";
+import {
+    ArrowLeft, RefreshCw, AlertCircle, Calendar, DollarSign, User, ShieldCheck,
+    XCircle, CheckCircle2, Plus, Eye, CreditCard, AlertTriangle, Layers, Building2,
+    UserCheck, UserPlus, Mail, Clock
+} from "lucide-react";
 
 export default function ProjectDetailsPage() {
     const params = useParams();
@@ -26,6 +31,17 @@ export default function ProjectDetailsPage() {
     const [actionSuccess, setActionSuccess] = useState<string | null>(null);
     const [actionError, setActionError] = useState<string | null>(null);
 
+    // Project Manager Assignment State
+    const [pmInfo, setPmInfo] = useState<DealProjectManagerInfo | null>(null);
+    const [isPmLoading, setIsPmLoading] = useState(true);
+    const [eligiblePms, setEligiblePms] = useState<ProjectManagerSummary[]>([]);
+    const [showInviteModal, setShowInviteModal] = useState(false);
+    const [selectedPmId, setSelectedPmId] = useState("");
+    const [manualPmId, setManualPmId] = useState("");
+    const [inviteMode, setInviteMode] = useState<"SELECT" | "MANUAL">("SELECT");
+    const [isInvitingPm, setIsInvitingPm] = useState(false);
+    const [isCancellingPm, setIsCancellingPm] = useState(false);
+
     const fetchDeal = async () => {
         setIsLoading(true);
         setError(null);
@@ -36,6 +52,18 @@ export default function ProjectDetailsPage() {
             setError(err?.response?.data?.message || err.message || "Failed to fetch deal details");
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const fetchPmInfo = async () => {
+        setIsPmLoading(true);
+        try {
+            const data = await projectManagerService.getDealProjectManager(projectId);
+            setPmInfo(data);
+        } catch {
+            setPmInfo(null);
+        } finally {
+            setIsPmLoading(false);
         }
     };
 
@@ -55,24 +83,88 @@ export default function ProjectDetailsPage() {
         if (!projectId) return;
         fetchDeal();
         fetchMilestones();
+        fetchPmInfo();
 
         let intervalId: any;
-        // Auto-refresh while waiting for vendor acceptance
-        if (deal?.status === "PENDING_VENDOR_ACCEPTANCE" || deal?.status === "DRAFT") {
+        // Auto-refresh while waiting for vendor or PM
+        if (deal?.status === "PENDING_VENDOR_ACCEPTANCE" || deal?.status === "DRAFT" || pmInfo?.activeInvitation) {
             intervalId = setInterval(() => {
                 dealService.getDealById(projectId).then(updated => {
-                    if (updated && updated.status !== deal.status) {
+                    if (updated && updated.status !== deal?.status) {
                         setDeal(updated);
                         fetchMilestones();
                     }
                 }).catch(() => { });
+                projectManagerService.getDealProjectManager(projectId).then(setPmInfo).catch(() => {});
             }, 6000);
         }
 
         return () => {
             if (intervalId) clearInterval(intervalId);
         };
-    }, [projectId, deal?.status]);
+    }, [projectId, deal?.status, pmInfo?.activeInvitation?.id]);
+
+    const handleOpenInviteModal = async () => {
+        setShowInviteModal(true);
+        try {
+            const pms = await projectManagerService.getEligibleProjectManagers();
+            setEligiblePms(pms);
+            if (pms.length > 0 && !selectedPmId) {
+                setSelectedPmId(pms[0].id);
+            }
+        } catch (e) {
+            console.warn("Failed to load eligible PMs:", e);
+        }
+    };
+
+    const handleSendPmInvitation = async () => {
+        if (!deal) return;
+        setIsInvitingPm(true);
+        setActionError(null);
+        setActionSuccess(null);
+        try {
+            const payload = inviteMode === "SELECT"
+                ? { projectManagerId: selectedPmId }
+                : { pmId: manualPmId.trim().toUpperCase() };
+
+            if (inviteMode === "MANUAL" && !manualPmId.trim()) {
+                setActionError("Please enter a valid PM ID (e.g. FINX-PM-XXXXXX)");
+                setIsInvitingPm(false);
+                return;
+            }
+
+            await projectManagerService.inviteProjectManager(deal.id, payload);
+            setActionSuccess("Project Manager invitation sent successfully. The PM will review and accept or decline.");
+            setShowInviteModal(false);
+            setManualPmId("");
+            await fetchPmInfo();
+            await fetchDeal();
+        } catch (err: any) {
+            setActionError(err?.response?.data?.message || err.message || "Failed to invite Project Manager");
+        } finally {
+            setIsInvitingPm(false);
+        }
+    };
+
+    const handleCancelPmInvitation = async () => {
+        if (!deal || !pmInfo?.activeInvitation) return;
+        const confirm = window.confirm("Are you sure you want to cancel this Project Manager invitation?");
+        if (!confirm) return;
+
+        setIsCancellingPm(true);
+        setActionError(null);
+        setActionSuccess(null);
+        try {
+            await projectManagerService.cancelInvitation(deal.id, pmInfo.activeInvitation.id);
+            setActionSuccess("Project Manager invitation cancelled.");
+            await fetchPmInfo();
+            await fetchDeal();
+        } catch (err: any) {
+            setActionError(err?.response?.data?.message || err.message || "Failed to cancel invitation");
+        } finally {
+            setIsCancellingPm(false);
+        }
+    };
 
     const handleCancelDeal = async () => {
         if (!deal) return;
@@ -212,19 +304,101 @@ export default function ProjectDetailsPage() {
                             </Card>
 
                             <Card className="md:col-span-2">
-                                <CardHeader className="pb-3 border-b border-slate-100">
+                                <CardHeader className="pb-3 border-b border-slate-100 flex flex-row items-center justify-between">
                                     <div className="flex items-center gap-2 text-slate-700 font-semibold">
-                                        <User size={18} className="text-blue-500" /> Parties Involved
+                                        <User size={18} className="text-blue-500" /> Parties &amp; Governance
                                     </div>
+                                    {!deal.projectManagerId && !pmInfo?.projectManager && !pmInfo?.activeInvitation && (
+                                        <Button
+                                            size="sm"
+                                            onClick={handleOpenInviteModal}
+                                            className="gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs h-7"
+                                        >
+                                            <UserPlus size={13} /> Assign Project Manager
+                                        </Button>
+                                    )}
                                 </CardHeader>
-                                <CardContent className="pt-4 flex flex-col md:flex-row gap-8">
-                                    <div className="flex-1">
-                                        <p className="text-sm font-medium text-slate-500 mb-1">Buyer (You)</p>
-                                        <p className="text-xs font-mono text-slate-900 bg-slate-50 p-2.5 rounded border border-slate-200 select-all">{deal.buyerId}</p>
+                                <CardContent className="pt-4 grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    <div className="space-y-1">
+                                        <p className="text-sm font-medium text-slate-500">Buyer (You)</p>
+                                        <p className="text-xs font-mono text-slate-900 bg-slate-50 p-2.5 rounded border border-slate-200 select-all truncate">{deal.buyerId}</p>
                                     </div>
-                                    <div className="flex-1">
-                                        <p className="text-sm font-medium text-slate-500 mb-1">Seller (Vendor)</p>
-                                        <p className="text-xs font-mono text-slate-900 bg-slate-50 p-2.5 rounded border border-slate-200 select-all">{deal.sellerId}</p>
+                                    <div className="space-y-1">
+                                        <p className="text-sm font-medium text-slate-500">Seller (Vendor)</p>
+                                        <p className="text-xs font-mono text-slate-900 bg-slate-50 p-2.5 rounded border border-slate-200 select-all truncate">{deal.sellerId}</p>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <div className="flex items-center justify-between mb-1">
+                                            <p className="text-sm font-medium text-slate-500">Project Manager</p>
+                                            {pmInfo?.projectManager || deal.projectManager ? (
+                                                <span className="px-2 py-0.5 text-[11px] font-bold rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                                    Assigned
+                                                </span>
+                                            ) : pmInfo?.activeInvitation ? (
+                                                <span className="px-2 py-0.5 text-[11px] font-bold rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                                                    Invited
+                                                </span>
+                                            ) : (
+                                                <span className="px-2 py-0.5 text-[11px] font-semibold rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                                                    None
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        {pmInfo?.projectManager || deal.projectManager ? (
+                                            <div className="bg-emerald-50/60 p-2.5 rounded border border-emerald-200 space-y-1">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-xs font-semibold text-emerald-950 truncate">
+                                                        {(pmInfo?.projectManager || deal.projectManager)?.name || (pmInfo?.projectManager || deal.projectManager)?.fullName || "Assigned PM"}
+                                                    </span>
+                                                    <span className="font-mono text-[11px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded shrink-0">
+                                                        {(pmInfo?.projectManager || deal.projectManager)?.pmId || "FINX-PM"}
+                                                    </span>
+                                                </div>
+                                                <p className="text-[11px] text-emerald-700 truncate">
+                                                    {(pmInfo?.projectManager || deal.projectManager)?.email}
+                                                </p>
+                                            </div>
+                                        ) : pmInfo?.activeInvitation ? (
+                                            <div className="bg-amber-50/60 p-2.5 rounded border border-amber-200 space-y-1.5">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-xs font-semibold text-amber-950 truncate">
+                                                        {pmInfo.activeInvitation.projectManagerName || pmInfo.activeInvitation.projectManagerEmail || "Invited PM"}
+                                                    </span>
+                                                    {pmInfo.activeInvitation.projectManagerPmId && (
+                                                        <span className="font-mono text-[11px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded shrink-0">
+                                                            {pmInfo.activeInvitation.projectManagerPmId}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center justify-between pt-0.5">
+                                                    <span className="text-[10px] text-amber-700">
+                                                        Sent {new Date(pmInfo.activeInvitation.invitedAt).toLocaleDateString()}
+                                                    </span>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        disabled={isCancellingPm}
+                                                        onClick={handleCancelPmInvitation}
+                                                        className="h-6 px-2 text-[10px] font-semibold text-rose-700 hover:text-rose-900 border-rose-200 hover:bg-rose-50"
+                                                    >
+                                                        {isCancellingPm ? "Cancelling..." : "Cancel Invite"}
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="bg-slate-50 p-2.5 rounded border border-slate-200 flex items-center justify-between">
+                                                <span className="text-xs text-slate-500">Not assigned</span>
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={handleOpenInviteModal}
+                                                    className="h-6 px-2 text-[11px] font-medium text-blue-600 border-blue-200 hover:bg-blue-50"
+                                                >
+                                                    Assign PM
+                                                </Button>
+                                            </div>
+                                        )}
                                     </div>
                                 </CardContent>
                             </Card>
@@ -445,6 +619,130 @@ export default function ProjectDetailsPage() {
                     </>
                 )}
             </div>
+
+            {/* Assign / Invite Project Manager Modal */}
+            {showInviteModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+                    <div className="bg-white rounded-xl max-w-lg w-full p-6 shadow-xl space-y-5 border border-slate-200">
+                        <div className="flex items-start justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="h-10 w-10 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center shrink-0">
+                                    <UserPlus size={20} />
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-bold text-slate-900">Assign Project Manager</h3>
+                                    <p className="text-xs text-slate-500 mt-0.5">
+                                        Invite an independent Project Manager to audit deliverables.
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setShowInviteModal(false)}
+                                className="text-slate-400 hover:text-slate-600 p-1"
+                            >
+                                <XCircle size={18} />
+                            </button>
+                        </div>
+
+                        {/* Mode Selection Tabs */}
+                        <div className="flex bg-slate-100 p-1 rounded-lg">
+                            <button
+                                type="button"
+                                onClick={() => setInviteMode("SELECT")}
+                                className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                                    inviteMode === "SELECT"
+                                        ? "bg-white text-slate-900 shadow-xs"
+                                        : "text-slate-600 hover:text-slate-900"
+                                }`}
+                            >
+                                Registered PM Directory
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setInviteMode("MANUAL")}
+                                className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                                    inviteMode === "MANUAL"
+                                        ? "bg-white text-slate-900 shadow-xs"
+                                        : "text-slate-600 hover:text-slate-900"
+                                }`}
+                            >
+                                Enter PM ID
+                            </button>
+                        </div>
+
+                        {inviteMode === "SELECT" ? (
+                            <div className="space-y-2">
+                                <label className="block text-xs font-semibold text-slate-700">
+                                    Select Project Manager
+                                </label>
+                                {eligiblePms.length === 0 ? (
+                                    <div className="p-4 text-center border border-dashed rounded-lg bg-slate-50 text-xs text-slate-500">
+                                        No registered Project Managers found. Switch to "Enter PM ID" to invite by ID.
+                                    </div>
+                                ) : (
+                                    <select
+                                        value={selectedPmId}
+                                        onChange={(e) => setSelectedPmId(e.target.value)}
+                                        className="w-full text-xs p-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-slate-900"
+                                    >
+                                        {eligiblePms.map((pm) => (
+                                            <option key={pm.id} value={pm.id}>
+                                                {pm.name} ({pm.email}) — {pm.pmId || "FINX-PM"}
+                                            </option>
+                                        ))}
+                                    </select>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                <label className="block text-xs font-semibold text-slate-700">
+                                    Permanent Project Manager ID (PM ID)
+                                </label>
+                                <input
+                                    type="text"
+                                    value={manualPmId}
+                                    onChange={(e) => setManualPmId(e.target.value)}
+                                    placeholder="FINX-PM-XXXXXX"
+                                    className="w-full text-xs font-mono uppercase tracking-wider p-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 text-slate-900 placeholder:text-slate-400"
+                                />
+                                <p className="text-[11px] text-slate-500">
+                                    Enter the 6-character identifier provided by the Project Manager (e.g., <span className="font-mono font-medium">FINX-PM-A1B2C3</span>).
+                                </p>
+                            </div>
+                        )}
+
+                        <div className="p-3 bg-blue-50/60 rounded-lg border border-blue-200/80 text-[11px] text-blue-800 space-y-1">
+                            <p className="font-semibold flex items-center gap-1.5">
+                                <ShieldCheck size={14} className="text-blue-600 shrink-0" />
+                                Two-Sided Acceptance Workflow
+                            </p>
+                            <p className="text-blue-700 leading-relaxed">
+                                FinX requires mutual consent. The invited Project Manager will receive a notification and must accept before becoming assigned.
+                            </p>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setShowInviteModal(false)}
+                                className="text-xs"
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                size="sm"
+                                onClick={handleSendPmInvitation}
+                                disabled={isInvitingPm || (inviteMode === "SELECT" && eligiblePms.length === 0)}
+                                className="bg-blue-600 hover:bg-blue-700 text-white text-xs gap-1.5"
+                            >
+                                {isInvitingPm && <RefreshCw size={14} className="animate-spin" />}
+                                Send Project Invitation
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </DashboardLayout>
     );
 }

@@ -25,6 +25,19 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     @org.springframework.data.jpa.repository.Query("SELECT COUNT(u) > 0 FROM User u WHERE LOWER(u.uid) = LOWER(:uid)")
     boolean existsByUidIgnoreCase(@org.springframework.data.repository.query.Param("uid") String uid);
 
+    Optional<User> findByPmId(String pmId);
+
+    @org.springframework.data.jpa.repository.Query("SELECT u FROM User u WHERE LOWER(u.pmId) = LOWER(:pmId)")
+    Optional<User> findByPmIdIgnoreCase(@org.springframework.data.repository.query.Param("pmId") String pmId);
+
+    boolean existsByPmId(String pmId);
+
+    @org.springframework.data.jpa.repository.Query("SELECT COUNT(u) > 0 FROM User u WHERE LOWER(u.pmId) = LOWER(:pmId)")
+    boolean existsByPmIdIgnoreCase(@org.springframework.data.repository.query.Param("pmId") String pmId);
+
     List<User> findByUidIsNull();
     List<User> findByRole(Role role);
+
+    @org.springframework.data.jpa.repository.Query("SELECT u FROM User u WHERE u.role = 'PROJECT_MANAGER' AND (u.pmId IS NULL OR TRIM(u.pmId) = '')")
+    List<User> findProjectManagersMissingPmId();
 }

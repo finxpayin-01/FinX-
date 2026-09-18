@@ -26,6 +26,9 @@ public class User {
     @Column(name = "uid", unique = true, updatable = false, length = 20)
     private String uid;
 
+    @Column(name = "pm_id", unique = true, length = 30)
+    private String pmId;
+
     @PrePersist
     protected void onCreate() {
         if (this.uid == null || this.uid.isBlank()) {
@@ -83,6 +86,14 @@ public class User {
 
     public void setUid(String uid) {
         this.uid = uid;
+    }
+
+    public String getPmId() {
+        return pmId;
+    }
+
+    public void setPmId(String pmId) {
+        this.pmId = pmId;
     }
 
     public String getName() {

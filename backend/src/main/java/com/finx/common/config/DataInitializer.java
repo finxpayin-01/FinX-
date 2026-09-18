@@ -23,15 +23,18 @@ public class DataInitializer implements ApplicationRunner {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final com.finx.user.service.UserUidService userUidService;
+    private final com.finx.user.service.PmIdService pmIdService;
     private final String initialAdminPassword;
 
     public DataInitializer(UserRepository userRepository,
-                            PasswordEncoder passwordEncoder,
-                            com.finx.user.service.UserUidService userUidService,
-                            @Value("${finx.admin.initial-password:}") String initialAdminPassword) {
+                           PasswordEncoder passwordEncoder,
+                           com.finx.user.service.UserUidService userUidService,
+                           com.finx.user.service.PmIdService pmIdService,
+                           @Value("${finx.admin.initial-password:}") String initialAdminPassword) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.userUidService = userUidService;
+        this.pmIdService = pmIdService;
         this.initialAdminPassword = initialAdminPassword;
     }
 
@@ -66,6 +69,16 @@ public class DataInitializer implements ApplicationRunner {
             }
         } catch (Exception ex) {
             log.warn("[STARTUP BACKFILL] Note: startup UID backfill skipped or deferred: {}", ex.getMessage());
+        }
+
+        // Safety startup check: backfill any existing project managers missing a PM ID
+        try {
+            int pmBackfilled = pmIdService.backfillMissingPmIds();
+            if (pmBackfilled > 0) {
+                log.info("[STARTUP BACKFILL] Successfully backfilled PM IDs for {} existing Project Managers.", pmBackfilled);
+            }
+        } catch (Exception ex) {
+            log.warn("[STARTUP BACKFILL] Note: startup PM ID backfill skipped or deferred: {}", ex.getMessage());
         }
     }
 }

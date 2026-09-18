@@ -14,13 +14,15 @@ export const FINXSettings = () => {
     const [activeTab, setActiveTab] = useState("profile");
     const [currentUser, setCurrentUser] = useState(user);
     const [copiedUid, setCopiedUid] = useState(false);
+    const [copiedPmId, setCopiedPmId] = useState(false);
 
     useEffect(() => {
         if (user) {
             setCurrentUser(user);
-            if (!user.uid) {
+            const needsRefresh = !user.uid || (user.role === "PROJECT_MANAGER" && !user.pmId);
+            if (needsRefresh) {
                 authService.getCurrentUser().then(fresh => {
-                    if (fresh && fresh.uid) {
+                    if (fresh && (fresh.uid || fresh.pmId)) {
                         setCurrentUser(fresh);
                         const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") || "" : "";
                         const refresh = typeof window !== "undefined" ? localStorage.getItem("refreshToken") || "" : "";
@@ -32,6 +34,27 @@ export const FINXSettings = () => {
             }
         }
     }, [user, setSession]);
+
+    const handleCopyPmId = async () => {
+        const pmIdToCopy = currentUser?.pmId || user?.pmId;
+        if (!pmIdToCopy) return;
+        try {
+            if (navigator?.clipboard?.writeText) {
+                await navigator.clipboard.writeText(pmIdToCopy);
+            } else {
+                const el = document.createElement("textarea");
+                el.value = pmIdToCopy;
+                document.body.appendChild(el);
+                el.select();
+                document.execCommand("copy");
+                document.body.removeChild(el);
+            }
+            setCopiedPmId(true);
+            setTimeout(() => setCopiedPmId(false), 2000);
+        } catch (e) {
+            console.error("Failed to copy PM ID", e);
+        }
+    };
 
     const handleCopyUid = async () => {
         const uidToCopy = currentUser?.uid || user?.uid;
@@ -169,6 +192,49 @@ export const FINXSettings = () => {
                                     Share this UID with trusted FINX users to connect or assign projects.
                                 </p>
                             </div>
+
+                            {(currentUser?.role === "PROJECT_MANAGER" || user?.role === "PROJECT_MANAGER") && (
+                                <div className="p-4 rounded-xl bg-emerald-50/70 border border-emerald-200">
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <div className="flex items-center gap-2">
+                                            <label className="block text-sm font-semibold text-emerald-950">Project Manager ID (PM ID)</label>
+                                            <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                                Unique PM Identity
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="relative flex items-center">
+                                        <Input
+                                            readOnly
+                                            value={currentUser?.pmId || user?.pmId || "Generating PM ID..."}
+                                            className="font-mono font-bold tracking-widest text-emerald-950 bg-white border-emerald-300 pr-32 select-all h-11 text-base shadow-xs"
+                                        />
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={handleCopyPmId}
+                                            disabled={!(currentUser?.pmId || user?.pmId)}
+                                            className="absolute right-1.5 h-8 px-3 text-xs font-semibold text-emerald-800 hover:text-emerald-950 border-emerald-300 hover:bg-emerald-100 flex items-center gap-1.5 bg-white shadow-xs transition-colors"
+                                        >
+                                            {copiedPmId ? (
+                                                <>
+                                                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                                    <span className="text-emerald-700 font-semibold">Copied!</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Copy className="w-3.5 h-3.5" />
+                                                    <span>Copy PM ID</span>
+                                                </>
+                                            )}
+                                        </Button>
+                                    </div>
+                                    <p className="text-xs text-emerald-800/80 mt-2">
+                                        Provide this permanent PM ID (<span className="font-mono font-bold">FINX-PM-XXXXXX</span>) to Corporate Buyers to receive two-sided project review and management invitations.
+                                    </p>
+                                </div>
+                            )}
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1">Full Name</label>
                                 <Input disabled value={currentUser?.name || currentUser?.fullName || user?.name || user?.fullName || "User"} />

@@ -19,6 +19,8 @@ public interface DealRepository extends JpaRepository<Deal, UUID> {
 
     List<Deal> findBySellerId(UUID sellerId);
 
+    List<Deal> findByProjectManagerId(UUID projectManagerId);
+
     List<Deal> findByStatus(DealStatus status);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

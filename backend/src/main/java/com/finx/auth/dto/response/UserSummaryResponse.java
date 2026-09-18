@@ -11,6 +11,7 @@ public class UserSummaryResponse {
 
     private UUID id;
     private String uid;
+    private String pmId;
     private String name;
     private String email;
     private Role role;
@@ -21,8 +22,13 @@ public class UserSummaryResponse {
     }
 
     public UserSummaryResponse(UUID id, String uid, String name, String email, Role role, UserStatus status, Instant createdAt) {
+        this(id, uid, null, name, email, role, status, createdAt);
+    }
+
+    public UserSummaryResponse(UUID id, String uid, String pmId, String name, String email, Role role, UserStatus status, Instant createdAt) {
         this.id = id;
         this.uid = uid;
+        this.pmId = pmId;
         this.name = name;
         this.email = email;
         this.role = role;
@@ -34,6 +40,7 @@ public class UserSummaryResponse {
         return new UserSummaryResponse(
                 user.getId(),
                 user.getUid(),
+                user.getPmId(),
                 user.getName(),
                 user.getEmail(),
                 user.getRole(),
@@ -56,6 +63,14 @@ public class UserSummaryResponse {
 
     public void setUid(String uid) {
         this.uid = uid;
+    }
+
+    public String getPmId() {
+        return pmId;
+    }
+
+    public void setPmId(String pmId) {
+        this.pmId = pmId;
     }
 
     public String getName() {

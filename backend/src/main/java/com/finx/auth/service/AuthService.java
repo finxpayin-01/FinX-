@@ -52,6 +52,7 @@ public class AuthService {
     private final AuditService auditService;
     private final com.finx.auth.config.GoogleOAuthProperties googleOAuthProperties;
     private final com.finx.user.service.UserUidService userUidService;
+    private final com.finx.user.service.PmIdService pmIdService;
     private final org.springframework.web.client.RestTemplate restTemplate;
 
     public AuthService(UserRepository userRepository,
@@ -59,7 +60,7 @@ public class AuthService {
                        PasswordEncoder passwordEncoder,
                        JwtTokenProvider jwtTokenProvider,
                        AuditService auditService) {
-        this(userRepository, refreshTokenRepository, passwordEncoder, jwtTokenProvider, auditService, new com.finx.auth.config.GoogleOAuthProperties(), new com.finx.user.service.UserUidService(userRepository));
+        this(userRepository, refreshTokenRepository, passwordEncoder, jwtTokenProvider, auditService, new com.finx.auth.config.GoogleOAuthProperties(), new com.finx.user.service.UserUidService(userRepository), new com.finx.user.service.PmIdService(userRepository));
     }
 
     public AuthService(UserRepository userRepository,
@@ -68,7 +69,7 @@ public class AuthService {
                        JwtTokenProvider jwtTokenProvider,
                        AuditService auditService,
                        com.finx.auth.config.GoogleOAuthProperties googleOAuthProperties) {
-        this(userRepository, refreshTokenRepository, passwordEncoder, jwtTokenProvider, auditService, googleOAuthProperties, new com.finx.user.service.UserUidService(userRepository));
+        this(userRepository, refreshTokenRepository, passwordEncoder, jwtTokenProvider, auditService, googleOAuthProperties, new com.finx.user.service.UserUidService(userRepository), new com.finx.user.service.PmIdService(userRepository));
     }
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -78,7 +79,8 @@ public class AuthService {
                        JwtTokenProvider jwtTokenProvider,
                        AuditService auditService,
                        com.finx.auth.config.GoogleOAuthProperties googleOAuthProperties,
-                       com.finx.user.service.UserUidService userUidService) {
+                       com.finx.user.service.UserUidService userUidService,
+                       com.finx.user.service.PmIdService pmIdService) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
@@ -86,6 +88,7 @@ public class AuthService {
         this.auditService = auditService;
         this.googleOAuthProperties = googleOAuthProperties != null ? googleOAuthProperties : new com.finx.auth.config.GoogleOAuthProperties();
         this.userUidService = userUidService != null ? userUidService : new com.finx.user.service.UserUidService(userRepository);
+        this.pmIdService = pmIdService != null ? pmIdService : new com.finx.user.service.PmIdService(userRepository);
         this.restTemplate = new org.springframework.web.client.RestTemplate();
     }
 
@@ -107,6 +110,9 @@ public class AuthService {
                 UserStatus.ACTIVE
         );
         user.setUid(userUidService.generateUniqueUid());
+        if (request.getRole() == Role.PROJECT_MANAGER) {
+            user.setPmId(pmIdService.generateUniquePmId());
+        }
 
         User savedUser = userRepository.saveAndFlush(user);
         if (savedUser == null) {

@@ -13,6 +13,7 @@ import java.util.UUID;
 @Table(name = "deals", indexes = {
         @Index(name = "idx_deals_buyer_id", columnList = "buyer_id"),
         @Index(name = "idx_deals_seller_id", columnList = "seller_id"),
+        @Index(name = "idx_deals_project_manager_id", columnList = "project_manager_id"),
         @Index(name = "idx_deals_status", columnList = "status"),
         @Index(name = "idx_deals_created_at", columnList = "created_at")
 })
@@ -44,6 +45,9 @@ public class Deal {
 
     @Column(name = "seller_id", nullable = false)
     private UUID sellerId;
+
+    @Column(name = "project_manager_id")
+    private UUID projectManagerId;
 
     @Column(name = "total_amount", nullable = false, precision = 15, scale = 2)
     private BigDecimal totalAmount;
@@ -137,6 +141,14 @@ public class Deal {
 
     public void setSellerId(UUID sellerId) {
         this.sellerId = sellerId;
+    }
+
+    public UUID getProjectManagerId() {
+        return projectManagerId;
+    }
+
+    public void setProjectManagerId(UUID projectManagerId) {
+        this.projectManagerId = projectManagerId;
     }
 
     public BigDecimal getTotalAmount() {

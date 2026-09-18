@@ -3,6 +3,7 @@ export type Role = "CORPORATE" | "VENDOR" | "PROJECT_MANAGER" | "ADMIN" | "FINAN
 export interface User {
   id: string;
   uid?: string;
+  pmId?: string;
   email: string;
   fullName?: string;
   name?: string;
@@ -14,6 +15,7 @@ export interface User {
 export interface SellerSummary {
   id: string;
   uid?: string;
+  pmId?: string;
   name: string;
   email: string;
   role: Role;
@@ -81,6 +83,8 @@ export interface Deal {
   description: string;
   buyerId: string;
   sellerId: string;
+  projectManagerId?: string;
+  projectManager?: User;
   totalAmount: number;
   currency: string;
   status: DealStatus;
@@ -100,6 +104,8 @@ export interface DealResponse {
   description: string;
   buyerId: string;
   sellerId: string;
+  projectManagerId?: string;
+  projectManager?: User;
   totalAmount: number;
   currency: string;
   status: DealStatus;
@@ -110,6 +116,48 @@ export interface DealResponse {
   rejectionReason?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'CANCELLED';
+
+export interface ProjectManagerInvitation {
+  id: string;
+  dealId: string;
+  projectManagerId: string;
+  projectManagerName?: string;
+  projectManagerEmail?: string;
+  projectManagerPmId?: string;
+  projectId?: string;
+  dealTitle?: string;
+  dealDescription?: string;
+  dealTotalAmount?: number;
+  dealCurrency?: string;
+  buyerName?: string;
+  invitedByName?: string;
+  status: InvitationStatus;
+  invitedAt: string;
+  respondedAt?: string;
+  declineReason?: string;
+  cancelledAt?: string;
+}
+
+export interface DealProjectManagerInfo {
+  dealId: string;
+  projectId?: string;
+  dealTitle?: string;
+  dealStatus?: DealStatus;
+  projectManager?: User;
+  activeInvitation?: ProjectManagerInvitation;
+  invitationHistory?: ProjectManagerInvitation[];
+}
+
+export interface ProjectManagerSummary {
+  id: string;
+  name: string;
+  email: string;
+  pmId?: string;
+  role: Role;
+  status?: string;
 }
 export interface Deliverable {
   id: string;

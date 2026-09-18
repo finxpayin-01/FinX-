@@ -171,6 +171,8 @@ public class MilestoneService {
             userDeals = dealRepository.findAll();
         } else if (currentUser.getRole() == Role.BUYER) {
             userDeals = dealRepository.findByBuyerId(currentUser.getId());
+        } else if (currentUser.getRole() == Role.PROJECT_MANAGER) {
+            userDeals = dealRepository.findByProjectManagerId(currentUser.getId());
         } else {
             userDeals = dealRepository.findBySellerId(currentUser.getId());
         }
@@ -287,10 +289,13 @@ public class MilestoneService {
         Deal deal = dealRepository.findById(milestone.getDealId())
                 .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", milestone.getDealId()));
 
-        if (currentUser.getRole() != Role.ADMIN &&
-                currentUser.getRole() != Role.PROJECT_MANAGER &&
-                !deal.getBuyerId().equals(currentUser.getId())) {
-            throw new UnauthorizedException("Only the corporate buyer, project manager, or an administrator can approve this milestone");
+        boolean isBuyer = deal.getBuyerId().equals(currentUser.getId());
+        boolean isAdmin = currentUser.getRole() == Role.ADMIN;
+        boolean isAssignedPm = currentUser.getRole() == Role.PROJECT_MANAGER &&
+                deal.getProjectManagerId() != null && deal.getProjectManagerId().equals(currentUser.getId());
+
+        if (!isAdmin && !isBuyer && !isAssignedPm) {
+            throw new UnauthorizedException("Only the corporate buyer, assigned project manager, or an administrator can approve this milestone");
         }
 
         if (milestone.getStatus() != MilestoneStatus.UNDER_REVIEW && milestone.getStatus() != MilestoneStatus.SUBMITTED) {
@@ -338,10 +343,13 @@ public class MilestoneService {
         Deal deal = dealRepository.findById(milestone.getDealId())
                 .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", milestone.getDealId()));
 
-        if (currentUser.getRole() != Role.ADMIN &&
-                currentUser.getRole() != Role.PROJECT_MANAGER &&
-                !deal.getBuyerId().equals(currentUser.getId())) {
-            throw new UnauthorizedException("Only the corporate buyer, project manager, or an administrator can reject this milestone");
+        boolean isBuyer = deal.getBuyerId().equals(currentUser.getId());
+        boolean isAdmin = currentUser.getRole() == Role.ADMIN;
+        boolean isAssignedPm = currentUser.getRole() == Role.PROJECT_MANAGER &&
+                deal.getProjectManagerId() != null && deal.getProjectManagerId().equals(currentUser.getId());
+
+        if (!isAdmin && !isBuyer && !isAssignedPm) {
+            throw new UnauthorizedException("Only the corporate buyer, assigned project manager, or an administrator can reject this milestone");
         }
 
         if (milestone.getStatus() != MilestoneStatus.UNDER_REVIEW && milestone.getStatus() != MilestoneStatus.SUBMITTED) {
@@ -385,13 +393,13 @@ public class MilestoneService {
     }
 
     private void validatePartyAccess(Deal deal, UserPrincipal currentUser) {
-        if (currentUser.getRole() == Role.ADMIN ||
-                currentUser.getRole() == Role.PROJECT_MANAGER ||
-                currentUser.getRole() == Role.FINANCE) {
+        if (currentUser.getRole() == Role.ADMIN || currentUser.getRole() == Role.FINANCE) {
             return;
         }
         boolean isParty = deal.getBuyerId().equals(currentUser.getId()) || deal.getSellerId().equals(currentUser.getId());
-        if (!isParty) {
+        boolean isAssignedPm = currentUser.getRole() == Role.PROJECT_MANAGER &&
+                deal.getProjectManagerId() != null && deal.getProjectManagerId().equals(currentUser.getId());
+        if (!isParty && !isAssignedPm) {
             throw new UnauthorizedException("You do not have permission to view milestones for this deal");
         }
     }

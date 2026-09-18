@@ -15,6 +15,8 @@ public class DealResponse {
     private String description;
     private UUID buyerId;
     private UUID sellerId;
+    private UUID projectManagerId;
+    private com.finx.auth.dto.response.UserSummaryResponse projectManager;
     private BigDecimal totalAmount;
     private String currency;
     private DealStatus status;
@@ -52,7 +54,7 @@ public class DealResponse {
     }
 
     public static DealResponse fromEntity(Deal deal) {
-        return new DealResponse(
+        DealResponse resp = new DealResponse(
                 deal.getId(),
                 deal.getProjectId(),
                 deal.getTitle(),
@@ -70,6 +72,8 @@ public class DealResponse {
                 deal.getCreatedAt(),
                 deal.getUpdatedAt()
         );
+        resp.setProjectManagerId(deal.getProjectManagerId());
+        return resp;
     }
 
     public UUID getId() {
@@ -198,5 +202,21 @@ public class DealResponse {
 
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public UUID getProjectManagerId() {
+        return projectManagerId;
+    }
+
+    public void setProjectManagerId(UUID projectManagerId) {
+        this.projectManagerId = projectManagerId;
+    }
+
+    public com.finx.auth.dto.response.UserSummaryResponse getProjectManager() {
+        return projectManager;
+    }
+
+    public void setProjectManager(com.finx.auth.dto.response.UserSummaryResponse projectManager) {
+        this.projectManager = projectManager;
     }
 }

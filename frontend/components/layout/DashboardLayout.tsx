@@ -1,19 +1,36 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
     Users, Briefcase, CreditCard, ShieldCheck,
-    Settings, LogOut, Menu, Bell, X, FileText, FileSpreadsheet, Activity, CheckSquare
+    Settings, LogOut, Menu, Bell, X, FileText, FileSpreadsheet, Activity, CheckSquare, Mail
 } from "lucide-react";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { projectManagerService } from "@/services/project-manager.service";
+
+interface NavLinkItem {
+    name: string;
+    href: string;
+    icon: any;
+    badge?: number;
+}
 
 export const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
     const { user, logout } = useAuth();
     const pathname = usePathname();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [pendingInvitesCount, setPendingInvitesCount] = useState<number>(0);
+
+    useEffect(() => {
+        if (user?.role === "PROJECT_MANAGER") {
+            projectManagerService.getPendingCount()
+                .then(count => setPendingInvitesCount(count))
+                .catch(() => {});
+        }
+    }, [user?.role, pathname]);
 
     // Helper Breadcrumbs
     const pathSegments = pathname.split('/').filter(Boolean);
@@ -22,8 +39,8 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
         return { name: segment.charAt(0).toUpperCase() + segment.slice(1).replace('-', ' '), href };
     });
 
-    const getNavLinks = () => {
-        const baseLinks = [
+    const getNavLinks = (): NavLinkItem[] => {
+        const baseLinks: NavLinkItem[] = [
             { name: "Compliance (KYC)", href: "/kyc", icon: ShieldCheck },
             { name: "Settings", href: `/${(user?.role === 'BUYER' ? 'corporate' : user?.role === 'SELLER' ? 'vendor' : user?.role?.toLowerCase().replace('_', '-') || 'corporate')}/settings`, icon: Settings },
         ];
@@ -51,6 +68,7 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
             case "PROJECT_MANAGER":
                 return [
                     { name: "Overview", href: "/project-manager", icon: Activity },
+                    { name: "Invitations", href: "/project-manager/invitations", icon: Mail, badge: pendingInvitesCount > 0 ? pendingInvitesCount : undefined },
                     { name: "Projects", href: "/project-manager/projects", icon: Briefcase },
                     { name: "Milestone Reviews", href: "/project-manager/reviews", icon: CheckSquare },
                     { name: "Deliverables", href: "/project-manager/deliverables", icon: FileText },
@@ -100,13 +118,20 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
                             <Link
                                 key={link.name}
                                 href={link.href}
-                                className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive
+                                className={`flex items-center justify-between px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive
                                     ? "bg-blue-50 text-blue-700"
                                     : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                                     }`}
                             >
-                                <Icon size={18} />
-                                {link.name}
+                                <div className="flex items-center gap-3">
+                                    <Icon size={18} />
+                                    {link.name}
+                                </div>
+                                {link.badge !== undefined && (
+                                    <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-amber-500 text-white leading-none">
+                                        {link.badge}
+                                    </span>
+                                )}
                             </Link>
                         );
                     })}
@@ -159,13 +184,20 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
                                 key={link.name}
                                 href={link.href}
                                 onClick={() => setIsMobileMenuOpen(false)}
-                                className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive
+                                className={`flex items-center justify-between px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive
                                     ? "bg-blue-50 text-blue-700"
                                     : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                                     }`}
                             >
-                                <Icon size={18} />
-                                {link.name}
+                                <div className="flex items-center gap-3">
+                                    <Icon size={18} />
+                                    {link.name}
+                                </div>
+                                {link.badge !== undefined && (
+                                    <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-amber-500 text-white leading-none">
+                                        {link.badge}
+                                    </span>
+                                )}
                             </Link>
                         );
                     })}

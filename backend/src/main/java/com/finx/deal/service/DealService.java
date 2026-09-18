@@ -22,6 +22,7 @@ import com.finx.deal.dto.request.RejectDealRequest;
 import org.springframework.transaction.annotation.Transactional;
 import com.finx.escrow.service.EscrowService;
 import com.finx.deal.event.DealCreatedEvent;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.Instant;
 import java.util.List;
@@ -39,6 +40,7 @@ public class DealService {
     private final NotificationService notificationService;
     private final ApplicationEventPublisher eventPublisher;
     private final EscrowService escrowService;
+    private final com.finx.projectmanager.repository.ProjectManagerInvitationRepository invitationRepository;
 
     public DealService(DealRepository dealRepository,
                        UserRepository userRepository,
@@ -46,12 +48,24 @@ public class DealService {
                        NotificationService notificationService,
                        ApplicationEventPublisher eventPublisher,
                        EscrowService escrowService) {
+        this(dealRepository, userRepository, auditService, notificationService, eventPublisher, escrowService, null);
+    }
+
+    @Autowired
+    public DealService(DealRepository dealRepository,
+                       UserRepository userRepository,
+                       AuditService auditService,
+                       NotificationService notificationService,
+                       ApplicationEventPublisher eventPublisher,
+                       EscrowService escrowService,
+                       com.finx.projectmanager.repository.ProjectManagerInvitationRepository invitationRepository) {
         this.dealRepository = dealRepository;
         this.userRepository = userRepository;
         this.auditService = auditService;
         this.notificationService = notificationService;
         this.eventPublisher = eventPublisher;
         this.escrowService = escrowService;
+        this.invitationRepository = invitationRepository;
     }
 
     @Transactional
@@ -164,16 +178,19 @@ public class DealService {
         Deal deal = dealRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", id));
 
-        if (currentUser != null && currentUser.getRole() != Role.ADMIN &&
-                currentUser.getRole() != Role.PROJECT_MANAGER &&
-                currentUser.getRole() != Role.FINANCE) {
+        if (currentUser != null && currentUser.getRole() != Role.ADMIN && currentUser.getRole() != Role.FINANCE) {
             boolean isParty = deal.getBuyerId().equals(currentUser.getId()) || deal.getSellerId().equals(currentUser.getId());
-            if (!isParty) {
+            boolean isAssignedPm = currentUser.getRole() == Role.PROJECT_MANAGER &&
+                    deal.getProjectManagerId() != null && deal.getProjectManagerId().equals(currentUser.getId());
+            boolean hasPendingInvitation = currentUser.getRole() == Role.PROJECT_MANAGER &&
+                    invitationRepository.existsByDealIdAndProjectManagerIdAndStatus(deal.getId(), currentUser.getId(), com.finx.projectmanager.entity.InvitationStatus.PENDING);
+
+            if (!isParty && !isAssignedPm && !hasPendingInvitation) {
                 throw new UnauthorizedException("You are not authorized to view this deal");
             }
         }
 
-        return DealResponse.fromEntity(deal);
+        return enrichDealResponse(deal);
     }
 
     @Transactional(readOnly = true)
@@ -184,22 +201,38 @@ public class DealService {
     @Transactional(readOnly = true)
     public List<DealResponse> getAllDeals() {
         return dealRepository.findAll().stream()
-                .map(DealResponse::fromEntity)
+                .map(this::enrichDealResponse)
                 .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
     public List<DealResponse> getDealsForBuyer(UUID buyerId) {
         return dealRepository.findByBuyerId(buyerId).stream()
-                .map(DealResponse::fromEntity)
+                .map(this::enrichDealResponse)
                 .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
     public List<DealResponse> getDealsForSeller(UUID sellerId) {
         return dealRepository.findBySellerId(sellerId).stream()
-                .map(DealResponse::fromEntity)
+                .map(this::enrichDealResponse)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<DealResponse> getDealsForProjectManager(UUID projectManagerId) {
+        return dealRepository.findByProjectManagerId(projectManagerId).stream()
+                .map(this::enrichDealResponse)
+                .collect(Collectors.toList());
+    }
+
+    private DealResponse enrichDealResponse(Deal deal) {
+        DealResponse resp = DealResponse.fromEntity(deal);
+        if (deal.getProjectManagerId() != null) {
+            userRepository.findById(deal.getProjectManagerId())
+                    .ifPresent(pm -> resp.setProjectManager(com.finx.auth.dto.response.UserSummaryResponse.fromEntity(pm)));
+        }
+        return resp;
     }
 
     @Transactional(readOnly = true)

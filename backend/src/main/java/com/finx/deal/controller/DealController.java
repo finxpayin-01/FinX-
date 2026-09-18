@@ -97,6 +97,8 @@ public class DealController {
             deals = dealService.getAllDeals();
         } else if (currentUser.getRole() == Role.SELLER) {
             deals = dealService.getDealsForSeller(currentUser.getId());
+        } else if (currentUser.getRole() == Role.PROJECT_MANAGER) {
+            deals = dealService.getDealsForProjectManager(currentUser.getId());
         } else {
             deals = dealService.getDealsForBuyer(currentUser.getId());
         }

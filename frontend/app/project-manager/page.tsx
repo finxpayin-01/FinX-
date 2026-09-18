@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/Card";
-import { Activity, ListTodo, ShieldAlert, ArrowRight } from "lucide-react";
+import { Activity, ListTodo, ShieldAlert, ArrowRight, Mail } from "lucide-react";
 import { milestoneService } from "@/services/milestone.service";
+import { projectManagerService } from "@/services/project-manager.service";
 import { Milestone } from "@/types";
 import { MilestoneStatusBadge } from "@/components/ui/MilestoneStatusBadge";
 import Link from "next/link";
@@ -12,12 +13,17 @@ import { Button } from "@/components/ui/Button";
 
 export default function ProjectManagerDashboard() {
     const [milestones, setMilestones] = useState<Milestone[]>([]);
+    const [pendingCount, setPendingCount] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
         milestoneService.getAllMilestones()
             .then(setMilestones)
             .finally(() => setIsLoading(false));
+
+        projectManagerService.getPendingCount()
+            .then(setPendingCount)
+            .catch(() => {});
     }, []);
 
     const reviewCount = milestones.filter(m => m.status === 'UNDER_REVIEW').length;
@@ -31,6 +37,29 @@ export default function ProjectManagerDashboard() {
                     <h1 className="text-2xl font-bold text-slate-900">Project Manager Operations</h1>
                     <p className="text-sm text-slate-500 mt-1">Audit vendor deliverables and sign-off on milestones.</p>
                 </div>
+
+                {pendingCount > 0 && (
+                    <div className="p-4 rounded-xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
+                        <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 shrink-0">
+                                <Mail size={20} />
+                            </div>
+                            <div>
+                                <h3 className="text-sm font-bold text-amber-950">
+                                    Action Required: {pendingCount} Pending Project Invitation{pendingCount > 1 ? "s" : ""}
+                                </h3>
+                                <p className="text-xs text-amber-800/90 mt-0.5">
+                                    A corporate buyer has requested your assignment to inspect and manage project milestones.
+                                </p>
+                            </div>
+                        </div>
+                        <Link href="/project-manager/invitations">
+                            <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white text-xs gap-1.5 shrink-0 shadow-xs">
+                                Review Invitations <ArrowRight size={14} />
+                            </Button>
+                        </Link>
+                    </div>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <Card>
