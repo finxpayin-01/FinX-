@@ -1,4 +1,4 @@
-﻿package com.finx.payment.service.onramp.onramper;
+package com.finx.payment.service.onramp.onramper;
 
 import org.springframework.stereotype.Service;
 import javax.crypto.Mac;
@@ -24,11 +24,11 @@ public class OnramperWebhookVerifier {
 
         try {
             Mac sha256_HMAC = Mac.getInstance("HmacSHA256");
-            SecretKeySpec secret_key = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF-8), "HmacSHA256");
+            SecretKeySpec secret_key = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
             sha256_HMAC.init(secret_key);
-            byte[] hash = sha256_HMAC.doFinal(rawBody.getBytes(StandardCharsets.UTF-8));
+            byte[] hash = sha256_HMAC.doFinal(rawBody.getBytes(StandardCharsets.UTF_8));
             String expectedSignature = Base64.getEncoder().encodeToString(hash);
-            return MessageDigest.isEqual(expectedSignature.getBytes(StandardCharsets.UTF-8), signature.getBytes(StandardCharsets.UTF-8));
+            return MessageDigest.isEqual(expectedSignature.getBytes(StandardCharsets.UTF_8), signature.getBytes(StandardCharsets.UTF_8));
         } catch (Exception e) {
             log.error("Webhook signature verification failed", e);
             return false;

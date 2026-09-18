@@ -1,4 +1,4 @@
-﻿package com.finx.payment.repository;
+package com.finx.payment.repository;
 
 import com.finx.payment.entity.WebhookEvent;
 import org.springframework.data.jpa.repository.JpaRepository;

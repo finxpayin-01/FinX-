@@ -1,4 +1,4 @@
-﻿package com.finx.payment.dto.onramp;
+package com.finx.payment.dto.onramp;
 import java.math.BigDecimal;
 public class OnRampQuoteRequest {
     private String fiatCurrency;

@@ -1,4 +1,4 @@
-﻿package com.finx.payment.entity;
+package com.finx.payment.entity;
 
 import jakarta.persistence.*;
 import java.util.UUID;

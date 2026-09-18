@@ -1,4 +1,4 @@
-﻿package com.finx.payment.dto.onramp;
+package com.finx.payment.dto.onramp;
 import java.util.List;
 public class PaymentMethodsResponse {
     private List<String> methods;

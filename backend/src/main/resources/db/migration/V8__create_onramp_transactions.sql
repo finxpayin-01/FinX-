@@ -59,7 +59,7 @@ ALTER TABLE payments ADD COLUMN IF NOT EXISTS funding_rail VARCHAR(50) DEFAULT '
 
 -- 4. Idempotency Table (Global)
 CREATE TABLE IF NOT EXISTS idempotency_keys (
-    key VARCHAR(255) PRIMARY KEY,
+    "key" VARCHAR(255) PRIMARY KEY,
     user_id UUID,
     operation VARCHAR(100) NOT NULL,
     request_hash VARCHAR(255),

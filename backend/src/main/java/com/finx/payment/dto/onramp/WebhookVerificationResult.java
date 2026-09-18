@@ -1,4 +1,4 @@
-﻿package com.finx.payment.dto.onramp;
+package com.finx.payment.dto.onramp;
 public class WebhookVerificationResult {
     private boolean isValid;
     private String eventType;

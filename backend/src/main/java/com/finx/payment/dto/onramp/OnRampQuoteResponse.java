@@ -1,4 +1,4 @@
-﻿package com.finx.payment.dto.onramp;
+package com.finx.payment.dto.onramp;
 import java.math.BigDecimal;
 import java.time.Instant;
 public class OnRampQuoteResponse {

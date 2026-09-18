@@ -1,4 +1,4 @@
-﻿package com.finx.payment.dto.onramp;
+package com.finx.payment.dto.onramp;
 public class ProviderTransactionResponse {
     private String status;
     private String transactionHash;

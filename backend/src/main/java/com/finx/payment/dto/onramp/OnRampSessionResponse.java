@@ -1,4 +1,4 @@
-﻿package com.finx.payment.dto.onramp;
+package com.finx.payment.dto.onramp;
 public class OnRampSessionResponse {
     private String checkoutUrl;
     private String providerSessionId;

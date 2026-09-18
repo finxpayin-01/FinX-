@@ -1,4 +1,4 @@
-﻿package com.finx.payment.config;
+package com.finx.payment.config;
 
 import com.finx.payment.service.onramp.onramper.OnramperProperties;
 import com.finx.payment.service.onramp.onramper.OnramperSignatureService;

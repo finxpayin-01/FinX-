@@ -1,4 +1,4 @@
-﻿package com.finx.payment.service.onramp.onramper;
+package com.finx.payment.service.onramp.onramper;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @ConfigurationProperties(prefix = "finx.onramp.onramper")
 public class OnramperProperties {
+    private String provider = "onramper";
     private String environment = "sandbox";
     private String apiKey;
     private String v2PrivateKey;
@@ -14,6 +15,8 @@ public class OnramperProperties {
     private String defaultFiat = "INR";
     private String defaultAsset = "USDC";
 
+    public String getProvider() { return provider; }
+    public void setProvider(String provider) { this.provider = provider; }
     public String getEnvironment() { return environment; }
     public void setEnvironment(String environment) { this.environment = environment; }
     public String getApiKey() { return apiKey; }

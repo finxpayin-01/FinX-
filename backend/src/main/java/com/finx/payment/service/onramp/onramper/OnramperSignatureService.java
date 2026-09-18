@@ -1,4 +1,4 @@
-﻿package com.finx.payment.service.onramp.onramper;
+package com.finx.payment.service.onramp.onramper;
 
 import org.springframework.stereotype.Service;
 import org.slf4j.Logger;
@@ -26,7 +26,7 @@ public class OnramperSignatureService {
         validateSettings(); // Fail closed on missing V2 key
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] encodedhash = digest.digest(endUserIp.getBytes(StandardCharsets.UTF-8));
+            byte[] encodedhash = digest.digest(endUserIp.getBytes(StandardCharsets.UTF_8));
             StringBuilder hexString = new StringBuilder(2 * encodedhash.length);
             for (byte b : encodedhash) {
                 String hex = Integer.toHexString(0xff & b);

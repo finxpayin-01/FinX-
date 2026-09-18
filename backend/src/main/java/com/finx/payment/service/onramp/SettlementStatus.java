@@ -1,4 +1,4 @@
-﻿package com.finx.payment.service.onramp;
+package com.finx.payment.service.onramp;
 
 public enum SettlementStatus {
     VERIFIED,
