@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.List;
+import org.springframework.core.ParameterizedTypeReference;
 import java.math.BigDecimal;
 import java.time.Instant;
 
@@ -36,14 +37,14 @@ public class OnramperProvider implements OnRampProvider {
     public SupportedAssetsResponse getSupportedAssets(String sourceFiat, String country) {
         log.info("Checking supported assets for {} in {}", sourceFiat, country);
         try {
-            Map response = webClient.get()
+            Map<String, Object> response = webClient.get()
                 .uri(uriBuilder -> uriBuilder
                     .path("/supported")
                     .queryParam("country", country)
                     .queryParam("fiat", sourceFiat)
                     .build())
                 .retrieve()
-                .bodyToMono(Map.class)
+                .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
                 .block();
                 
             SupportedAssetsResponse res = new SupportedAssetsResponse();
@@ -69,7 +70,7 @@ public class OnramperProvider implements OnRampProvider {
     public OnRampQuoteResponse createQuote(OnRampQuoteRequest request) {
         log.info("Creating quote for {} {}", request.getFiatAmount(), request.getFiatCurrency());
         try {
-            Map response = webClient.get()
+            Map<String, Object> response = webClient.get()
                 .uri(uriBuilder -> uriBuilder
                     .path("/quotes")
                     .queryParam("fiatType", request.getFiatCurrency())
@@ -79,7 +80,7 @@ public class OnramperProvider implements OnRampProvider {
                     .queryParam("network", request.getNetwork())
                     .build())
                 .retrieve()
-                .bodyToMono(Map.class)
+                .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
                 .block();
 
             OnRampQuoteResponse res = new OnRampQuoteResponse();
@@ -119,12 +120,12 @@ public class OnramperProvider implements OnRampProvider {
             body.put("platform", "web");
             if (request.getRedirectUrl() != null) body.put("redirectUrl", request.getRedirectUrl());
 
-            Map response = webClient.post()
+            Map<String, Object> response = webClient.post()
                 .uri("/checkout/intent")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(body)
                 .retrieve()
-                .bodyToMono(Map.class)
+                .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
                 .block();
 
             OnRampSessionResponse res = new OnRampSessionResponse();

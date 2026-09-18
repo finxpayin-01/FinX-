@@ -46,6 +46,7 @@ class ConfigurationValidationTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     void readinessServiceFailsOpenSilentlyWithoutConfig() {
         OnramperProperties rProps = new OnramperProperties();
         BlockchainProperties bProps = new BlockchainProperties();
