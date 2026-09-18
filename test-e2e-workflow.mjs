@@ -5,8 +5,8 @@
 
 import crypto from 'node:crypto';
 
-const BACKEND_URL = 'https://finx-backend-vq5b.onrender.com/api';
-const FRONTEND_URL = 'https://finx-frontend-i9an.onrender.com';
+const BACKEND_URL = process.env.BACKEND_URL || 'https://finx-backend-vq5b.onrender.com/api';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://finx-frontend.onrender.com';
 const RAZORPAY_PAYMENT_SECRET = process.env.FINX_E2E_RAZORPAY_KEY_SECRET;
 const RAZORPAY_WEBHOOK_SECRET = process.env.FINX_E2E_RAZORPAY_WEBHOOK_SECRET;
 

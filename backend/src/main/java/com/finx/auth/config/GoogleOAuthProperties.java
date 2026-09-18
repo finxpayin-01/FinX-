@@ -125,11 +125,20 @@ public class GoogleOAuthProperties {
         }
 
         String frontendUrl = System.getenv("FRONTEND_URL");
+        if (frontendUrl == null || frontendUrl.trim().isEmpty()) {
+            frontendUrl = System.getenv("FRONTEND_BASE_URL");
+        }
+        if (frontendUrl == null || frontendUrl.trim().isEmpty()) {
+            frontendUrl = System.getenv("CLIENT_URL");
+        }
+        if (frontendUrl == null || frontendUrl.trim().isEmpty()) {
+            frontendUrl = System.getenv("APP_URL");
+        }
         if (frontendUrl != null && !frontendUrl.trim().isEmpty()) {
             String baseFrontend = frontendUrl.trim().replaceAll("/+$", "");
             if (this.frontendRedirectUrl == null || this.frontendRedirectUrl.trim().isEmpty() || this.frontendRedirectUrl.contains("localhost")) {
                 this.frontendRedirectUrl = baseFrontend + "/auth/callback/google";
-                log.info("[OAUTH CONFIGURATION] Automatically resolved frontendRedirectUrl from FRONTEND_URL: {}", this.frontendRedirectUrl);
+                log.info("[OAUTH CONFIGURATION] Automatically resolved frontendRedirectUrl from environment: {}", this.frontendRedirectUrl);
             }
         }
 
@@ -140,10 +149,18 @@ public class GoogleOAuthProperties {
                 this.redirectUri = "https://finx-backend-vq5b.onrender.com/api/auth/google/callback";
                 log.info("[OAUTH CONFIGURATION] Production profile active: resolved redirectUri to canonical Render URL: {}", this.redirectUri);
             }
-            if (this.frontendRedirectUrl == null || this.frontendRedirectUrl.trim().isEmpty() || this.frontendRedirectUrl.contains("localhost") ||
-                (this.frontendRedirectUrl.contains("finx-frontend.onrender.com") && !this.frontendRedirectUrl.contains("-i9an"))) {
-                this.frontendRedirectUrl = "https://finx-frontend-i9an.onrender.com/auth/callback/google";
-                log.info("[OAUTH CONFIGURATION] Production profile active: resolved frontendRedirectUrl to Render: {}", this.frontendRedirectUrl);
+
+            // Clean up obsolete production frontend fallbacks (e.g. suspended -i9an or -7ffv services)
+            if (this.frontendRedirectUrl != null && 
+                (this.frontendRedirectUrl.contains("finx-frontend-i9an.onrender.com") || 
+                 this.frontendRedirectUrl.contains("finx-frontend-7ffv.onrender.com"))) {
+                log.warn("[OAUTH CONFIGURATION] Obsolete frontend URL detected in configuration: {}. Overriding with canonical production frontend.", this.frontendRedirectUrl);
+                this.frontendRedirectUrl = "https://finx-frontend.onrender.com/auth/callback/google";
+            }
+
+            if (this.frontendRedirectUrl == null || this.frontendRedirectUrl.trim().isEmpty() || this.frontendRedirectUrl.contains("localhost")) {
+                this.frontendRedirectUrl = "https://finx-frontend.onrender.com/auth/callback/google";
+                log.info("[OAUTH CONFIGURATION] Production profile active: resolved frontendRedirectUrl to canonical Render frontend: {}", this.frontendRedirectUrl);
             }
         }
 

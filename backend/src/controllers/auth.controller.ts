@@ -16,7 +16,8 @@ export const getGoogleConfig = (req: Request, res: Response) => {
         return;
     }
 
-    const redirectUri = 'http://localhost:3000/auth/callback/google';
+    const frontendBase = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const redirectUri = process.env.FRONTEND_OAUTH_CALLBACK_URL || `${frontendBase}/auth/callback/google`;
     const scopes = 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile';
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes)}&access_type=offline&prompt=consent`;
 
@@ -46,13 +47,15 @@ export const refreshToken = (req: Request, res: Response): void => {
 
 export const googleCallback = async (req: Request, res: Response): Promise<void> => {
     try {
+        const frontendBase = process.env.FRONTEND_URL || 'http://localhost:3000';
+        const redirectUri = process.env.FRONTEND_OAUTH_CALLBACK_URL || `${frontendBase}/auth/callback/google`;
+
         const { code } = req.query;
         if (!code || typeof code !== 'string') {
-            res.redirect('http://localhost:3000/auth/login?error=NoCodeProvided');
+            res.redirect(`${frontendBase}/auth/login?error=NoCodeProvided`);
             return;
         }
 
-        const redirectUri = 'http://localhost:3000/auth/callback/google';
         const oauth2Client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET, redirectUri);
 
         const { tokens } = await oauth2Client.getToken(code);
@@ -65,7 +68,7 @@ export const googleCallback = async (req: Request, res: Response): Promise<void>
 
         const payload = ticket.getPayload();
         if (!payload || !payload.email) {
-            res.redirect('http://localhost:3000/auth/login?error=InvalidGoogleToken');
+            res.redirect(`${frontendBase}/auth/login?error=InvalidGoogleToken`);
             return;
         }
 
@@ -89,10 +92,11 @@ export const googleCallback = async (req: Request, res: Response): Promise<void>
         );
 
         // Redirect back to frontend with tokens
-        res.redirect(`http://localhost:3000/auth/callback?token=${accessToken}&refreshToken=${accessToken}`);
+        res.redirect(`${frontendBase}/auth/callback?token=${accessToken}&refreshToken=${accessToken}`);
     } catch (error) {
         console.error("Google Auth Callback Error:", error);
-        res.redirect('http://localhost:3000/auth/login?error=GoogleAuthFailed');
+        const frontendBase = process.env.FRONTEND_URL || 'http://localhost:3000';
+        res.redirect(`${frontendBase}/auth/login?error=GoogleAuthFailed`);
     }
 };
 
@@ -104,7 +108,8 @@ export const googleSignIn = async (req: Request, res: Response): Promise<void> =
             return;
         }
 
-        const redirectUri = 'http://localhost:3000/auth/callback/google';
+        const frontendBase = process.env.FRONTEND_URL || 'http://localhost:3000';
+        const redirectUri = process.env.FRONTEND_OAUTH_CALLBACK_URL || `${frontendBase}/auth/callback/google`;
         const oauth2Client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET, redirectUri);
 
         const { tokens } = await oauth2Client.getToken(code);

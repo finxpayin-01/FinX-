@@ -76,6 +76,9 @@ function GoogleCallbackContent() {
             }
 
             if (code) {
+                if (typeof window !== "undefined") {
+                    window.history.replaceState(null, "", window.location.pathname);
+                }
                 try {
                     const response = await authService.googleLogin(code);
                     setSession(response.accessToken, response.refreshToken, response.user);

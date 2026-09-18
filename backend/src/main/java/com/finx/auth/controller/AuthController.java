@@ -23,9 +23,12 @@ import com.finx.auth.config.GoogleOAuthProperties;
 import com.finx.auth.dto.request.GoogleOAuthRequest;
 import com.finx.auth.dto.response.GoogleOAuthConfigResponse;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.UUID;
 
 @RestController
@@ -161,12 +164,18 @@ public class AuthController {
         }
 
         if (error != null && !error.trim().isEmpty()) {
+            response.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+            response.setHeader("Pragma", "no-cache");
+            response.setHeader("Referrer-Policy", "no-referrer");
             response.sendRedirect(frontendRedirect + "?error=" + URLEncoder.encode(error, StandardCharsets.UTF_8) +
                     (errorDescription != null ? "&error_description=" + URLEncoder.encode(errorDescription, StandardCharsets.UTF_8) : ""));
             return;
         }
 
         if (code == null || code.trim().isEmpty()) {
+            response.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+            response.setHeader("Pragma", "no-cache");
+            response.setHeader("Referrer-Policy", "no-referrer");
             response.sendRedirect(frontendRedirect + "?error=missing_code");
             return;
         }
@@ -184,6 +193,9 @@ public class AuthController {
 
         if (cookieState != null && state != null && !cookieState.equals(state)) {
             log.warn("[GOOGLE OAUTH CALLBACK] State mismatch! Possible CSRF attempt. Cookie: {}, Request: {}", cookieState, state);
+            response.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+            response.setHeader("Pragma", "no-cache");
+            response.setHeader("Referrer-Policy", "no-referrer");
             response.sendRedirect(frontendRedirect + "?error=invalid_state");
             return;
         }
@@ -200,7 +212,24 @@ public class AuthController {
             AuthResponse authResponse = authService.authenticateWithGoogle(authRequest);
 
             String roleStr = authResponse.getUser().getRole() != null ? authResponse.getUser().getRole().name() : "BUYER";
-            // Deliver tokens in URL fragment (#) so they are NEVER logged by proxies or sent in Referer headers
+
+            // Security Hardening:
+            // 1. Set anti-caching headers so redirect is never cached by browsers or intermediate proxies
+            response.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+            response.setHeader("Pragma", "no-cache");
+            response.setHeader("Referrer-Policy", "no-referrer");
+
+            // 2. Set HttpOnly/Secure cookie for refreshToken as defense-in-depth
+            ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", authResponse.getRefreshToken())
+                    .httpOnly(true)
+                    .secure(true)
+                    .path("/api/auth")
+                    .maxAge(Duration.ofDays(7))
+                    .sameSite("Lax")
+                    .build();
+            response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
+
+            // 3. Deliver tokens in URL fragment (#) so they are NEVER logged by proxies or sent in Referer headers
             String targetUrl = frontendRedirect +
                     "#accessToken=" + URLEncoder.encode(authResponse.getAccessToken(), StandardCharsets.UTF_8) +
                     "&refreshToken=" + URLEncoder.encode(authResponse.getRefreshToken(), StandardCharsets.UTF_8) +
@@ -208,7 +237,12 @@ public class AuthController {
 
             response.sendRedirect(targetUrl);
         } catch (Exception e) {
-            response.sendRedirect(frontendRedirect + "?error=" + URLEncoder.encode(e.getMessage() != null ? e.getMessage() : "OAuth authentication failed", StandardCharsets.UTF_8));
+            log.error("[GOOGLE OAUTH CALLBACK] OAuth authentication failed: {}", e.getMessage());
+            response.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+            response.setHeader("Pragma", "no-cache");
+            response.setHeader("Referrer-Policy", "no-referrer");
+            response.sendRedirect(frontendRedirect + "?error=oauth_failed&error_description=" + 
+                    URLEncoder.encode("Google authentication could not be completed. Please try again.", StandardCharsets.UTF_8));
         }
     }
 

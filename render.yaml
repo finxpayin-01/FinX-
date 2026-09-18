@@ -25,7 +25,7 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: CORS_ALLOWED_ORIGINS
-        value: "https://finx-frontend-i9an.onrender.com,https://finx-frontend.onrender.com,http://localhost:3000,http://127.0.0.1:3000"
+        value: "https://finx-frontend.onrender.com,https://finx-frontend-i9an.onrender.com,http://localhost:3000,http://127.0.0.1:3000"
       - key: RAZORPAY_KEY_ID
         sync: false
       - key: RAZORPAY_KEY_SECRET
@@ -42,14 +42,16 @@ services:
         sync: false
       - key: GOOGLE_REDIRECT_URI
         value: "https://finx-backend-vq5b.onrender.com/api/auth/google/callback"
+      - key: FRONTEND_URL
+        value: "https://finx-frontend.onrender.com"
       - key: FRONTEND_OAUTH_CALLBACK_URL
-        value: "https://finx-frontend-i9an.onrender.com/auth/callback/google"
+        value: "https://finx-frontend.onrender.com/auth/callback/google"
 
   # ============================================================================
   # 2. Frontend: Next.js 16 App Router
   # ============================================================================
   - type: web
-    name: finx-frontend-i9an
+    name: finx-frontend
     env: node
     plan: free
     rootDir: frontend
