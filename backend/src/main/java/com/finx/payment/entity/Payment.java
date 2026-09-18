@@ -58,6 +58,10 @@ public class Payment {
     @Column(name = "idempotency_key", unique = true)
     private String idempotencyKey;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "funding_rail", length = 50)
+    private FundingRail fundingRail = FundingRail.RAZORPAY;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -175,6 +179,14 @@ public class Payment {
 
     public void setIdempotencyKey(String idempotencyKey) {
         this.idempotencyKey = idempotencyKey;
+    }
+
+    public FundingRail getFundingRail() {
+        return fundingRail;
+    }
+
+    public void setFundingRail(FundingRail fundingRail) {
+        this.fundingRail = fundingRail;
     }
 
     public Instant getCreatedAt() {

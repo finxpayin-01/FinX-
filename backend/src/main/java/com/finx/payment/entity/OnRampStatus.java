@@ -1,0 +1,18 @@
+package com.finx.payment.entity;
+
+public enum OnRampStatus {
+    CREATED,
+    QUOTE_CREATED,
+    AWAITING_PAYMENT,
+    PAYMENT_PROCESSING,
+    FIAT_RECEIVED,
+    CONVERSION_PROCESSING,
+    CRYPTO_SENT,
+    BLOCKCHAIN_CONFIRMING,
+    ESCROW_FUNDED,
+    FAILED,
+    EXPIRED,
+    CANCELLED,
+    REFUNDED,
+    MANUAL_REVIEW
+}

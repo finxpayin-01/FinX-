@@ -119,3 +119,17 @@ spring.mail.properties.mail.smtp.starttls.enable: true
 mailersend:
   api-key: ${MAILERSEND_API_KEY:}
   domain: ${MAILERSEND_DOMAIN:}
+finx:
+  onramp:
+    onramper:
+      api-key: "${ONRAMP_API_KEY:}"
+      v2-private-key: "${ONRAMP_V2_PRIVATE_KEY:}"
+      webhook-secret: "${ONRAMP_WEBHOOK_SECRET:}"
+      environment: "${ONRAMP_ENVIRONMENT:sandbox}"
+      base-url: "${ONRAMP_BASE_URL:https://api.onramper.com}"
+  blockchain:
+    rpc-url: "${FINX_RPC_URL:}"
+    chain-id: "${FINX_CHAIN_ID:}"
+    escrow-contract-address: "${FINX_ESCROW_CONTRACT_ADDRESS:}"
+    usdc-contract-address: "${USDC_CONTRACT_ADDRESS:}"
+    required-confirmations: "${FINX_REQUIRED_CONFIRMATIONS:2}"

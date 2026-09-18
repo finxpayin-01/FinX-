@@ -112,6 +112,19 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
+        
+        <!-- WebClient (for external API integrations like Onramper) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
+        </dependency>
+
+        <!-- Web3j for Blockchain Settlement Verification -->
+        <dependency>
+            <groupId>org.web3j</groupId>
+            <artifactId>core</artifactId>
+            <version>4.12.3</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -130,3 +143,4 @@
         </plugins>
     </build>
 </project>
+
