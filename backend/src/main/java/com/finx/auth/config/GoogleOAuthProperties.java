@@ -6,11 +6,17 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.env.Environment;
+
 @Configuration
 @ConfigurationProperties(prefix = "oauth.google")
 public class GoogleOAuthProperties {
 
     private static final Logger log = LoggerFactory.getLogger(GoogleOAuthProperties.class);
+
+    @Autowired(required = false)
+    private Environment environment;
 
     private String clientId;
     private String clientSecret;
@@ -19,23 +25,85 @@ public class GoogleOAuthProperties {
 
     @PostConstruct
     public void validateConfiguration() {
-        // Direct environment variable fallbacks
+        // Direct environment and property fallbacks
+        if (this.clientId == null || this.clientId.trim().isEmpty()) {
+            if (environment != null) {
+                String val = environment.getProperty("google.client-id");
+                if (val != null && !val.trim().isEmpty()) {
+                    this.clientId = val.trim();
+                } else {
+                    val = environment.getProperty("oauth.google.client-id");
+                    if (val != null && !val.trim().isEmpty()) {
+                        this.clientId = val.trim();
+                    }
+                }
+            }
+        }
         if (this.clientId == null || this.clientId.trim().isEmpty()) {
             String envId = System.getenv("GOOGLE_CLIENT_ID");
             if (envId != null && !envId.trim().isEmpty()) {
                 this.clientId = envId.trim();
+            } else {
+                String propId = System.getProperty("google.client-id");
+                if (propId != null && !propId.trim().isEmpty()) {
+                    this.clientId = propId.trim();
+                }
+            }
+        }
+        if (this.clientSecret == null || this.clientSecret.trim().isEmpty()) {
+            if (environment != null) {
+                String val = environment.getProperty("google.client-secret");
+                if (val != null && !val.trim().isEmpty()) {
+                    this.clientSecret = val.trim();
+                } else {
+                    val = environment.getProperty("oauth.google.client-secret");
+                    if (val != null && !val.trim().isEmpty()) {
+                        this.clientSecret = val.trim();
+                    }
+                }
             }
         }
         if (this.clientSecret == null || this.clientSecret.trim().isEmpty()) {
             String envSecret = System.getenv("GOOGLE_CLIENT_SECRET");
             if (envSecret != null && !envSecret.trim().isEmpty()) {
                 this.clientSecret = envSecret.trim();
+            } else {
+                String propSecret = System.getProperty("google.client-secret");
+                if (propSecret != null && !propSecret.trim().isEmpty()) {
+                    this.clientSecret = propSecret.trim();
+                }
+            }
+        }
+        if (this.redirectUri == null || this.redirectUri.trim().isEmpty() || this.redirectUri.contains("localhost")) {
+            if (environment != null) {
+                String val = environment.getProperty("google.redirect-uri");
+                if (val != null && !val.trim().isEmpty()) {
+                    this.redirectUri = val.trim();
+                } else {
+                    val = environment.getProperty("oauth.google.redirect-uri");
+                    if (val != null && !val.trim().isEmpty()) {
+                        this.redirectUri = val.trim();
+                    }
+                }
             }
         }
         if (this.redirectUri == null || this.redirectUri.trim().isEmpty()) {
             String envRedirect = System.getenv("GOOGLE_REDIRECT_URI");
             if (envRedirect != null && !envRedirect.trim().isEmpty()) {
                 this.redirectUri = envRedirect.trim();
+            }
+        }
+        if (this.frontendRedirectUrl == null || this.frontendRedirectUrl.trim().isEmpty() || this.frontendRedirectUrl.contains("localhost")) {
+            if (environment != null) {
+                String val = environment.getProperty("google.frontend-redirect-url");
+                if (val != null && !val.trim().isEmpty()) {
+                    this.frontendRedirectUrl = val.trim();
+                } else {
+                    val = environment.getProperty("oauth.google.frontend-redirect-url");
+                    if (val != null && !val.trim().isEmpty()) {
+                        this.frontendRedirectUrl = val.trim();
+                    }
+                }
             }
         }
         if (this.frontendRedirectUrl == null || this.frontendRedirectUrl.trim().isEmpty()) {

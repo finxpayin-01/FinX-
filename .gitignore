@@ -9,3 +9,14 @@ dist
 db/finx_database.json
 .metals/
 .bloop/
+
+# Generated runtime/test artifacts that may contain auth material
+*.log
+backend_error*.log
+frontend_error*.log
+e2e_*report*.json
+e2e_result*.txt
+e2e_results*.txt
+e2e_results*.log
+error*.json
+scratch/

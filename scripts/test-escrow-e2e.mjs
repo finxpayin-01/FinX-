@@ -9,20 +9,63 @@ import path from 'node:crypto';
 import crypto from 'node:crypto';
 
 const BASE_URL = process.env.FINX_API_URL || 'http://localhost:8080/api';
-const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || 'TrXRX4BJmWo5ONn5jBW7Gaud';
-const RAZORPAY_WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET || 'TrXRX4BJmWo5ONn5jBW7Gaud';
+const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
+const RAZORPAY_WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET;
 console.log(`[INIT] Testing against API URL: ${BASE_URL}`);
 
-function calculateHmacSha256(data, secret) {
-  return crypto.createHmac('sha256', secret).update(data).digest('hex');
+function requireSecret(secret, name) {
+  if (!secret) {
+    throw new Error(`${name} is required for sandbox E2E signature generation.`);
+  }
+  return secret;
+}
+
+function calculateHmacSha256(data, secret, name) {
+  const signingSecret = requireSecret(secret, name);
+  return crypto.createHmac('sha256', signingSecret).update(data).digest('hex');
 }
 
 function createPaymentSignature(orderId, paymentId) {
-  return calculateHmacSha256(`${orderId}|${paymentId}`, RAZORPAY_KEY_SECRET);
+  return calculateHmacSha256(`${orderId}|${paymentId}`, RAZORPAY_KEY_SECRET, 'RAZORPAY_KEY_SECRET');
 }
 
 function createWebhookSignature(payload) {
-  return calculateHmacSha256(payload, RAZORPAY_WEBHOOK_SECRET);
+  return calculateHmacSha256(payload, RAZORPAY_WEBHOOK_SECRET, 'RAZORPAY_WEBHOOK_SECRET');
+}
+
+const SENSITIVE_KEY_PATTERN = /authorization|cookie|password|secret|token|api[-_]?key|signature|private[-_]?key|seed|mnemonic/i;
+const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g;
+const BEARER_PATTERN = /Bearer\s+[A-Za-z0-9._~+/=-]+/gi;
+
+function redactSensitive(value, key = '') {
+  if (value == null) {
+    return value;
+  }
+
+  if (SENSITIVE_KEY_PATTERN.test(key)) {
+    return '[REDACTED]';
+  }
+
+  if (typeof value === 'string') {
+    return value
+      .replace(BEARER_PATTERN, 'Bearer [REDACTED]')
+      .replace(JWT_PATTERN, '[REDACTED]');
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(item => redactSensitive(item));
+  }
+
+  if (typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([entryKey, entryValue]) => [
+        entryKey,
+        redactSensitive(entryValue, entryKey)
+      ])
+    );
+  }
+
+  return value;
 }
 
 // Test log accumulator
@@ -40,13 +83,13 @@ function formatHttpLog(req, res) {
     request: {
       method: req.method || 'GET',
       url: req.url,
-      headers: req.headers ? { ...req.headers, Authorization: req.headers.Authorization ? 'Bearer [REDACTED]' : undefined } : {},
-      body: req.body ? (typeof req.body === 'string' ? JSON.parse(req.body) : req.body) : null
+      headers: redactSensitive(req.headers || {}),
+      body: redactSensitive(req.body ? (typeof req.body === 'string' ? JSON.parse(req.body) : req.body) : null)
     },
     response: {
       status: res.status,
       statusText: res.statusText,
-      body: res.data
+      body: redactSensitive(res.data)
     }
   };
 }
@@ -1203,7 +1246,7 @@ async function main() {
 
   // Save full audit report artifact
   const reportPath = 'e2e_escrow_report.json';
-  fs.writeFileSync(reportPath, JSON.stringify(auditReport, null, 2));
+  fs.writeFileSync(reportPath, JSON.stringify(redactSensitive(auditReport), null, 2));
   console.log(`\nAudit completed! Full report saved to ${reportPath}`);
 
   // Summary counts

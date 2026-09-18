@@ -5,7 +5,7 @@ import { authDb } from '../db';
 import crypto from 'crypto';
 import { OAuth2Client } from 'google-auth-library';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_finx_key_2026';
+const JWT_SECRET = process.env.JWT_SECRET || '';
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 export const getGoogleConfig = (req: Request, res: Response) => {

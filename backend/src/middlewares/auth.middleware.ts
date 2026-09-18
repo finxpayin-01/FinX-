@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import fs from 'fs';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_finx_key_2026';
+const JWT_SECRET = process.env.JWT_SECRET || '';
 
 export const authenticate = (req: Request, res: Response, next: NextFunction): void => {
     fs.appendFileSync('auth.log', `HIT: ${req.method} ${req.originalUrl}\n`);

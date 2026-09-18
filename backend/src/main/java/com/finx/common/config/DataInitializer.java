@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
@@ -22,29 +23,36 @@ public class DataInitializer implements ApplicationRunner {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final com.finx.user.service.UserUidService userUidService;
+    private final String initialAdminPassword;
 
     public DataInitializer(UserRepository userRepository,
-                           PasswordEncoder passwordEncoder,
-                           com.finx.user.service.UserUidService userUidService) {
+                            PasswordEncoder passwordEncoder,
+                            com.finx.user.service.UserUidService userUidService,
+                            @Value("${finx.admin.initial-password:}") String initialAdminPassword) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.userUidService = userUidService;
+        this.initialAdminPassword = initialAdminPassword;
     }
 
     @Override
     public void run(ApplicationArguments args) {
         try {
             if (!userRepository.existsByRole(Role.ADMIN)) {
-                User admin = new User(
-                        "FINX System Administrator",
-                        "admin@finx.com",
-                        passwordEncoder.encode("Admin@Finx2026!"),
-                        Role.ADMIN,
-                        UserStatus.ACTIVE
-                );
-                admin.setUid(userUidService.generateUniqueUid());
-                userRepository.save(admin);
-                log.info("Default system administrator initialized with UID '{}': admin@finx.com", admin.getUid());
+                if (initialAdminPassword == null || initialAdminPassword.isBlank()) {
+                    log.warn("No admin user exists and FINX_ADMIN_INITIAL_PASSWORD is not configured; skipping admin bootstrap.");
+                } else {
+                    User admin = new User(
+                            "FINX System Administrator",
+                            "admin@finx.com",
+                            passwordEncoder.encode(initialAdminPassword),
+                            Role.ADMIN,
+                            UserStatus.ACTIVE
+                    );
+                    admin.setUid(userUidService.generateUniqueUid());
+                    userRepository.save(admin);
+                    log.info("Default system administrator initialized with UID '{}': admin@finx.com", admin.getUid());
+                }
             }
         } catch (Exception ex) {
             log.warn("[STARTUP ERROR] Admin initialization failed due to: {}", ex.getMessage());

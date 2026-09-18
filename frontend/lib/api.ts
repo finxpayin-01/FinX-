@@ -14,15 +14,17 @@ export const getApiBaseUrl = (): string => {
             window.location.hostname === "localhost" || 
             window.location.hostname === "127.0.0.1";
 
-        if (!isLocalHost) {
-            // Running on public domain/Render:
-            // Use same-origin /api to leverage Next.js proxy rewrites,
-            // completely avoiding browser CORS preflight blocks.
-            return "/api";
-        } else {
+        if (isLocalHost) {
             // Running on local development
             if (!url) {
                 url = "http://localhost:8080/api";
+            }
+        } else {
+            // Running in browser on production / Render:
+            // Point directly to the authoritative Render backend.
+            // Never return frontend-relative "/api" which fails on Next.js proxy rewrites.
+            if (!url || url.includes("localhost") || url.includes("127.0.0.1")) {
+                url = "https://finx-backend-vq5b.onrender.com/api";
             }
         }
     } else {

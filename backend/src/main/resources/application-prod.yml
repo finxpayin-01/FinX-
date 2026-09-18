@@ -45,6 +45,12 @@ oauth:
     redirect-uri: ${GOOGLE_REDIRECT_URI:https://finx-backend-vq5b.onrender.com/api/auth/google/callback}
     frontend-redirect-url: ${FRONTEND_OAUTH_CALLBACK_URL:https://finx-frontend-i9an.onrender.com/auth/callback/google}
 
+google:
+  client-id: ${GOOGLE_CLIENT_ID:}
+  client-secret: ${GOOGLE_CLIENT_SECRET:}
+  redirect-uri: ${GOOGLE_REDIRECT_URI:https://finx-backend-vq5b.onrender.com/api/auth/google/callback}
+  frontend-redirect-url: ${FRONTEND_OAUTH_CALLBACK_URL:https://finx-frontend-i9an.onrender.com/auth/callback/google}
+
 # CORS Allowed Origins
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:https://finx-frontend-i9an.onrender.com,https://finx-frontend.onrender.com}

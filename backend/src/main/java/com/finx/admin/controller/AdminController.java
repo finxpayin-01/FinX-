@@ -14,6 +14,8 @@ import com.finx.escrow.repository.EscrowLedgerRepository;
 import com.finx.payment.entity.Payment;
 import com.finx.payment.entity.PaymentStatus;
 import com.finx.payment.repository.PaymentRepository;
+import com.finx.ramp.config.RampConfigurationStatus;
+import com.finx.ramp.config.RampProperties;
 import com.finx.user.entity.User;
 import com.finx.user.repository.UserRepository;
 import io.swagger.v3.oas.annotations.Operation;
@@ -43,6 +45,7 @@ public class AdminController {
     private final EscrowLedgerRepository escrowLedgerRepository;
     private final DisputeRepository disputeRepository;
     private final AuditService auditService;
+    private final RampProperties rampProperties;
 
     public AdminController(UserRepository userRepository,
                            DealRepository dealRepository,
@@ -50,7 +53,8 @@ public class AdminController {
                            EscrowAccountRepository escrowAccountRepository,
                            EscrowLedgerRepository escrowLedgerRepository,
                            DisputeRepository disputeRepository,
-                           AuditService auditService) {
+                           AuditService auditService,
+                           RampProperties rampProperties) {
         this.userRepository = userRepository;
         this.dealRepository = dealRepository;
         this.paymentRepository = paymentRepository;
@@ -58,6 +62,7 @@ public class AdminController {
         this.escrowLedgerRepository = escrowLedgerRepository;
         this.disputeRepository = disputeRepository;
         this.auditService = auditService;
+        this.rampProperties = rampProperties;
     }
 
     /**
@@ -161,5 +166,11 @@ public class AdminController {
         }).collect(Collectors.toList());
 
         return ResponseEntity.ok(ApiResponse.success(mapped));
+    }
+
+    @GetMapping("/ramp/config")
+    @Operation(summary = "Get ramp configuration status", description = "Returns sanitized backend-only ramp configuration status")
+    public ResponseEntity<ApiResponse<RampConfigurationStatus>> getRampConfigurationStatus() {
+        return ResponseEntity.ok(ApiResponse.success("Ramp configuration status retrieved", rampProperties.toStatus()));
     }
 }
