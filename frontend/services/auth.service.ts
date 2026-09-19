@@ -1,6 +1,23 @@
 import { api } from "@/lib/api";
 import { AuthResponse, User, GoogleOAuthConfig, ApiResponse } from "@/types";
 
+export const mapFrontendRoleToBackend = (role: string): string => {
+    const clean = (role || "").trim().toUpperCase();
+    if (clean === "CORPORATE" || clean === "BUYER") {
+        return "BUYER";
+    }
+    if (clean === "VENDOR" || clean === "SELLER") {
+        return "SELLER";
+    }
+    if (clean === "PROJ_MANAGER" || clean === "PROJ MANAGER" || clean === "PROJECT_MANAGER" || clean === "PROJECT MANAGER") {
+        return "PROJECT_MANAGER";
+    }
+    if (clean === "FINANCE") {
+        return "FINANCE";
+    }
+    return clean;
+};
+
 export const authService = {
     login: async (credentials: Record<string, string>): Promise<AuthResponse> => {
         const response = await api.post<ApiResponse<AuthResponse> | AuthResponse>("/auth/login", credentials);
@@ -13,14 +30,7 @@ export const authService = {
     },
 
     register: async (userData: Record<string, any>): Promise<AuthResponse> => {
-        // Map frontend display roles to authoritative backend roles
-        let backendRole = userData.role;
-        if (backendRole === "CORPORATE") {
-            backendRole = "BUYER";
-        } else if (backendRole === "VENDOR") {
-            backendRole = "SELLER";
-        }
-        // Note: PROJECT_MANAGER and FINANCE are first-class roles supported directly in backend Role enum
+        const backendRole = mapFrontendRoleToBackend(userData.role);
 
         const payload = {
             name: userData.fullName || userData.name,

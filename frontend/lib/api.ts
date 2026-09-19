@@ -9,6 +9,11 @@ import { AuthResponse } from "@/types";
 export const getApiBaseUrl = (): string => {
     let url = process.env.NEXT_PUBLIC_API_URL;
 
+    // Normalize Render backend URL if missing the unique -vq5b instance slug
+    if (url && url.includes("finx-backend.onrender.com") && !url.includes("-vq5b")) {
+        url = url.replace("finx-backend.onrender.com", "finx-backend-vq5b.onrender.com");
+    }
+
     if (typeof window !== "undefined") {
         const isLocalHost = 
             window.location.hostname === "localhost" || 
@@ -34,8 +39,12 @@ export const getApiBaseUrl = (): string => {
         }
     }
 
+    if (url && url.includes("finx-backend.onrender.com") && !url.includes("-vq5b")) {
+        url = url.replace("finx-backend.onrender.com", "finx-backend-vq5b.onrender.com");
+    }
+
     // Normalize: remove trailing slash, ensure ends with /api
-    url = url.trim().replace(/\/+$/, "");
+    url = (url || "https://finx-backend-vq5b.onrender.com/api").trim().replace(/\/+$/, "");
     if (!url.endsWith("/api")) {
         url = `${url}/api`;
     }

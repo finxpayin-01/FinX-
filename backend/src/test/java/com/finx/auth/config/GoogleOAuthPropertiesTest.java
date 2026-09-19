@@ -69,6 +69,17 @@ class GoogleOAuthPropertiesTest {
     }
 
     @Test
+    void shouldRetain19anDomainInProduction() {
+        System.setProperty("spring.profiles.active", "prod");
+        GoogleOAuthProperties props = new GoogleOAuthProperties();
+        props.setFrontendRedirectUrl("https://finx-frontend-19an.onrender.com/auth/callback/google");
+        props.validateConfiguration();
+
+        assertThat(props.getFrontendRedirectUrl())
+                .isEqualTo("https://finx-frontend-19an.onrender.com/auth/callback/google");
+    }
+
+    @Test
     void shouldRetainExplicitCustomDomainInProduction() {
         System.setProperty("spring.profiles.active", "prod");
         GoogleOAuthProperties props = new GoogleOAuthProperties();

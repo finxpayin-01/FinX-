@@ -34,7 +34,7 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final AuthRateLimitFilter rateLimitFilter;
 
-    @Value("${cors.allowed-origins:http://localhost:3000,http://127.0.0.1:3000}")
+    @Value("${cors.allowed-origins:http://localhost:3000,http://127.0.0.1:3000,https://finx-frontend.onrender.com,https://finx-frontend-19an.onrender.com,https://finx-frontend-*.onrender.com}")
     private String allowedOrigins;
 
     public SecurityConfig(JwtAuthenticationEntryPoint unauthorizedHandler,
@@ -99,7 +99,8 @@ public class SecurityConfig {
                 .collect(Collectors.toList());
         configuration.setAllowedOriginPatterns(origins);
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Accept", "X-Requested-With", "Origin"));
+        configuration.setAllowedHeaders(Arrays.asList("*"));
+        configuration.setExposedHeaders(Arrays.asList("Authorization", "Content-Type"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
 

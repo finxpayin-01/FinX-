@@ -26,12 +26,15 @@ public enum Role {
         if ("VENDOR".equals(clean)) {
             return SELLER;
         }
+        if ("PROJ_MANAGER".equals(clean) || "PROJ MANAGER".equals(clean) || "PROJECT MANAGER".equals(clean)) {
+            return PROJECT_MANAGER;
+        }
         for (Role r : Role.values()) {
             if (r.name().equalsIgnoreCase(clean)) {
                 return r;
             }
         }
-        throw new IllegalArgumentException("Invalid role: '" + value + "'. Permitted registration roles are: BUYER (or CORPORATE), SELLER (or VENDOR), PROJECT_MANAGER, FINANCE");
+        throw new IllegalArgumentException("Invalid role: '" + value + "'. Permitted registration roles are: BUYER (or CORPORATE), SELLER (or VENDOR), PROJECT_MANAGER (or PROJ_MANAGER), FINANCE");
     }
 
     @JsonValue

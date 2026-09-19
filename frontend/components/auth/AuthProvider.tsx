@@ -23,12 +23,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const router = useRouter();
     const pathname = usePathname();
 
-    const redirectBasedOnRole = useCallback((role: Role) => {
+    const redirectBasedOnRole = useCallback((role: Role | string) => {
         let target = "/corporate";
-        if (role === "ADMIN") target = "/admin";
-        else if (role === "FINANCE") target = "/finance";
-        else if (role === "PROJECT_MANAGER") target = "/project-manager";
-        else if (role === "VENDOR" || role === "SELLER") target = "/vendor";
+        const r = (role || "").toUpperCase();
+        if (r === "ADMIN") target = "/admin";
+        else if (r === "FINANCE") target = "/finance";
+        else if (r === "PROJECT_MANAGER" || r === "PROJ_MANAGER") target = "/project-manager";
+        else if (r === "VENDOR" || r === "SELLER") target = "/vendor";
+        else if (r === "BUYER" || r === "CORPORATE") target = "/corporate";
         
         router.push(target);
         if (typeof window !== "undefined") {

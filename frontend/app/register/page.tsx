@@ -24,7 +24,7 @@ const registerSchema = z.object({
             message: "Password must contain at least one digit, one lowercase letter, one uppercase letter, and one special character"
         }),
     confirmPassword: z.string().min(1, { message: "Please confirm your password" }),
-    role: z.enum(["CORPORATE", "VENDOR", "PROJECT_MANAGER", "FINANCE"], { required_error: "Please select a role" }),
+    role: z.enum(["CORPORATE", "VENDOR", "PROJECT_MANAGER", "FINANCE", "PROJ_MANAGER", "BUYER", "SELLER"], { required_error: "Please select a role" }),
 }).refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match",
     path: ["confirmPassword"],
@@ -114,13 +114,13 @@ export default function RegisterPage() {
 
             // Check for network failure / unreachable backend
             if (err instanceof TypeError || message.toLowerCase().includes('network') || (axios.isAxiosError(err) && !err.response)) {
-                setError("Unable to connect to FINX. Please check your connection and try again.");
+                setError("Unable to connect to FINX. Please try again.");
                 return;
             }
 
             // Handle duplicate email
-            if (status === 409) {
-                setError("This email is already registered. Please sign in.");
+            if (status === 409 || message.toLowerCase().includes('already exists')) {
+                setError("An account with this email already exists.");
                 return;
             }
 
@@ -144,7 +144,7 @@ export default function RegisterPage() {
 
             // Handle 5xx server errors
             if (status && status >= 500) {
-                setError("The server encountered an error processing your registration. Please try again shortly.");
+                setError("FINX encountered a server error. Please try again.");
                 return;
             }
 
