@@ -59,12 +59,39 @@ export function BlockchainEscrow({ dealId }: { dealId: string }) {
         await service.attach(tx.id, hash);
         setNotice("Transaction submitted. Blockchain confirmation pending.");
     });
+    const isReady = Boolean(data?.config.ready || data?.config.configured);
+    const canVerifyWallet = Boolean(data?.config.walletVerificationAvailable ?? data?.config.configured);
+    const canCreateEscrow = Boolean(data?.config.escrowCreationAvailable ?? data?.config.configured);
+
+    const getStatusWarning = (cfg: NonNullable<typeof data>["config"]) => {
+        if (cfg.ready || cfg.configured) return null;
+        switch (cfg.status) {
+            case "BLOCKCHAIN_DISABLED":
+                return "Blockchain payment rail is currently disabled.";
+            case "RPC_UNAVAILABLE":
+                return "Blockchain RPC node is currently unreachable. Live operations paused.";
+            case "WRONG_CHAIN":
+                return `Connected RPC chain mismatch. Expected Chain ID ${cfg.chainId}.`;
+            case "TOKEN_CONTRACT_MISSING":
+                return "Settlement token contract is not configured on this network.";
+            case "ESCROW_CONTRACT_MISSING":
+                return "Escrow factory contract is not configured on this network. Wallet verification is available; contract deployment is required for on-chain escrow creation.";
+            case "SIGNER_NOT_CONFIGURED":
+                return "Authorized deployer operator address is not configured.";
+            case "ONRAMP_NOT_CONFIGURED":
+                return "Fiat-to-crypto onramp is not configured. Direct wallet funding with test tokens is available.";
+            default:
+                return "Blockchain service is not fully configured. Funding is unavailable.";
+        }
+    };
+
     const button = (label: string, operation: ChainOperation, milestone?: string) =>
-        <Button key={operation} variant="outline" disabled={busy || !data?.config.configured} onClick={() => execute(operation, milestone)} className="gap-2"><ArrowUpRight size={15}/>{label}</Button>;
+        <Button key={operation} variant="outline" disabled={busy || (!isReady && !canCreateEscrow)} onClick={() => execute(operation, milestone)} className="gap-2"><ArrowUpRight size={15}/>{label}</Button>;
     if (rail === "RAZORPAY") return null;
     const e = data?.escrow;
     const symbol = data?.config.symbol || "Token";
     const amount = (value: string) => formatToken(value, data?.config.decimals || 0);
+    const statusWarning = data ? getStatusWarning(data.config) : null;
     return <section className="min-w-0 space-y-5 border-t border-slate-200 py-6" aria-label="Blockchain escrow">
         <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="flex items-center gap-2 text-xl font-semibold"><ShieldCheck size={22}/>Blockchain Escrow</h2>
@@ -73,14 +100,20 @@ export function BlockchainEscrow({ dealId }: { dealId: string }) {
         {error && <p role="alert" className="flex items-start gap-2 break-words text-sm text-red-700"><AlertCircle size={18} className="shrink-0"/>{error}</p>}
         {notice && <p role="status" className="break-all text-sm text-emerald-800">{notice}</p>}
         {!data ? <p className="text-sm text-slate-500">Loading escrow...</p> : <>
-            <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
-                <span>{data.config.network}</span><span>{symbol}</span>
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+                <span className="font-medium">{data.config.network}</span>
+                <span className="font-medium">{symbol}</span>
                 {data.config.testnet && <strong className="text-amber-800">Test tokens only</strong>}
                 <span>{e?.status.replaceAll("_", " ") || "Not created"}</span>
                 {e && <span>{e.reconciliation_status.replaceAll("_", " ")}</span>}
+                {data.config.status && (
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${data.config.status === "READY" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
+                        {data.config.status.replaceAll("_", " ")}
+                    </span>
+                )}
             </div>
-            {!data.config.configured && <p className="text-sm text-amber-800">Blockchain service is not configured. Funding is unavailable.</p>}
-            {(buyer || vendor) && <Button variant="outline" className="gap-2" disabled={busy || !data.config.configured} onClick={() => run(async () => {
+            {statusWarning && <p className="text-sm text-amber-800">{statusWarning}</p>}
+            {(buyer || vendor) && <Button variant="outline" className="gap-2" disabled={busy || !canVerifyWallet} onClick={() => run(async () => {
                 const signer = new BrowserWalletSigner(); const address = await signer.account();
                 const challenge = await service.challenge(address);
                 if (!challenge.verified && challenge.message) await service.verify(await signer.signMessage(challenge.message));
@@ -92,10 +125,11 @@ export function BlockchainEscrow({ dealId }: { dealId: string }) {
                     <span className="block break-words">{m.title} ({m.currency} {m.amount} commercial value)</span>
                     <input aria-label={`${m.title} token amount`} inputMode="decimal" placeholder={`Amount in ${symbol}`} value={amounts[m.id] || ""} onChange={event => setAmounts({ ...amounts, [m.id]: event.target.value })} className="w-full rounded border border-slate-300 p-2"/>
                 </label>)}</div>
-                <Button disabled={busy || !data.config.configured || !milestones.length} onClick={() => run(async () => {
+                <Button disabled={busy || !canCreateEscrow || !milestones.length} onClick={() => run(async () => {
                     await service.create(dealId, milestones.map(m => ({ milestoneId: m.id, amount: amounts[m.id] || "" })));
                     setNotice("Escrow terms created. Operator deployment pending.");
                 })}>Create Escrow</Button>
+                {!canCreateEscrow && <p className="text-xs text-amber-700">Escrow factory contract must be configured to create on-chain escrows.</p>}
             </div>}
             {e && <>
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-3 border-y border-slate-200 py-4 sm:grid-cols-3">

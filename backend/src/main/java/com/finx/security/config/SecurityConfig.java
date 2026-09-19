@@ -73,6 +73,8 @@ public class SecurityConfig {
                                 "/api/payments/webhook",
                                 "/api/webhooks/onramp",
                                 "/api/payments/config",
+                                "/api/blockchain/config",
+                                "/api/blockchain/readiness",
                                 "/api/health",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",

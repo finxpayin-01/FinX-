@@ -63,3 +63,16 @@ cors:
 mailersend:
   api-key: ${MAILERSEND_API_KEY:}
   domain: ${MAILERSEND_DOMAIN:}
+
+# Blockchain & Escrow Production Configuration (Polygon Amoy Default)
+payment:
+  rail: ${PAYMENT_RAIL:BLOCKCHAIN}
+
+finx:
+  blockchain:
+    rpc-url: ${BLOCKCHAIN_RPC_URL:${FINX_RPC_URL:https://polygon-amoy-bor-rpc.publicnode.com}}
+    chain-id: ${BLOCKCHAIN_CHAIN_ID:${FINX_CHAIN_ID:80002}}
+    escrow-contract-address: ${ESCROW_FACTORY_ADDRESS:${FINX_ESCROW_CONTRACT_ADDRESS:}}
+    usdc-contract-address: ${USDC_CONTRACT_ADDRESS:${FINX_USDC_CONTRACT_ADDRESS:0x41e94eb019c0762f9bfcf9fb1e58725bfb0e7582}}
+    required-confirmations: ${BLOCKCHAIN_CONFIRMATIONS:${FINX_REQUIRED_CONFIRMATIONS:12}}
+

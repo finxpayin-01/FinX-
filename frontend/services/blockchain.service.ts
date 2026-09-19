@@ -1,8 +1,27 @@
 import { api } from "@/lib/api";
 
 export interface ChainConfig {
-    configured: boolean; chainId: string; network: string; token: string; symbol: string;
-    decimals: number; confirmations: number; testnet: boolean; explorer: string;
+    configured: boolean;
+    ready?: boolean;
+    status?: "BLOCKCHAIN_DISABLED" | "RPC_UNAVAILABLE" | "WRONG_CHAIN" | "ESCROW_CONTRACT_MISSING" | "TOKEN_CONTRACT_MISSING" | "SIGNER_NOT_CONFIGURED" | "ONRAMP_NOT_CONFIGURED" | "READY" | string;
+    enabled?: boolean;
+    chainId: string;
+    network: string;
+    token: string;
+    symbol: string;
+    decimals: number;
+    confirmations: number;
+    testnet: boolean;
+    explorer: string;
+    signer?: string;
+    rpcConfigured?: boolean;
+    rpcConnected?: boolean;
+    escrowContractConfigured?: boolean;
+    tokenConfigured?: boolean;
+    signerConfigured?: boolean;
+    onrampConfigured?: boolean;
+    walletVerificationAvailable?: boolean;
+    escrowCreationAvailable?: boolean;
 }
 export interface ChainTransaction {
     id: string; operation: string; status: string; from_address: string; to_address: string;
@@ -19,6 +38,7 @@ export type ChainOperation = "CREATE" | "ACCEPT" | "ALLOWANCE" | "FUND" | "SUBMI
 const key = () => crypto.randomUUID();
 export const blockchainService = {
     get: async (deal: string): Promise<ChainEscrow> => (await api.get(`/blockchain/deals/${deal}`)).data.data,
+    readiness: async (): Promise<ChainConfig> => (await api.get("/blockchain/readiness")).data.data,
     create: async (deal: string, allocations: { milestoneId: string; amount: string }[]) =>
         (await api.post(`/blockchain/deals/${deal}`, { allocations }, { headers: { "Idempotency-Key": key() } })).data.data,
     intent: async (deal: string, operation: ChainOperation, milestoneId?: string, reason?: string): Promise<ChainTransaction> =>

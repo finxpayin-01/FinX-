@@ -19,7 +19,7 @@ public class WalletService {
 
     @Transactional
     public Map<String,Object> challenge(String address, UserPrincipal actor) {
-        config.requireConfigured();
+        config.requireWalletVerificationAvailable();
         if (!ChainConfig.address(address)) throw new BadRequestException("Invalid wallet address");
         store.one("select id from users where id = ? for update", actor.getId());
         var rows = store.jdbc().queryForList("select * from blockchain_wallets where user_id = ? and chain_id = ?", actor.getId(),config.chainId);

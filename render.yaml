@@ -23,13 +23,13 @@ services:
       - key: BLOCKCHAIN_NETWORK_NAME
         value: "Polygon Amoy"
       - key: BLOCKCHAIN_CHAIN_ID
-        sync: false
+        value: "80002"
       - key: BLOCKCHAIN_RPC_URL
-        sync: false
+        value: "https://polygon-amoy-bor-rpc.publicnode.com"
       - key: ESCROW_FACTORY_ADDRESS
         sync: false
       - key: USDC_CONTRACT_ADDRESS
-        sync: false
+        value: "0x41e94eb019c0762f9bfcf9fb1e58725bfb0e7582"
       - key: BLOCKCHAIN_CREATOR_ADDRESS
         sync: false
       - key: BLOCKCHAIN_ARBITRATOR_ADDRESS
@@ -41,10 +41,20 @@ services:
       - key: BLOCKCHAIN_CONFIRMATIONS
         value: "12"
       - key: BLOCKCHAIN_START_BLOCK
-        sync: false
+        value: "0"
       - key: BLOCKCHAIN_EXPLORER_URL
-        sync: false
+        value: "https://amoy.polygonscan.com"
       - key: BLOCKCHAIN_WALLET_DOMAIN
+        value: "finx-frontend.onrender.com"
+      - key: ONRAMP_WIDGET_URL
+        value: "https://buy.onramper.dev"
+      - key: ONRAMP_ASSET_ID
+        value: "usdc_polygon"
+      - key: ONRAMP_WIDGET_PUBLIC_KEY
+        sync: false
+      - key: ONRAMP_V2_PRIVATE_KEY
+        sync: false
+      - key: ONRAMP_WEBHOOK_SECRET
         sync: false
       - key: DATABASE_URL
         sync: false

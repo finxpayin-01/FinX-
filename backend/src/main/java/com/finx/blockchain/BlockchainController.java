@@ -20,6 +20,7 @@ public class BlockchainController {
     public record WalletRequest(String address,String signature) {}
     public record HashRequest(String txHash) {}
     @GetMapping("/config") public Object config() { return ApiResponse.success(config.publicConfig()); }
+    @GetMapping("/readiness") public Object readiness() { return ApiResponse.success(config.publicConfig()); }
     @PostMapping("/wallet/challenge") public Object challenge(@RequestBody WalletRequest body,@AuthenticationPrincipal UserPrincipal actor) {
         return ApiResponse.success(wallets.challenge(body.address(),actor));
     }
