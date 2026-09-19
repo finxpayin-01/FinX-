@@ -20,3 +20,15 @@ e2e_results*.txt
 e2e_results*.log
 error*.json
 scratch/
+
+# Additional cleanup exclusions
+build/
+target/
+coverage/
+tmp/
+temp/
+
+# Ad-hoc debug files
+cmd_output.log
+cors*.txt
+failures.txt
