@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/Card";
@@ -21,15 +21,15 @@ export default function MilestoneReviewDetail() {
     const [isChangeModalOpen, setIsChangeModalOpen] = useState(false);
     const [reason, setReason] = useState("");
 
-    useEffect(() => {
-        fetchData();
-    }, [milestoneId]);
-
-    const fetchData = () => {
+    const fetchData = useCallback(() => {
         milestoneService.getMilestone(milestoneId as string)
             .then(setMilestone)
             .finally(() => setIsLoading(false));
-    };
+    }, [milestoneId]);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
 
     const handleApprove = async () => {
         try {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/Card";
@@ -24,7 +24,7 @@ export default function CorporateMilestoneDetails() {
     const [isActionLoading, setIsActionLoading] = useState(false);
     const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-    const fetchMilestoneData = async () => {
+    const fetchMilestoneData = useCallback(async () => {
         if (!milestoneId) return;
         setIsLoading(true);
         try {
@@ -45,11 +45,11 @@ export default function CorporateMilestoneDetails() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [milestoneId, projectId]);
 
     useEffect(() => {
         fetchMilestoneData();
-    }, [milestoneId, projectId]);
+    }, [fetchMilestoneData]);
 
     const handleApprove = async () => {
         if (!milestoneId) return;

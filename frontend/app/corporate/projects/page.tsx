@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -34,7 +34,7 @@ export default function CorporateProjectsPage() {
     const [isSendingEmail, setIsSendingEmail] = useState(false);
     const [emailSuccess, setEmailSuccess] = useState(false);
 
-    const fetchDeals = async () => {
+    const fetchDeals = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
@@ -45,9 +45,9 @@ export default function CorporateProjectsPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, []);
 
-    const fetchSellers = async () => {
+    const fetchSellers = useCallback(async () => {
         setIsLoadingSellers(true);
         try {
             const data = await dealService.getSellers();
@@ -60,12 +60,12 @@ export default function CorporateProjectsPage() {
         } finally {
             setIsLoadingSellers(false);
         }
-    };
+    }, [sellerId]);
 
     useEffect(() => {
         fetchDeals();
         fetchSellers();
-    }, []);
+    }, [fetchDeals, fetchSellers]);
 
     const handleCreateSubmit = async (e: React.FormEvent) => {
         e.preventDefault();

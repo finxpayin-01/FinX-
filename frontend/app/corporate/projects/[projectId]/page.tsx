@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -42,7 +42,7 @@ export default function ProjectDetailsPage() {
     const [isInvitingPm, setIsInvitingPm] = useState(false);
     const [isCancellingPm, setIsCancellingPm] = useState(false);
 
-    const fetchDeal = async () => {
+    const fetchDeal = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
@@ -53,9 +53,9 @@ export default function ProjectDetailsPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [projectId]);
 
-    const fetchPmInfo = async () => {
+    const fetchPmInfo = useCallback(async () => {
         setIsPmLoading(true);
         try {
             const data = await projectManagerService.getDealProjectManager(projectId);
@@ -65,9 +65,9 @@ export default function ProjectDetailsPage() {
         } finally {
             setIsPmLoading(false);
         }
-    };
+    }, [projectId]);
 
-    const fetchMilestones = async () => {
+    const fetchMilestones = useCallback(async () => {
         setIsMilestonesLoading(true);
         try {
             const data = await milestoneService.getProjectMilestones(projectId);
@@ -77,7 +77,7 @@ export default function ProjectDetailsPage() {
         } finally {
             setIsMilestonesLoading(false);
         }
-    };
+    }, [projectId]);
 
     useEffect(() => {
         if (!projectId) return;
@@ -102,7 +102,7 @@ export default function ProjectDetailsPage() {
         return () => {
             if (intervalId) clearInterval(intervalId);
         };
-    }, [projectId, deal?.status, pmInfo?.activeInvitation?.id]);
+    }, [deal?.status, fetchDeal, fetchMilestones, fetchPmInfo, pmInfo?.activeInvitation, projectId]);
 
     const handleOpenInviteModal = async () => {
         setShowInviteModal(true);

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/Card";
@@ -19,7 +19,7 @@ export default function CorporateMilestoneDetailsPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    const fetchMilestone = async () => {
+    const fetchMilestone = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
@@ -33,13 +33,13 @@ export default function CorporateMilestoneDetailsPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [milestoneId, router]);
 
     useEffect(() => {
         if (milestoneId) {
             fetchMilestone();
         }
-    }, [milestoneId]);
+    }, [fetchMilestone, milestoneId]);
 
     return (
         <DashboardLayout>

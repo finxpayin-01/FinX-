@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/Card";
@@ -17,15 +17,15 @@ export default function VendorMilestoneWorkspace() {
     const [isStarting, setIsStarting] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    useEffect(() => {
-        fetchData();
-    }, [milestoneId]);
-
-    const fetchData = () => {
+    const fetchData = useCallback(() => {
         if (milestoneId) {
             milestoneService.getMilestone(milestoneId as string).then(setMilestone);
         }
-    }
+    }, [milestoneId]);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
 
     const handleStart = async () => {
         setIsStarting(true);

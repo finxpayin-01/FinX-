@@ -115,9 +115,6 @@ public class AuthService {
         }
 
         User savedUser = userRepository.saveAndFlush(user);
-        if (savedUser == null) {
-            savedUser = user;
-        }
         if (savedUser.getId() == null && user.getId() != null) {
             savedUser.setId(user.getId());
         }

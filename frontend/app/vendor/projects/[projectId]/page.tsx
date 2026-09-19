@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
@@ -33,7 +33,7 @@ export default function VendorProjectDetailsPage() {
     const [actionSuccess, setActionSuccess] = useState<string | null>(null);
     const [actionError, setActionError] = useState<string | null>(null);
 
-    const fetchDeal = async () => {
+    const fetchDeal = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
@@ -44,9 +44,9 @@ export default function VendorProjectDetailsPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [projectId]);
 
-    const fetchMilestones = async () => {
+    const fetchMilestones = useCallback(async () => {
         if (!projectId) return;
         setIsMilestonesLoading(true);
         try {
@@ -57,14 +57,14 @@ export default function VendorProjectDetailsPage() {
         } finally {
             setIsMilestonesLoading(false);
         }
-    };
+    }, [projectId]);
 
     useEffect(() => {
         if (projectId) {
             fetchDeal();
             fetchMilestones();
         }
-    }, [projectId]);
+    }, [fetchDeal, fetchMilestones, projectId]);
 
     const handleAcceptDeal = async () => {
         if (!deal) return;

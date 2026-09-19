@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo, Suspense } from "react";
+import React, { useCallback, useEffect, useState, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
@@ -35,16 +35,16 @@ function VendorMilestonesContent() {
     const [searchQuery, setSearchQuery] = useState("");
     const [statusFilter, setStatusFilter] = useState<MilestoneStatus | "ALL">("ALL");
 
-    const fetchDeals = async () => {
+    const fetchDeals = useCallback(async () => {
         try {
             const data = await dealService.getDeals();
             setDeals(data);
         } catch {
             // ignore
         }
-    };
+    }, []);
 
-    const fetchMilestones = async () => {
+    const fetchMilestones = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
@@ -60,15 +60,15 @@ function VendorMilestonesContent() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [selectedDealId]);
 
     useEffect(() => {
         fetchDeals();
-    }, []);
+    }, [fetchDeals]);
 
     useEffect(() => {
         fetchMilestones();
-    }, [selectedDealId]);
+    }, [fetchMilestones]);
 
     useEffect(() => {
         if (dealParam) {

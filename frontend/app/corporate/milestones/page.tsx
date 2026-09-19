@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo, Suspense } from "react";
+import React, { useCallback, useEffect, useState, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -55,7 +55,7 @@ function CorporateMilestonesContent() {
     const [dueDate, setDueDate] = useState("");
 
     // Fetch deals
-    const fetchDeals = async () => {
+    const fetchDeals = useCallback(async () => {
         try {
             const data = await dealService.getDeals();
             setDeals(data);
@@ -63,10 +63,10 @@ function CorporateMilestonesContent() {
         } catch {
             return [];
         }
-    };
+    }, []);
 
     // Fetch milestones
-    const fetchMilestones = async () => {
+    const fetchMilestones = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
@@ -82,15 +82,15 @@ function CorporateMilestonesContent() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [selectedDealId]);
 
     useEffect(() => {
         fetchDeals();
-    }, []);
+    }, [fetchDeals]);
 
     useEffect(() => {
         fetchMilestones();
-    }, [selectedDealId]);
+    }, [fetchMilestones]);
 
     // Handle initial dealId param
     useEffect(() => {
