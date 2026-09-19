@@ -1,0 +1,5 @@
+LocalCouncil: 0x03fe09b4efcdd63768e139bceb3bb49d0d817228
+Empty: 0x4efcd52813276dc3522a8a62d303bea6b5e12b95
+Empty: 0xf4f3e633f31a0f650e8bdb2d22fd73dea9cbda5e
+SupportedAssetRegistry: 0xad0403e490f2530d39b33d25aea3849b9f0d0114
+FinXEscrowFactory: 0x0109d3be9ca32f3eaa5f93b24fb09174c999ac23
