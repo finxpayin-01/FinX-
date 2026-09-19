@@ -19,6 +19,9 @@ class ChainConfigTest {
         config.creator = "0x2222222222222222222222222222222222222222";
         config.decimals = 6;
         config.confirmations = 12;
+        config.lastRpcConnected = true;
+        config.lastRemoteChainId = 80002L;
+        config.lastRpcCheck = Long.MAX_VALUE;
     }
 
     @Test

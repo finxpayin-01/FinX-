@@ -11,8 +11,25 @@ import type { Milestone } from "@/types";
 
 const states = ["Pending", "Funded", "Submitted", "Approved on-chain", "Released", "Disputed", "Refunded"];
 function message(error: unknown): string {
-    const e = error as { response?: { data?: { message?: string } }; message?: string };
-    return e.response?.data?.message || e.message || "Request failed";
+    const e = error as { response?: { data?: { message?: string } }; message?: string; code?: number };
+    const text = e.response?.data?.message || e.message || "Request failed";
+    const lower = text.toLowerCase();
+    if (lower.includes("no browser wallet") || lower.includes("wallet_not_found")) {
+        return "WALLET_NOT_FOUND: No browser wallet was detected. Please install or enable MetaMask.";
+    }
+    if (lower.includes("wrong_network") || lower.includes("select network") || lower.includes("chain mismatch")) {
+        return "WRONG_NETWORK: Please switch your wallet network to Polygon Amoy (Chain ID 80002).";
+    }
+    if (lower.includes("transaction_rejected") || lower.includes("user rejected") || lower.includes("user denied") || e.code === 4001) {
+        return "TRANSACTION_REJECTED: Transaction signing was rejected by user in wallet.";
+    }
+    if (lower.includes("transaction_reverted") || lower.includes("reverted") || lower.includes("execution reverted") || lower.includes("-32603")) {
+        return "TRANSACTION_REVERTED: Transaction reverted on-chain.";
+    }
+    if (lower.includes("rpc_unavailable") || lower.includes("failed to fetch") || lower.includes("network error")) {
+        return "RPC_UNAVAILABLE: Blockchain RPC node is currently unreachable.";
+    }
+    return text;
 }
 export function BlockchainEscrow({ dealId }: { dealId: string }) {
     const { user } = useAuth();
@@ -26,6 +43,10 @@ export function BlockchainEscrow({ dealId }: { dealId: string }) {
     const [reason, setReason] = useState("");
     const [checkoutUrl, setCheckoutUrl] = useState("");
     const [recovery, setRecovery] = useState<Record<string,string>>({});
+    const [factoryBytecode, setFactoryBytecode] = useState<string | null>(null);
+    const [tokenBytecode, setTokenBytecode] = useState<string | null>(null);
+    const [creatorAuthorized, setCreatorAuthorized] = useState<boolean | null>(null);
+
     const buyer = user?.role === "BUYER" || user?.role === "CORPORATE";
     const vendor = user?.role === "SELLER" || user?.role === "VENDOR";
     const admin = user?.role === "ADMIN";
@@ -42,6 +63,30 @@ export function BlockchainEscrow({ dealId }: { dealId: string }) {
         load(); const timer = setInterval(load, 10000);
         return () => { active = false; clearInterval(timer); };
     }, [refresh]);
+
+    useEffect(() => {
+        if (!data?.config) return;
+        const cfg = data.config;
+        const factoryAddr = cfg.factory || (cfg.escrowContractConfigured ? String(data.escrow?.factory_address || "") : "");
+        if (factoryAddr) {
+            void service.getBytecode(factoryAddr).then(code => setFactoryBytecode(code)).catch(() => setFactoryBytecode("0x"));
+        } else {
+            setFactoryBytecode(null);
+        }
+        const tokenAddr = cfg.token;
+        if (tokenAddr) {
+            void service.getBytecode(tokenAddr).then(code => setTokenBytecode(code)).catch(() => setTokenBytecode("0x"));
+        } else {
+            setTokenBytecode(null);
+        }
+        const creatorAddr = cfg.creator || cfg.signer;
+        if (factoryAddr && creatorAddr) {
+            void service.hasCreatorRole(factoryAddr, creatorAddr).then(res => setCreatorAuthorized(res)).catch(() => setCreatorAuthorized(false));
+        } else {
+            setCreatorAuthorized(null);
+        }
+    }, [data?.config, data?.escrow?.factory_address]);
+
     const run = async (action: () => Promise<void>) => {
         setBusy(true); setError(""); setNotice("");
         try { await action(); await refresh(); } catch (e) { setError(message(e)); } finally { setBusy(false); }
@@ -59,30 +104,55 @@ export function BlockchainEscrow({ dealId }: { dealId: string }) {
         await service.attach(tx.id, hash);
         setNotice("Transaction submitted. Blockchain confirmation pending.");
     });
-    const isReady = Boolean(data?.config.ready || data?.config.configured);
+    const hasFactoryBytecode = Boolean(factoryBytecode && factoryBytecode !== "0x" && factoryBytecode.length > 2);
+    const isReady = Boolean((data?.config.ready || data?.config.configured) && hasFactoryBytecode);
     const canVerifyWallet = Boolean(data?.config.walletVerificationAvailable ?? data?.config.configured);
-    const canCreateEscrow = Boolean(data?.config.escrowCreationAvailable ?? data?.config.configured);
+    const canCreateEscrow = Boolean((data?.config.escrowCreationAvailable ?? data?.config.configured) && hasFactoryBytecode);
 
     const getStatusWarning = (cfg: NonNullable<typeof data>["config"]) => {
-        if (cfg.ready || cfg.configured) return null;
-        switch (cfg.status) {
-            case "BLOCKCHAIN_DISABLED":
-                return "Blockchain payment rail is currently disabled.";
-            case "RPC_UNAVAILABLE":
-                return "Blockchain RPC node is currently unreachable. Live operations paused.";
-            case "WRONG_CHAIN":
-                return `Connected RPC chain mismatch. Expected Chain ID ${cfg.chainId}.`;
-            case "TOKEN_CONTRACT_MISSING":
-                return "Settlement token contract is not configured on this network.";
-            case "ESCROW_CONTRACT_MISSING":
-                return "Escrow factory contract is not configured on this network. Wallet verification is available; contract deployment is required for on-chain escrow creation.";
-            case "SIGNER_NOT_CONFIGURED":
-                return "Authorized deployer operator address is not configured.";
-            case "ONRAMP_NOT_CONFIGURED":
-                return "Fiat-to-crypto onramp is not configured. Direct wallet funding with test tokens is available.";
-            default:
-                return "Blockchain service is not fully configured. Funding is unavailable.";
+        if (cfg.status === "BLOCKCHAIN_DISABLED" || cfg.enabled === false) {
+            return "Blockchain payment rail is currently disabled.";
         }
+        if (cfg.status === "RPC_UNAVAILABLE" || cfg.rpcConnected === false) {
+            return "RPC_UNAVAILABLE: Blockchain RPC node is currently unreachable. Live operations paused.";
+        }
+        if (cfg.status === "WRONG_CHAIN") {
+            return `WRONG_NETWORK: Connected RPC chain mismatch. Expected Chain ID ${cfg.chainId}.`;
+        }
+
+        const factoryAddr = cfg.factory || (cfg.escrowContractConfigured ? String(data?.escrow?.factory_address || "") : "");
+        if (!factoryAddr && !cfg.escrowContractConfigured) {
+            return "FACTORY_NOT_CONFIGURED (ESCROW CONTRACT MISSING): Escrow factory contract is not configured on this network. Wallet verification is available; contract deployment is required for on-chain escrow creation.";
+        }
+        if (factoryBytecode !== null && (factoryBytecode === "0x" || factoryBytecode.length <= 2)) {
+            return "FACTORY_NO_BYTECODE (ESCROW CONTRACT MISSING): Configured escrow factory address contains no bytecode on Polygon Amoy. Contract deployment is required.";
+        }
+
+        const tokenAddr = cfg.token;
+        if (!tokenAddr && !cfg.tokenConfigured) {
+            return "TOKEN_NOT_CONFIGURED: Settlement token contract is not configured on this network.";
+        }
+        if (tokenBytecode !== null && (tokenBytecode === "0x" || tokenBytecode.length <= 2)) {
+            return "TOKEN_NO_BYTECODE: Configured settlement token address contains no bytecode on Polygon Amoy.";
+        }
+
+        const creatorAddr = cfg.creator || cfg.signer;
+        if (!creatorAddr && !cfg.signerConfigured) {
+            return "SIGNER_NOT_CONFIGURED: Authorized deployer operator address is not configured.";
+        }
+        if (creatorAuthorized !== null && creatorAuthorized === false) {
+            return "CREATOR_NOT_AUTHORIZED: Configured deployer operator address is not authorized with CREATOR_ROLE on the escrow factory.";
+        }
+
+        if (cfg.status === "ONRAMP_NOT_CONFIGURED" || !cfg.onrampConfigured) {
+            return "ONRAMP_NOT_CONFIGURED: Fiat-to-crypto onramp is not configured. Direct wallet funding with test tokens is available.";
+        }
+
+        if (!cfg.ready && !cfg.configured) {
+            return "Blockchain service is not fully configured. Funding is unavailable.";
+        }
+
+        return null;
     };
 
     const button = (label: string, operation: ChainOperation, milestone?: string) =>

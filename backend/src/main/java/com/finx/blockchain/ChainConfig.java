@@ -30,9 +30,9 @@ public class ChainConfig {
     @Autowired(required = false)
     private OnramperSignatureService onramper;
 
-    private volatile long lastRpcCheck = 0;
-    private volatile boolean lastRpcConnected = false;
-    private volatile Long lastRemoteChainId = null;
+    volatile long lastRpcCheck = 0;
+    volatile boolean lastRpcConnected = false;
+    volatile Long lastRemoteChainId = null;
 
     public boolean configured() {
         return enabled && chainId > 0 && rpcUrl != null && !rpcUrl.isBlank() && address(factory) && address(token)
@@ -141,6 +141,8 @@ public class ChainConfig {
         map.put("signer", "EXTERNAL_WALLET");
         map.put("rpcConfigured", isRpcConfigured());
         map.put("rpcConnected", isRpcConnected());
+        map.put("factory", factory != null ? factory : "");
+        map.put("creator", creator != null ? creator : "");
         map.put("escrowContractConfigured", address(factory));
         map.put("tokenConfigured", address(token));
         map.put("signerConfigured", address(creator));
