@@ -20,6 +20,21 @@ export default function AdminDashboard() {
 
     if (isLoading || !data) return <DashboardLayout><div className="p-8 font-medium">Aggregating secure endpoints...</div></DashboardLayout>;
 
+    // Unwrap ApiResponse safely
+    const stats = data.data || data;
+
+    // Safely map
+    const totalProjectValue = stats.totalProjectValue || 0;
+    const totalFundsDeposited = stats.totalFundsDeposited || 0;
+    const totalFundsHeld = stats.totalFundsHeld || 0;
+    const totalFundsReleased = stats.totalFundsReleased || 0;
+
+    const totalUsers = stats.totalUsers || 0;
+    const activeProjects = stats.activeDeals || stats.activeProjects || 0;
+    const pendingReleases = stats.pendingReleases || 0;
+    const openDisputes = stats.totalDisputes || stats.openDisputes || 0;
+    const failedTxs = (stats.failedPayments || 0) + (stats.failedReleases || 0);
+
     return (
         <DashboardLayout>
             <div className="space-y-6">
@@ -33,25 +48,25 @@ export default function AdminDashboard() {
                     <Card>
                         <CardContent className="p-5">
                             <p className="text-sm font-medium text-slate-500">Total Project Value</p>
-                            <p className="text-2xl font-bold text-slate-900 mt-1">${data.totalProjectValue.toLocaleString()}</p>
+                            <p className="text-2xl font-bold text-slate-900 mt-1">${totalProjectValue.toLocaleString()}</p>
                         </CardContent>
                     </Card>
                     <Card>
                         <CardContent className="p-5">
                             <p className="text-sm font-medium text-slate-500">Total Funds Deposited</p>
-                            <p className="text-2xl font-bold text-emerald-600 mt-1">${data.totalFundsDeposited.toLocaleString()}</p>
+                            <p className="text-2xl font-bold text-emerald-600 mt-1">${totalFundsDeposited.toLocaleString()}</p>
                         </CardContent>
                     </Card>
                     <Card>
                         <CardContent className="p-5">
                             <p className="text-sm font-medium text-slate-500">Total Funds Held (Escrow)</p>
-                            <p className="text-2xl font-bold text-blue-600 mt-1">${data.totalFundsHeld.toLocaleString()}</p>
+                            <p className="text-2xl font-bold text-blue-600 mt-1">${totalFundsHeld.toLocaleString()}</p>
                         </CardContent>
                     </Card>
                     <Card>
                         <CardContent className="p-5">
                             <p className="text-sm font-medium text-slate-500">Total Funds Released</p>
-                            <p className="text-2xl font-bold text-purple-600 mt-1">${data.totalFundsReleased.toLocaleString()}</p>
+                            <p className="text-2xl font-bold text-purple-600 mt-1">${totalFundsReleased.toLocaleString()}</p>
                         </CardContent>
                     </Card>
                 </div>
@@ -61,35 +76,35 @@ export default function AdminDashboard() {
                     <Card className="bg-slate-50 border-0 shadow-none ring-1 ring-slate-200">
                         <CardContent className="p-4 text-center">
                             <Users className="mx-auto text-slate-400 mb-2" size={20} />
-                            <p className="text-xl font-bold text-slate-900">{data.totalUsers}</p>
+                            <p className="text-xl font-bold text-slate-900">{totalUsers}</p>
                             <p className="text-xs font-medium text-slate-500 uppercase">Total Users</p>
                         </CardContent>
                     </Card>
                     <Card className="bg-slate-50 border-0 shadow-none ring-1 ring-slate-200">
                         <CardContent className="p-4 text-center">
                             <Briefcase className="mx-auto text-slate-400 mb-2" size={20} />
-                            <p className="text-xl font-bold text-slate-900">{data.activeProjects}</p>
+                            <p className="text-xl font-bold text-slate-900">{activeProjects}</p>
                             <p className="text-xs font-medium text-slate-500 uppercase">Active Projects</p>
                         </CardContent>
                     </Card>
                     <Card className="bg-amber-50 border-0 shadow-none ring-1 ring-amber-200">
                         <CardContent className="p-4 text-center">
                             <Lock className="mx-auto text-amber-500 mb-2" size={20} />
-                            <p className="text-xl font-bold text-amber-900">{data.pendingReleases}</p>
+                            <p className="text-xl font-bold text-amber-900">{pendingReleases}</p>
                             <p className="text-xs font-medium text-amber-700 uppercase">Pending Releases</p>
                         </CardContent>
                     </Card>
                     <Card className="bg-red-50 border-0 shadow-none ring-1 ring-red-200">
                         <CardContent className="p-4 text-center">
                             <ShieldAlert className="mx-auto text-red-500 mb-2" size={20} />
-                            <p className="text-xl font-bold text-red-900">{data.openDisputes}</p>
+                            <p className="text-xl font-bold text-red-900">{openDisputes}</p>
                             <p className="text-xs font-medium text-red-700 uppercase">Open Disputes</p>
                         </CardContent>
                     </Card>
                     <Card className="bg-red-50 border-0 shadow-none ring-1 ring-red-200">
                         <CardContent className="p-4 text-center">
                             <FileWarning className="mx-auto text-red-500 mb-2" size={20} />
-                            <p className="text-xl font-bold text-red-900">{data.failedPayments + data.failedReleases}</p>
+                            <p className="text-xl font-bold text-red-900">{failedTxs}</p>
                             <p className="text-xs font-medium text-red-700 uppercase">Failed Txs</p>
                         </CardContent>
                     </Card>

@@ -1,0 +1,61 @@
+name: Deploy FinX to AWS
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  deploy-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # To deploy frontend to AWS Amplify, connect your repository directly in the AWS Amplify Console.
+      # Or you can deploy manually using AWS CLI:
+      - name: Deploy to AWS Amplify (Placeholder)
+        run: |
+          echo "AWS Amplify deployment should ideally be configured via AWS Console hooking directly to this GitHub repo."
+
+  deploy-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Docker image
+        run: |
+          # Example build pipeline for AWS Elastic Beanstalk or ECS/App Runner
+          # cd backend
+          # docker build -t finx-backend .
+          # docker tag finx-backend ${{ steps.login-ecr.outputs.registry }}/finx-backend:latest
+          # docker push ${{ steps.login-ecr.outputs.registry }}/finx-backend:latest
+          echo "Please ensure you have an ECR repository named 'finx-backend' configured."
