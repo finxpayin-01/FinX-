@@ -93,7 +93,7 @@ public class DealController {
     @Operation(summary = "List My Deals", description = "Fetch all deals associated with the authenticated user")
     public ResponseEntity<ApiResponse<List<DealResponse>>> getMyDeals(@AuthenticationPrincipal UserPrincipal currentUser) {
         List<DealResponse> deals;
-        if (currentUser.getRole() == Role.ADMIN) {
+        if (currentUser.getRole() == Role.ADMIN || currentUser.getRole() == Role.FINANCE) {
             deals = dealService.getAllDeals();
         } else if (currentUser.getRole() == Role.SELLER) {
             deals = dealService.getDealsForSeller(currentUser.getId());

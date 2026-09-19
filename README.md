@@ -1,5 +1,26 @@
 # FINX
 
+## Blockchain escrow migration
+
+`PAYMENT_RAIL=BLOCKCHAIN` is now the default. Razorpay code and historical fiat
+records remain available under the explicitly selected `RAZORPAY` fallback.
+New blockchain projects use immutable token allocations, verified party wallets,
+wallet-signed transactions and a confirmed-chain read model. Commercial INR
+amounts and token settlement amounts are separate; no fixed FX rate is assumed.
+
+Start with [the migration audit](docs/blockchain-migration-audit.md),
+[architecture](docs/blockchain-architecture.md), [deployment](docs/blockchain-deployment.md),
+[security limits](docs/blockchain-security.md) and [E2E instructions](docs/blockchain-e2e-testing.md).
+The [A-M engineering report](docs/blockchain-migration-report.md) records verified results and outstanding production gates.
+The escrow UI is available at `/blockchain` and the existing role escrow routes.
+An operator with the factory creator role deploys the buyer's proposed schedule;
+buyer and vendor then accept the immutable terms in their own wallets.
+
+Public Amoy deployment, fiat on/off-ramp settlement and production financial
+infrastructure are **not certified by local EVM tests**. Historical test counts
+and readiness statements below describe the earlier fiat MVP and are not current
+blockchain settlement evidence. No real private keys belong in configuration.
+
 ### Milestone-Based Payments for Modern Businesses
 
 FINX helps businesses manage project payments with confidence by connecting **milestones, deliverables, approvals, and payments** in one transparent workflow.

@@ -85,6 +85,7 @@ class EscrowServiceTest {
                 notificationService
         );
 
+        org.springframework.test.util.ReflectionTestUtils.setField(escrowService, "railPolicy", new com.finx.payment.config.PaymentRailPolicy("RAZORPAY"));
         buyerId = UUID.randomUUID();
         sellerId = UUID.randomUUID();
         dealId = UUID.randomUUID();

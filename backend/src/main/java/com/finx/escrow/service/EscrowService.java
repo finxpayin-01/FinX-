@@ -37,6 +37,11 @@ import java.util.stream.Collectors;
 @Service
 public class EscrowService {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.finx.payment.config.PaymentRailPolicy railPolicy = new com.finx.payment.config.PaymentRailPolicy("BLOCKCHAIN");
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.finx.blockchain.ChainWorkflowGuard chainGuard;
+
     private static final Logger log = LoggerFactory.getLogger(EscrowService.class);
 
     private final EscrowAccountRepository escrowAccountRepository;
@@ -125,8 +130,10 @@ public class EscrowService {
 
     @Transactional
     public void fundEscrow(UUID dealId, UUID milestoneId, UUID paymentId, BigDecimal amount, String currency, UUID actorId) {
+        railPolicy.requireRazorpay();
         Deal deal = dealRepository.findByIdForUpdate(dealId)
                 .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", dealId));
+        if (chainGuard != null) chainGuard.fiatOnly(dealId);
         EscrowAccount account = getOrCreateEscrowAccount(dealId, currency);
 
         BigDecimal newBalance = account.getBalance().add(amount);
@@ -165,11 +172,13 @@ public class EscrowService {
 
     @Transactional
     public EscrowLedgerResponse releaseEscrow(UUID milestoneId, String comment, UserPrincipal currentUser) {
+        railPolicy.requireRazorpay();
         Milestone milestone = milestoneRepository.findByIdForUpdate(milestoneId)
                 .orElseThrow(() -> new ResourceNotFoundException("Milestone", "id", milestoneId));
 
         Deal deal = dealRepository.findByIdForUpdate(milestone.getDealId())
                 .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", milestone.getDealId()));
+        if (chainGuard != null) chainGuard.fiatOnly(deal.getId());
 
         if (currentUser.getRole() != Role.ADMIN && !deal.getBuyerId().equals(currentUser.getId())) {
             throw new UnauthorizedException("Only the corporate buyer or an administrator can release escrow funds");

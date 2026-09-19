@@ -8,6 +8,7 @@ import { escrowService } from "@/services/escrow.service";
 import { milestoneService } from "@/services/milestone.service";
 import { Milestone } from "@/types";
 import { Button } from "@/components/ui/Button";
+import { EscrowRailView } from "@/components/escrow/EscrowRailView";
 
 interface EscrowDash {
     pending: Milestone[];
@@ -15,7 +16,8 @@ interface EscrowDash {
     disputed: Milestone[];
 }
 
-export default function AdminEscrowDashboard() {
+export default function AdminEscrowDashboard() { return <EscrowRailView><LegacyAdminEscrowDashboard/></EscrowRailView>; }
+function LegacyAdminEscrowDashboard() {
     const [data, setData] = useState<EscrowDash>({ pending: [], released: [], disputed: [] });
     const [isLoading, setIsLoading] = useState(true);
     const [processingId, setProcessingId] = useState<string | null>(null);

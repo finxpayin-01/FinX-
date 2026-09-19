@@ -41,6 +41,7 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
 
     const getNavLinks = (): NavLinkItem[] => {
         const baseLinks: NavLinkItem[] = [
+            { name: "Blockchain Escrow", href: "/blockchain", icon: ShieldCheck },
             { name: "Compliance (KYC)", href: "/kyc", icon: ShieldCheck },
             { name: "Settings", href: `/${(user?.role === 'BUYER' ? 'corporate' : user?.role === 'SELLER' ? 'vendor' : user?.role?.toLowerCase().replace('_', '-') || 'corporate')}/settings`, icon: Settings },
         ];

@@ -35,6 +35,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class MilestoneService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.finx.blockchain.ChainWorkflowGuard chainGuard;
 
     private static final Logger log = LoggerFactory.getLogger(MilestoneService.class);
 
@@ -61,8 +63,9 @@ public class MilestoneService {
 
     @Transactional
     public MilestoneResponse createMilestone(UUID dealId, CreateMilestoneRequest request, UserPrincipal currentUser) {
-        Deal deal = dealRepository.findById(dealId)
+        Deal deal = dealRepository.findByIdForUpdate(dealId)
                 .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", dealId));
+        if (chainGuard != null) chainGuard.mutableSchedule(dealId);
 
         if (currentUser.getRole() != Role.ADMIN && !deal.getBuyerId().equals(currentUser.getId())) {
             throw new UnauthorizedException("Only the buyer or an admin can create milestones for this deal");
@@ -199,6 +202,7 @@ public class MilestoneService {
 
         Deal deal = dealRepository.findById(milestone.getDealId())
                 .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", milestone.getDealId()));
+        if (chainGuard != null) chainGuard.funded(deal.getId());
 
         if (currentUser.getRole() != Role.ADMIN && !deal.getSellerId().equals(currentUser.getId())) {
             throw new UnauthorizedException("Only the assigned vendor can start working on this milestone");
@@ -241,7 +245,8 @@ public class MilestoneService {
             throw new UnauthorizedException("Only the assigned vendor can submit deliverables for this milestone");
         }
 
-        if (deal.getStatus() != com.finx.deal.entity.DealStatus.ACCEPTED) {
+        if (chainGuard != null) chainGuard.funded(deal.getId());
+        if (deal.getStatus() != com.finx.deal.entity.DealStatus.ACCEPTED && deal.getStatus() != DealStatus.IN_PROGRESS && deal.getStatus() != DealStatus.FUNDED) {
             throw new BadRequestException("Cannot submit deliverables: project is not active (current status: " + deal.getStatus() + ")");
         }
 

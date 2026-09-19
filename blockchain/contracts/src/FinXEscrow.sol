@@ -208,6 +208,7 @@ contract FinXEscrow is ReentrancyGuard, Pausable {
     }
 
     function releaseMilestone(bytes32 id) external nonReentrant onlyParty operational {
+        if (disputedMilestones != 0) revert InvalidState();
         Milestone storage m = _milestone(id);
         if (m.status != MilestoneStatus.APPROVED) revert InvalidState();
         _settle(id, m, true);

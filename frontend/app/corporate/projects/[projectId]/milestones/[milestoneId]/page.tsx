@@ -6,6 +6,7 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/Card";
 import { MilestoneStatusBadge } from "@/components/ui/MilestoneStatusBadge";
 import { EscrowTimeline } from "@/components/escrow/EscrowTimeline";
+import { BlockchainEscrow } from "@/components/escrow/BlockchainEscrow";
 import { Milestone, EscrowAccount, Payment } from "@/types";
 import { milestoneService } from "@/services/milestone.service";
 import { escrowService } from "@/services/escrow.service";
@@ -17,6 +18,8 @@ import { ArrowLeft, Clock, DollarSign, FileCheck, CheckCircle2, XCircle, Unlock,
 export default function CorporateMilestoneDetails() {
     const { projectId, milestoneId } = useParams();
     const router = useRouter();
+    const [blockchain, setBlockchain] = useState(true);
+    useEffect(() => { void paymentService.getPaymentConfig().then(c => setBlockchain(c.rail === "BLOCKCHAIN")).catch(() => {}); }, []);
     const [milestone, setMilestone] = useState<Milestone | null>(null);
     const [escrowAccount, setEscrowAccount] = useState<EscrowAccount | null>(null);
     const [payments, setPayments] = useState<Payment[]>([]);
@@ -134,6 +137,7 @@ export default function CorporateMilestoneDetails() {
     return (
         <DashboardLayout>
             <div className="space-y-6">
+                {blockchain && <BlockchainEscrow dealId={projectId as string}/>}
                 <div>
                     <Button variant="ghost" onClick={() => router.push(`/corporate/projects/${projectId}`)} className="gap-2 -ml-3 text-slate-500 hover:text-slate-900 mb-2">
                         <ArrowLeft size={16} /> Back to Project
@@ -274,7 +278,7 @@ export default function CorporateMilestoneDetails() {
                         </div>
                         <div className="flex flex-wrap items-center gap-3">
                             {/* PENDING: Pay & Fund Escrow */}
-                            {milestone.status === 'PENDING' && !isFunded && (
+                            {!blockchain && milestone.status === 'PENDING' && !isFunded && (
                                 <Link href={`/corporate/projects/${projectId}/milestones/${milestoneId}/payment`}>
                                     <Button className="gap-2 bg-slate-900 hover:bg-slate-800 text-white">
                                         <Wallet size={16} /> Pay & Fund Escrow
@@ -305,7 +309,7 @@ export default function CorporateMilestoneDetails() {
                             )}
 
                             {/* APPROVED: If funded -> Release Escrow Funds; If not funded -> prompt to fund */}
-                            {milestone.status === 'APPROVED' && (
+                            {!blockchain && milestone.status === 'APPROVED' && (
                                 <>
                                     {!isFunded ? (
                                         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">

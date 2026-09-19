@@ -146,7 +146,7 @@ public class OnramperProvider implements OnRampProvider {
     @Override
     public ProviderTransactionResponse getTransactionStatus(String providerTransactionId) {
         ProviderTransactionResponse res = new ProviderTransactionResponse();
-        res.setStatus("completed");
+        res.setStatus("unknown");
         return res;
     }
 

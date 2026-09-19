@@ -26,6 +26,10 @@ import java.util.stream.Collectors;
 
 @Service
 public class DisputeService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.finx.blockchain.ChainWorkflowGuard chainGuard;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.finx.milestone.repository.MilestoneRepository milestones;
 
     private static final Logger log = LoggerFactory.getLogger(DisputeService.class);
 
@@ -46,8 +50,11 @@ public class DisputeService {
 
     @Transactional
     public DisputeResponse createDispute(CreateDisputeRequest request, UserPrincipal currentUser) {
-        Deal deal = dealRepository.findById(request.getDealId())
+        Deal deal = dealRepository.findByIdForUpdate(request.getDealId())
                 .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", request.getDealId()));
+        if (request.getMilestoneId() != null && !milestones.findById(request.getMilestoneId())
+                .map(m -> m.getDealId().equals(deal.getId())).orElse(false))
+            throw new BadRequestException("Milestone is not in this deal");
 
         if (currentUser.getRole() != Role.ADMIN) {
             boolean isParty = deal.getBuyerId().equals(currentUser.getId()) || deal.getSellerId().equals(currentUser.getId());
@@ -104,6 +111,7 @@ public class DisputeService {
 
         Dispute dispute = disputeRepository.findById(disputeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Dispute", "id", disputeId));
+        if (chainGuard != null) chainGuard.resolution(dispute.getDealId(), dispute.getMilestoneId(), resolutionNotes);
 
         dispute.setStatus(DisputeStatus.RESOLVED);
         dispute.setResolutionNotes(resolutionNotes != null ? resolutionNotes.trim() : "Resolved by Admin");
@@ -116,8 +124,8 @@ public class DisputeService {
         boolean hasRemainingDisputes = disputeRepository.existsByDealIdAndStatus(dispute.getDealId(), DisputeStatus.OPEN);
         if (!hasRemainingDisputes) {
             Deal deal = dealRepository.findById(dispute.getDealId()).orElse(null);
-            if (deal.getStatus() != DealStatus.ACCEPTED && deal.getStatus() != DealStatus.IN_PROGRESS && deal.getStatus() != DealStatus.DISPUTED) {
-                deal.setStatus(DealStatus.ACCEPTED);
+            if (deal != null && deal.getStatus() == DealStatus.DISPUTED) {
+                deal.setStatus(chainGuard != null ? chainGuard.resolvedProjectStatus(deal.getId()) : DealStatus.ACCEPTED);
                 dealRepository.saveAndFlush(deal);
                 log.info("All open disputes resolved on deal {}. Deal status restored to ACCEPTED", deal.getId());
             }

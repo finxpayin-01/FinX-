@@ -67,7 +67,7 @@ public class DatabaseConfig {
                 log.info("[DATABASE TARGET] PostgreSQL host={}, port={}, path={}, username={}", host, port, path, config.getUsername());
                 return new HikariDataSource(config);
             } catch (Exception e) {
-                log.error("Failed to parse URI database string '{}', falling back to standard DataSource: {}", databaseUrl, e.getMessage());
+                log.error("Failed to parse database URI; verify datasource configuration");
             }
         }
 

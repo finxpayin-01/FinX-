@@ -87,6 +87,7 @@ class PaymentServiceTest {
                 notificationService
         );
 
+        org.springframework.test.util.ReflectionTestUtils.setField(paymentService, "railPolicy", new com.finx.payment.config.PaymentRailPolicy("RAZORPAY"));
         buyerId = UUID.randomUUID();
         sellerId = UUID.randomUUID();
         dealId = UUID.randomUUID();
@@ -111,7 +112,7 @@ class PaymentServiceTest {
     void createPaymentOrder_success() {
         CreateOrderRequest req = new CreateOrderRequest(dealId, milestoneId);
 
-        when(dealRepository.findById(dealId)).thenReturn(Optional.of(deal));
+        when(dealRepository.findByIdForUpdate(dealId)).thenReturn(Optional.of(deal));
         when(milestoneRepository.findByIdForUpdate(milestoneId)).thenReturn(Optional.of(milestone));
         when(escrowService.ensureEscrowAccount(dealId, "INR")).thenReturn(escrowAccount);
         when(paymentRepository.findByMilestoneIdAndStatus(milestoneId, PaymentStatus.SUCCESS)).thenReturn(Optional.empty());
@@ -272,7 +273,7 @@ class PaymentServiceTest {
         otherUser.setId(UUID.randomUUID());
         UserPrincipal otherPrincipal = UserPrincipal.create(otherUser);
 
-        when(dealRepository.findById(dealId)).thenReturn(Optional.of(deal));
+        when(dealRepository.findByIdForUpdate(dealId)).thenReturn(Optional.of(deal));
         when(milestoneRepository.findByIdForUpdate(milestoneId)).thenReturn(Optional.of(milestone));
 
         assertThatThrownBy(() -> paymentService.createPaymentOrder(req, otherPrincipal))
@@ -286,7 +287,7 @@ class PaymentServiceTest {
         deal.setSellerId(null);
         CreateOrderRequest req = new CreateOrderRequest(dealId, milestoneId);
 
-        when(dealRepository.findById(dealId)).thenReturn(Optional.of(deal));
+        when(dealRepository.findByIdForUpdate(dealId)).thenReturn(Optional.of(deal));
         when(milestoneRepository.findByIdForUpdate(milestoneId)).thenReturn(Optional.of(milestone));
 
         assertThatThrownBy(() -> paymentService.createPaymentOrder(req, buyerPrincipal))
@@ -300,7 +301,7 @@ class PaymentServiceTest {
         milestone.setStatus(com.finx.milestone.entity.MilestoneStatus.COMPLETED);
         CreateOrderRequest req = new CreateOrderRequest(dealId, milestoneId);
 
-        when(dealRepository.findById(dealId)).thenReturn(Optional.of(deal));
+        when(dealRepository.findByIdForUpdate(dealId)).thenReturn(Optional.of(deal));
         when(milestoneRepository.findByIdForUpdate(milestoneId)).thenReturn(Optional.of(milestone));
 
         assertThatThrownBy(() -> paymentService.createPaymentOrder(req, buyerPrincipal))

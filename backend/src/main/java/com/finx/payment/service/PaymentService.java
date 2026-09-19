@@ -39,6 +39,11 @@ import java.util.stream.Collectors;
 @Service
 public class PaymentService {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.finx.payment.config.PaymentRailPolicy railPolicy = new com.finx.payment.config.PaymentRailPolicy("BLOCKCHAIN");
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.finx.blockchain.ChainWorkflowGuard chainGuard;
+
     private static final Logger log = LoggerFactory.getLogger(PaymentService.class);
 
     private final PaymentRepository paymentRepository;
@@ -67,8 +72,10 @@ public class PaymentService {
 
     @Transactional
     public CreateOrderResponse createPaymentOrder(CreateOrderRequest request, UserPrincipal currentUser) {
-        Deal deal = dealRepository.findById(request.getDealId())
+        railPolicy.requireRazorpay();
+        Deal deal = dealRepository.findByIdForUpdate(request.getDealId())
                 .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", request.getDealId()));
+        if (chainGuard != null) chainGuard.fiatOnly(deal.getId());
 
         Milestone milestone = milestoneRepository.findByIdForUpdate(request.getMilestoneId())
                 .orElseThrow(() -> new ResourceNotFoundException("Milestone", "id", request.getMilestoneId()));
@@ -183,6 +190,7 @@ public class PaymentService {
 
     @Transactional
     public PaymentResponse verifyPayment(VerifyPaymentRequest request, UserPrincipal currentUser) {
+        railPolicy.requireRazorpay();
         Payment payment = paymentRepository.findByIdForUpdate(request.getPaymentId())
                 .orElseThrow(() -> new ResourceNotFoundException("Payment", "id", request.getPaymentId()));
 
@@ -287,6 +295,7 @@ public class PaymentService {
 
     @Transactional
     public Map<String, Object> processWebhook(String rawPayload, String signature) {
+        railPolicy.requireRazorpay();
         if (!razorpayService.verifyWebhookSignature(rawPayload, signature)) {
             log.warn("Webhook rejected: Invalid cryptographic signature");
             throw new BadRequestException("Invalid webhook signature");
@@ -418,6 +427,8 @@ public class PaymentService {
     }
 
     public Map<String, Object> getPaymentConfig() {
+        if (railPolicy.blockchain()) return Map.of("rail", railPolicy.name(), "configured", false,
+                "mode", "BLOCKCHAIN", "sandboxMode", true, "currency", "", "razorpayPaused", true);
         return Map.of(
                 "configured", razorpayService.isConfigured(),
                 "keyIdPresent", razorpayService.isKeyIdPresent(),

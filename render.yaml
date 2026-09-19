@@ -14,6 +14,38 @@ services:
         value: "8080"
       - key: SPRING_PROFILES_ACTIVE
         value: "prod"
+      - key: PAYMENT_RAIL
+        value: "BLOCKCHAIN"
+      - key: BLOCKCHAIN_ENABLED
+        value: "true"
+      - key: BLOCKCHAIN_TESTNET
+        value: "true"
+      - key: BLOCKCHAIN_NETWORK_NAME
+        value: "Polygon Amoy"
+      - key: BLOCKCHAIN_CHAIN_ID
+        sync: false
+      - key: BLOCKCHAIN_RPC_URL
+        sync: false
+      - key: ESCROW_FACTORY_ADDRESS
+        sync: false
+      - key: USDC_CONTRACT_ADDRESS
+        sync: false
+      - key: BLOCKCHAIN_CREATOR_ADDRESS
+        sync: false
+      - key: BLOCKCHAIN_ARBITRATOR_ADDRESS
+        sync: false
+      - key: BLOCKCHAIN_TOKEN_DECIMALS
+        value: "6"
+      - key: BLOCKCHAIN_TOKEN_SYMBOL
+        value: "TEST-USDC"
+      - key: BLOCKCHAIN_CONFIRMATIONS
+        value: "12"
+      - key: BLOCKCHAIN_START_BLOCK
+        sync: false
+      - key: BLOCKCHAIN_EXPLORER_URL
+        sync: false
+      - key: BLOCKCHAIN_WALLET_DOMAIN
+        sync: false
       - key: DATABASE_URL
         sync: false
       - key: SPRING_DATASOURCE_URL

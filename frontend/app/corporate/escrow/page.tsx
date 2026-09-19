@@ -8,8 +8,10 @@ import { dealService } from "@/services/deal.service";
 import { Deal } from "@/types";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
+import { EscrowRailView } from "@/components/escrow/EscrowRailView";
 
-export default function BuyerEscrowDashboard() {
+export default function BuyerEscrowDashboard() { return <EscrowRailView><LegacyBuyerEscrowDashboard/></EscrowRailView>; }
+function LegacyBuyerEscrowDashboard() {
     const [deals, setDeals] = useState<Deal[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);

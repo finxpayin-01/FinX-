@@ -3,6 +3,9 @@ server:
   servlet:
     context-path: /
 
+payment:
+  rail: ${PAYMENT_RAIL:BLOCKCHAIN}
+
 spring:
   application:
     name: finx-backend

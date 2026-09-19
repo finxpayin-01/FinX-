@@ -23,6 +23,8 @@ import java.util.UUID;
 @Tag(name = "Disputes", description = "Dispute resolution and management endpoints")
 @SecurityRequirement(name = "Bearer Authentication")
 public class DisputeController {
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.finx.blockchain.BlockchainEscrowRail chainAccess;
 
     private final DisputeService disputeService;
 
@@ -30,6 +32,7 @@ public class DisputeController {
         this.disputeService = disputeService;
     }
     @GetMapping
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Get all disputes", description = "Retrieves all system disputes for administrative oversight")
     public ResponseEntity<ApiResponse<List<DisputeResponse>>> getAllDisputes() {
         List<DisputeResponse> disputes = disputeService.getAllDisputes();
@@ -48,7 +51,8 @@ public class DisputeController {
     @GetMapping("/deal/{dealId}")
     @Operation(summary = "Get disputes for deal", description = "Retrieves disputes for a specific deal")
     public ResponseEntity<ApiResponse<List<DisputeResponse>>> getDisputesForDeal(
-            @PathVariable UUID dealId) {
+            @PathVariable UUID dealId, @AuthenticationPrincipal UserPrincipal actor) {
+        chainAccess.access(dealId, actor);
         List<DisputeResponse> disputes = disputeService.getDisputesForDeal(dealId);
         return ResponseEntity.ok(ApiResponse.success(disputes));
     }

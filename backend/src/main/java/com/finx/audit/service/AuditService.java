@@ -30,7 +30,7 @@ public class AuditService {
             return saved;
         } catch (Exception e) {
             log.error("Failed to persist audit log for action: {}", action, e);
-            return null;
+            throw new IllegalStateException("Audit persistence failed; financial operation aborted", e);
         }
     }
 

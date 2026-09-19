@@ -71,6 +71,7 @@ public class SecurityConfig {
                                 "/api/auth/oauth/**",
                                 "/api/auth/google/**",
                                 "/api/payments/webhook",
+                                "/api/webhooks/onramp",
                                 "/api/payments/config",
                                 "/api/health",
                                 "/v3/api-docs/**",

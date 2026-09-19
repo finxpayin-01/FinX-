@@ -45,8 +45,8 @@ export default function BuyerPaymentsHistory() {
             <div className="space-y-6">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div>
-                        <h1 className="text-2xl font-bold text-slate-900">Payment History</h1>
-                        <p className="text-sm text-slate-500 mt-1">Track your past deposits and escrow transactions securely.</p>
+                        <h1 className="text-2xl font-bold text-slate-900">Fiat Payment History</h1>
+                        <p className="text-sm text-slate-500 mt-1">Historical Razorpay payment records.</p>
                     </div>
                     <Button variant="outline" size="sm" onClick={fetchPayments} disabled={isLoading} className="gap-2">
                         <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} /> Refresh
@@ -57,9 +57,9 @@ export default function BuyerPaymentsHistory() {
                 <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-3">
                     <ShieldCheck size={20} className="text-emerald-600 shrink-0 mt-0.5" />
                     <div>
-                        <h4 className="text-sm font-semibold text-emerald-900">Live Escrow & Payment Gateway Connected</h4>
+                        <h4 className="text-sm font-semibold text-emerald-900">Fiat Accounting</h4>
                         <p className="text-xs text-emerald-800 mt-1 leading-relaxed">
-                            Fiat payments are securely routed via Razorpay and locked in deal escrow vaults until milestone deliverables are approved.
+                            Fiat records and token settlement balances are separate. These records are not proof of blockchain funding or release.
                         </p>
                     </div>
                 </div>

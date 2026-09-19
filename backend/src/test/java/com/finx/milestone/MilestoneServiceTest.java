@@ -103,7 +103,7 @@ class MilestoneServiceTest {
         req.setAmount(BigDecimal.valueOf(10000));
         req.setCurrency("INR");
 
-        when(dealRepository.findById(dealId)).thenReturn(Optional.of(deal));
+        when(dealRepository.findByIdForUpdate(dealId)).thenReturn(Optional.of(deal));
         when(milestoneRepository.countByDealId(dealId)).thenReturn(0L);
         when(milestoneRepository.saveAndFlush(any(Milestone.class))).thenAnswer(invocation -> {
             Milestone m = invocation.getArgument(0);
@@ -126,7 +126,7 @@ class MilestoneServiceTest {
         req.setTitle("UI Design");
         req.setAmount(BigDecimal.valueOf(10000));
 
-        when(dealRepository.findById(dealId)).thenReturn(Optional.of(deal));
+        when(dealRepository.findByIdForUpdate(dealId)).thenReturn(Optional.of(deal));
 
         assertThatThrownBy(() -> milestoneService.createMilestone(dealId, req, sellerPrincipal))
                 .isInstanceOf(UnauthorizedException.class);
@@ -212,7 +212,7 @@ class MilestoneServiceTest {
         req.setTitle("Overpriced Milestone");
         req.setAmount(BigDecimal.valueOf(60000)); // Deal total is 50000
 
-        when(dealRepository.findById(dealId)).thenReturn(Optional.of(deal));
+        when(dealRepository.findByIdForUpdate(dealId)).thenReturn(Optional.of(deal));
         when(milestoneRepository.findByDealIdOrderBySequenceAsc(dealId)).thenReturn(Collections.emptyList());
 
         assertThatThrownBy(() -> milestoneService.createMilestone(dealId, req, buyerPrincipal))
@@ -228,7 +228,7 @@ class MilestoneServiceTest {
         req.setTitle("Late Milestone");
         req.setAmount(BigDecimal.valueOf(5000));
 
-        when(dealRepository.findById(dealId)).thenReturn(Optional.of(deal));
+        when(dealRepository.findByIdForUpdate(dealId)).thenReturn(Optional.of(deal));
 
         assertThatThrownBy(() -> milestoneService.createMilestone(dealId, req, buyerPrincipal))
                 .isInstanceOf(BadRequestException.class)

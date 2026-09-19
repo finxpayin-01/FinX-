@@ -136,11 +136,14 @@ contract FinXEscrowTest is EscrowFixture {
         vm.expectRevert(FinXEscrow.Unauthorized.selector);
         escrow.resolveDispute(M1, true);
         _approve(M2);
+        vm.expectRevert(FinXEscrow.InvalidState.selector);
         vm.prank(VENDOR);
         escrow.releaseMilestone(M2);
         require(escrow.status() == FinXEscrow.Status.DISPUTED, "lost dispute");
         vm.prank(arbitrator);
         escrow.resolveDispute(M1, false);
+        vm.prank(VENDOR);
+        escrow.releaseMilestone(M2);
         require(token.balanceOf(BUYER) == 200 && token.balanceOf(VENDOR) == 300, "resolution");
         require(escrow.status() == FinXEscrow.Status.COMPLETED && escrow.disputedMilestones() == 0, "final status");
         vm.expectRevert(FinXEscrow.InvalidState.selector);

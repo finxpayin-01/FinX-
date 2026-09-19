@@ -11,6 +11,8 @@ import org.slf4j.LoggerFactory;
 @RestController
 @RequestMapping("/api/webhooks")
 public class OnRampWebhookController {
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.finx.payment.service.onramp.OnRampWebhookInbox inbox;
 
     private static final Logger log = LoggerFactory.getLogger(OnRampWebhookController.class);
     private final OnRampProvider onRampProvider;
@@ -32,8 +34,11 @@ public class OnRampWebhookController {
             return ResponseEntity.status(401).body("Invalid Signature");
         }
         
-        // Deduplicate using WebhookEvent entity
-        // Parse rawBody -> determine provider event -> initiate blockchain check if successful
+        try {
+            inbox.receive(rawBody, signature);
+        } catch (org.springframework.dao.DataIntegrityViolationException duplicate) {
+            return ResponseEntity.ok("Already received");
+        }
         log.info("Webhook successfully verified.");
         
         return ResponseEntity.ok("Received");

@@ -19,6 +19,7 @@ export interface VerifyPaymentPayload {
 }
 
 export interface PaymentConfig {
+    rail?: "BLOCKCHAIN" | "RAZORPAY";
     configured: boolean;
     keyIdPresent: boolean;
     keySecretPresent: boolean;

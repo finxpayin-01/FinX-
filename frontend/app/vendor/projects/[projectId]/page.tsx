@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
+import { BlockchainEscrow } from "@/components/escrow/BlockchainEscrow";
 import { useParams, useRouter } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
@@ -131,6 +132,7 @@ export default function VendorProjectDetailsPage() {
     return (
         <DashboardLayout>
             <div className="space-y-6 max-w-4xl">
+                <BlockchainEscrow dealId={projectId}/>
                 <Button variant="ghost" onClick={() => router.back()} className="gap-2 -ml-3 text-slate-500 hover:text-slate-900">
                     <ArrowLeft size={16} /> Back to Projects
                 </Button>
