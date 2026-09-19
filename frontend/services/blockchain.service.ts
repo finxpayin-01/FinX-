@@ -93,7 +93,7 @@ export const blockchainService = {
 
     /**
      * Checks if creator has CREATOR_ROLE on the factory contract on-chain.
-     * keccak256("CREATOR_ROLE") = 0xa49807205ce4d355092ef5a8a18f56e8913cf4a201fbe287825b095693c21775
+     * keccak256("CREATOR_ROLE") = 0x828634d95e775031b9ff576b159a8509d3053581a8c9c4d7d86899e0afcd882f
      * hasRole(bytes32,address) selector = 0x91d14854
      */
     hasCreatorRole: async (factoryAddress?: string, creatorAddress?: string, rpcUrl?: string): Promise<boolean> => {
@@ -101,7 +101,7 @@ export const blockchainService = {
             return false;
         }
         const rpc = rpcUrl || "https://polygon-amoy-bor-rpc.publicnode.com";
-        const role = "a49807205ce4d355092ef5a8a18f56e8913cf4a201fbe287825b095693c21775";
+        const role = "828634d95e775031b9ff576b159a8509d3053581a8c9c4d7d86899e0afcd882f";
         const account = creatorAddress.toLowerCase().replace(/^0x/, "").padStart(64, "0");
         const data = `0x91d14854${role}${account}`;
         try {

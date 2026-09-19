@@ -79,7 +79,7 @@ export function BlockchainEscrow({ dealId }: { dealId: string }) {
         } else {
             setTokenBytecode(null);
         }
-        const creatorAddr = cfg.creator || cfg.signer;
+        const creatorAddr = (cfg.creator && /^0x[0-9a-fA-F]{40}$/.test(cfg.creator)) ? cfg.creator : "";
         if (factoryAddr && creatorAddr) {
             void service.hasCreatorRole(factoryAddr, creatorAddr).then(res => setCreatorAuthorized(res)).catch(() => setCreatorAuthorized(false));
         } else {
@@ -136,7 +136,7 @@ export function BlockchainEscrow({ dealId }: { dealId: string }) {
             return "TOKEN_NO_BYTECODE: Configured settlement token address contains no bytecode on Polygon Amoy.";
         }
 
-        const creatorAddr = cfg.creator || cfg.signer;
+        const creatorAddr = (cfg.creator && /^0x[0-9a-fA-F]{40}$/.test(cfg.creator)) ? cfg.creator : "";
         if (!creatorAddr && !cfg.signerConfigured) {
             return "SIGNER_NOT_CONFIGURED: Authorized deployer operator address is not configured.";
         }
