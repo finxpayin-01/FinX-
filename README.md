@@ -83,11 +83,11 @@ FINX is designed to make every payment traceable to a specific project milestone
 ### Payment Management
 
 * Create payment orders
-* Integrate Razorpay Checkout
-* Verify payments server-side
-* Process payment webhooks
-* Track payment status
-* Maintain payment history
+* Integrate Razorpay Checkout for fiat
+* Fiat-to-crypto on-ramp via Onramper
+* Verify payments and webhooks server-side
+* Blockchain settlement verification via Web3j
+* Track payment status and history
 
 ### Escrow-Style Release Workflow
 
@@ -148,18 +148,18 @@ FINX is designed to make every payment traceable to a specific project milestone
 
 ## 🛠️ Tech Stack
 
-| Layer           | Technology                 |
-| --------------- | -------------------------- |
-| Frontend        | Next.js, React, TypeScript |
-| Styling         | Tailwind CSS               |
-| Backend         | Java, Spring Boot          |
-| Security        | Spring Security, JWT       |
-| Database        | PostgreSQL                 |
-| Cache           | Redis                      |
-| Payments        | Razorpay                   |
-| Infrastructure  | Docker, Docker Compose     |
-| Deployment      | Render or cloud hosting    |
-| Version Control | GitHub                     |
+| Layer           | Technology                          |
+| --------------- | ----------------------------------- |
+| Frontend        | Next.js, React, TypeScript          |
+| Styling         | Tailwind CSS                        |
+| Backend         | Java, Spring Boot, Node.js          |
+| Security        | Spring Security, JWT                |
+| Database        | Supabase PostgreSQL                 |
+| Cache           | Redis                               |
+| Payments/Escrow | Razorpay, Onramper, Web3j           |
+| Infrastructure  | Docker, Docker Compose              |
+| Deployment      | Render                              |
+| Version Control | GitHub                              |
 
 ---
 
@@ -195,6 +195,10 @@ finx/
 │   │   └── audit/
 │   └── pom.xml
 │
+├── blockchain/
+│   ├── contracts/
+│   └── docs/
+│
 ├── docker-compose.yml
 ├── .env.example
 └── README.md
@@ -211,7 +215,7 @@ Install the following before running FINX:
 * Node.js 18+
 * Java 17+
 * Maven
-* PostgreSQL
+* Supabase PostgreSQL (or local instance)
 * Redis
 * Docker
 * Razorpay test account
@@ -391,8 +395,8 @@ FINX is engineered to fail safely under adverse infrastructure conditions:
 
 ### Next
 
-* [ ] Automated notifications
-* [ ] Advanced dispute resolution
+* [x] Automated notifications (Event-driven async)
+* [x] Advanced dispute resolution
 * [ ] Vendor ratings
 * [ ] Invoice automation
 * [ ] Advanced analytics
