@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/deals")
+@RequestMapping({"/api/v1/deals", "/api/deals"})
 @Tag(name = "Deal Management", description = "Endpoints for initiating and managing B2B fiat escrow deals")
 @SecurityRequirement(name = "bearerAuth")
 public class DealController {

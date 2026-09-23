@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api")
+@RequestMapping({"/api/v1", "/api"})
 @Tag(name = "Milestones", description = "Milestone and deliverable lifecycle endpoints")
 @SecurityRequirement(name = "Bearer Authentication")
 public class MilestoneController {

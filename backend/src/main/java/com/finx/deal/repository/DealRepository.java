@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -23,7 +24,13 @@ public interface DealRepository extends JpaRepository<Deal, UUID> {
 
     List<Deal> findByStatus(DealStatus status);
 
+    Optional<Deal> findByDealReference(String dealReference);
+
+    List<Deal> findByBuyerOrganizationId(UUID buyerOrganizationId);
+
+    List<Deal> findBySellerOrganizationId(UUID sellerOrganizationId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select d from Deal d where d.id = :id")
-    java.util.Optional<Deal> findByIdForUpdate(@Param("id") UUID id);
+    Optional<Deal> findByIdForUpdate(@Param("id") UUID id);
 }

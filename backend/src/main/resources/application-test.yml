@@ -13,10 +13,6 @@ spring:
   flyway:
     enabled: false
 
-# Historical fiat regression suite explicitly opts into the fallback rail.
-payment:
-  rail: RAZORPAY
-
 jwt:
   secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
   access-token-expiration-ms: 60000
@@ -26,10 +22,20 @@ rate-limit:
   enabled: false
 
 razorpay:
-  key-id: rzp_test_mockkey12345
-  key-secret: mocksecret123456789
-  webhook-secret: mockwebhooksecret123456789
+  key-id: rzp_test_mockKeyForFixture123
+  key-secret: mockSecretKeyForRazorpayTest12345
+  webhook-secret: mockWebhookSecretForTesting12345
+  currency: INR
   sandbox-mode: true
+
+finx:
+  banking:
+    provider: mock
+    currency: INR
+    mock:
+      auto-settle: false
+      simulate-latency-ms: 0
+    webhook-secret: mock-banking-webhook-secret-key-32chars
 
 mailersend:
   api-key: mock-mailersend-key

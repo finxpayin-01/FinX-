@@ -143,6 +143,21 @@ public class DealService {
                 request.getCurrency(),
                 DealStatus.PENDING_VENDOR_ACCEPTANCE
         );
+        if (request.getBuyerOrganizationId() != null) {
+            deal.setBuyerOrganizationId(request.getBuyerOrganizationId());
+        }
+        if (request.getSellerOrganizationId() != null) {
+            deal.setSellerOrganizationId(request.getSellerOrganizationId());
+        }
+        if (request.getVendorEmail() != null) {
+            deal.setInvitationEmail(request.getVendorEmail().trim());
+        }
+        if (request.getInvitationPhone() != null) {
+            deal.setInvitationPhone(request.getInvitationPhone().trim());
+        }
+        if (request.getInvitationGstin() != null) {
+            deal.setInvitationGstin(request.getInvitationGstin().trim());
+        }
 
         Deal savedDeal = dealRepository.saveAndFlush(deal);
         escrowService.ensureEscrowAccount(savedDeal.getId(), savedDeal.getCurrency());

@@ -32,7 +32,7 @@ import java.time.Duration;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping({"/api/v1/auth", "/api/auth"})
 @Tag(name = "Authentication", description = "Endpoints for user registration, authentication, token refresh, and profile retrieval")
 public class AuthController {
 

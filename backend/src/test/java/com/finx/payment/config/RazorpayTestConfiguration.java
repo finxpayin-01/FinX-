@@ -14,12 +14,6 @@ import java.util.UUID;
  */
 @TestConfiguration(proxyBeanMethods = false)
 public class RazorpayTestConfiguration {
-    // Legacy Hibernate-only fixtures have no blockchain migrations or escrows.
-    @Bean
-    @Primary
-    com.finx.blockchain.ChainStore legacyChainStore() {
-        return org.mockito.Mockito.mock(com.finx.blockchain.ChainStore.class);
-    }
 
     @Bean
     @Primary

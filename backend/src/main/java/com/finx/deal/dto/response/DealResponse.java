@@ -11,6 +11,13 @@ public class DealResponse {
 
     private UUID id;
     private String projectId;
+    private String dealReference;
+    private UUID buyerOrganizationId;
+    private UUID sellerOrganizationId;
+    private String invitationEmail;
+    private String invitationPhone;
+    private String invitationGstin;
+    private String agreementStatus;
     private String title;
     private String description;
     private UUID buyerId;
@@ -72,6 +79,13 @@ public class DealResponse {
                 deal.getCreatedAt(),
                 deal.getUpdatedAt()
         );
+        resp.setDealReference(deal.getDealReference());
+        resp.setBuyerOrganizationId(deal.getBuyerOrganizationId());
+        resp.setSellerOrganizationId(deal.getSellerOrganizationId());
+        resp.setInvitationEmail(deal.getInvitationEmail());
+        resp.setInvitationPhone(deal.getInvitationPhone());
+        resp.setInvitationGstin(deal.getInvitationGstin());
+        resp.setAgreementStatus(deal.getAgreementStatus());
         resp.setProjectManagerId(deal.getProjectManagerId());
         return resp;
     }
@@ -90,6 +104,62 @@ public class DealResponse {
 
     public void setProjectId(String projectId) {
         this.projectId = projectId;
+    }
+
+    public String getDealReference() {
+        return dealReference;
+    }
+
+    public void setDealReference(String dealReference) {
+        this.dealReference = dealReference;
+    }
+
+    public UUID getBuyerOrganizationId() {
+        return buyerOrganizationId;
+    }
+
+    public void setBuyerOrganizationId(UUID buyerOrganizationId) {
+        this.buyerOrganizationId = buyerOrganizationId;
+    }
+
+    public UUID getSellerOrganizationId() {
+        return sellerOrganizationId;
+    }
+
+    public void setSellerOrganizationId(UUID sellerOrganizationId) {
+        this.sellerOrganizationId = sellerOrganizationId;
+    }
+
+    public String getInvitationEmail() {
+        return invitationEmail;
+    }
+
+    public void setInvitationEmail(String invitationEmail) {
+        this.invitationEmail = invitationEmail;
+    }
+
+    public String getInvitationPhone() {
+        return invitationPhone;
+    }
+
+    public void setInvitationPhone(String invitationPhone) {
+        this.invitationPhone = invitationPhone;
+    }
+
+    public String getInvitationGstin() {
+        return invitationGstin;
+    }
+
+    public void setInvitationGstin(String invitationGstin) {
+        this.invitationGstin = invitationGstin;
+    }
+
+    public String getAgreementStatus() {
+        return agreementStatus;
+    }
+
+    public void setAgreementStatus(String agreementStatus) {
+        this.agreementStatus = agreementStatus;
     }
 
     public String getTitle() {

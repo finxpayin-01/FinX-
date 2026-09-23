@@ -87,7 +87,6 @@ class PaymentServiceTest {
                 notificationService
         );
 
-        org.springframework.test.util.ReflectionTestUtils.setField(paymentService, "railPolicy", new com.finx.payment.config.PaymentRailPolicy("RAZORPAY"));
         buyerId = UUID.randomUUID();
         sellerId = UUID.randomUUID();
         dealId = UUID.randomUUID();

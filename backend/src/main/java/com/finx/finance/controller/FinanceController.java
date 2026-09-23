@@ -1,18 +1,19 @@
 package com.finx.finance.controller;
 
 import com.finx.common.response.ApiResponse;
-import com.finx.escrow.entity.EscrowAccount;
-import com.finx.escrow.entity.EscrowLedger;
-import com.finx.escrow.repository.EscrowAccountRepository;
-import com.finx.escrow.repository.EscrowLedgerRepository;
-import com.finx.payment.entity.Payment;
-import com.finx.payment.entity.PaymentStatus;
-import com.finx.payment.repository.PaymentRepository;
+import com.finx.ledger.repository.LedgerAccountRepository;
+import com.finx.ledger.service.LedgerService;
+import com.finx.paymentorchestration.entity.PaymentInstruction;
+import com.finx.paymentorchestration.entity.SettlementInstruction;
+import com.finx.paymentorchestration.enums.PaymentOrchestrationEnums.InstructionStatus;
+import com.finx.paymentorchestration.enums.PaymentOrchestrationEnums.SettlementStatus;
+import com.finx.paymentorchestration.repository.PaymentInstructionRepository;
+import com.finx.paymentorchestration.repository.SettlementInstructionRepository;
+import com.finx.reconciliation.repository.ReconciliationRunRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -21,90 +22,71 @@ import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/api/finance")
-@PreAuthorize("hasAnyRole('ADMIN', 'FINANCE')")
-@Tag(name = "Finance", description = "Finance operations, reconciliation, and transaction ledgers")
+@RequestMapping("/api/v1/finance")
+@Tag(name = "Finance Operations", description = "Finance operations dashboard, transaction volumes, and double-entry ledger summaries")
 @SecurityRequirement(name = "Bearer Authentication")
 public class FinanceController {
 
-    private final PaymentRepository paymentRepository;
-    private final EscrowAccountRepository escrowAccountRepository;
-    private final EscrowLedgerRepository escrowLedgerRepository;
+    private final PaymentInstructionRepository instructionRepository;
+    private final SettlementInstructionRepository settlementRepository;
+    private final ReconciliationRunRepository reconciliationRunRepository;
+    private final LedgerAccountRepository ledgerAccountRepository;
+    private final LedgerService ledgerService;
 
-    public FinanceController(PaymentRepository paymentRepository,
-                             EscrowAccountRepository escrowAccountRepository,
-                             EscrowLedgerRepository escrowLedgerRepository) {
-        this.paymentRepository = paymentRepository;
-        this.escrowAccountRepository = escrowAccountRepository;
-        this.escrowLedgerRepository = escrowLedgerRepository;
+    public FinanceController(PaymentInstructionRepository instructionRepository,
+                             SettlementInstructionRepository settlementRepository,
+                             ReconciliationRunRepository reconciliationRunRepository,
+                             LedgerAccountRepository ledgerAccountRepository,
+                             LedgerService ledgerService) {
+        this.instructionRepository = instructionRepository;
+        this.settlementRepository = settlementRepository;
+        this.reconciliationRunRepository = reconciliationRunRepository;
+        this.ledgerAccountRepository = ledgerAccountRepository;
+        this.ledgerService = ledgerService;
     }
 
-    @GetMapping("/dashboard")
-    @Operation(summary = "Get finance metrics", description = "Aggregated fiat escrow and transaction numbers")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> getDashboard() {
-        List<Payment> allPayments = paymentRepository.findAll();
-        List<EscrowAccount> allEscrows = escrowAccountRepository.findAll();
-        List<EscrowLedger> allLedgers = escrowLedgerRepository.findAll();
+    @GetMapping("/summary")
+    @Operation(summary = "Get platform financial operations summary")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getFinanceSummary() {
+        List<PaymentInstruction> allInstructions = instructionRepository.findAll();
+        List<SettlementInstruction> allSettlements = settlementRepository.findAll();
 
-        long totalPayments = allPayments.size();
-        long successfulPayments = allPayments.stream()
-                .filter(p -> p.getStatus() == PaymentStatus.SUCCESS)
+        BigDecimal totalInflowVolume = allInstructions.stream()
+                .filter(i -> i.getStatus() == InstructionStatus.SUCCESS)
+                .map(PaymentInstruction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal totalSettledVolume = allSettlements.stream()
+                .filter(s -> s.getStatus() == SettlementStatus.SETTLED)
+                .map(SettlementInstruction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        long pendingSettlementsCount = allSettlements.stream()
+                .filter(s -> s.getStatus() == SettlementStatus.PENDING || s.getStatus() == SettlementStatus.PROCESSING)
                 .count();
-        long failedPayments = allPayments.stream()
-                .filter(p -> p.getStatus() == PaymentStatus.FAILED)
-                .count();
 
-        BigDecimal escrowFunds = allEscrows.stream()
-                .map(EscrowAccount::getBalance)
-                .filter(Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        Map<String, Object> summary = new HashMap<>();
+        summary.put("totalInflowVolume", totalInflowVolume);
+        summary.put("totalSettledVolume", totalSettledVolume);
+        summary.put("totalInstructionsCount", allInstructions.size());
+        summary.put("pendingSettlementsCount", pendingSettlementsCount);
+        summary.put("totalReconciliationRuns", reconciliationRunRepository.count());
 
-        BigDecimal releasedFunds = allLedgers.stream()
-                .filter(l -> l.getTransactionType() == com.finx.escrow.entity.TransactionType.RELEASE)
-                .map(EscrowLedger::getAmount)
-                .filter(Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        BigDecimal pendingFunds = allPayments.stream()
-                .filter(p -> p.getStatus() == PaymentStatus.PENDING)
-                .map(Payment::getAmount)
-                .filter(Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        Map<String, Object> stats = new HashMap<>();
-        stats.put("totalPayments", totalPayments);
-        stats.put("successfulPayments", successfulPayments);
-        stats.put("failedPayments", failedPayments);
-        stats.put("escrowFunds", escrowFunds);
-        stats.put("releasedFunds", releasedFunds);
-        stats.put("pendingFunds", pendingFunds);
-
-        return ResponseEntity.ok(ApiResponse.success(stats));
+        return ResponseEntity.ok(ApiResponse.success(summary));
     }
 
-    @GetMapping("/transactions")
-    @Operation(summary = "Get all financial transactions", description = "Settlement and escrow transaction history")
-    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getTransactions() {
-        List<Payment> payments = paymentRepository.findAll();
-        List<Map<String, Object>> mapped = payments.stream().map(p -> {
-            Map<String, Object> item = new HashMap<>();
-            item.put("id", p.getId());
-            item.put("dealId", p.getDealId());
-            item.put("milestoneId", p.getMilestoneId());
-            item.put("amount", p.getAmount());
-            item.put("currency", p.getCurrency());
-            item.put("provider", p.getProvider());
-            item.put("providerOrderId", p.getProviderOrderId());
-            item.put("providerPaymentId", p.getProviderPaymentId());
-            item.put("status", p.getStatus().name());
-            item.put("createdAt", p.getCreatedAt());
-            return item;
-        }).collect(Collectors.toList());
+    @GetMapping("/ledger")
+    @Operation(summary = "Get internal double-entry ledger account balances")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getLedgerBalances() {
+        Map<String, Object> balances = new HashMap<>();
+        balances.put(LedgerService.ACC_ESCROW_POOL, ledgerService.getAccountBalance(LedgerService.ACC_ESCROW_POOL));
+        balances.put(LedgerService.ACC_BANK_NODAL, ledgerService.getAccountBalance(LedgerService.ACC_BANK_NODAL));
+        balances.put(LedgerService.ACC_ESCROW_LIABILITY, ledgerService.getAccountBalance(LedgerService.ACC_ESCROW_LIABILITY));
+        balances.put(LedgerService.ACC_VENDOR_PAYABLE, ledgerService.getAccountBalance(LedgerService.ACC_VENDOR_PAYABLE));
+        balances.put(LedgerService.ACC_FEE_REVENUE, ledgerService.getAccountBalance(LedgerService.ACC_FEE_REVENUE));
 
-        return ResponseEntity.ok(ApiResponse.success(mapped));
+        return ResponseEntity.ok(ApiResponse.success(balances));
     }
 }

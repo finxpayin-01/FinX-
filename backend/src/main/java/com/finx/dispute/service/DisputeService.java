@@ -26,8 +26,7 @@ import java.util.stream.Collectors;
 
 @Service
 public class DisputeService {
-    @org.springframework.beans.factory.annotation.Autowired
-    private com.finx.blockchain.ChainWorkflowGuard chainGuard;
+
     @org.springframework.beans.factory.annotation.Autowired
     private com.finx.milestone.repository.MilestoneRepository milestones;
 
@@ -111,7 +110,6 @@ public class DisputeService {
 
         Dispute dispute = disputeRepository.findById(disputeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Dispute", "id", disputeId));
-        if (chainGuard != null) chainGuard.resolution(dispute.getDealId(), dispute.getMilestoneId(), resolutionNotes);
 
         dispute.setStatus(DisputeStatus.RESOLVED);
         dispute.setResolutionNotes(resolutionNotes != null ? resolutionNotes.trim() : "Resolved by Admin");
@@ -125,7 +123,7 @@ public class DisputeService {
         if (!hasRemainingDisputes) {
             Deal deal = dealRepository.findById(dispute.getDealId()).orElse(null);
             if (deal != null && deal.getStatus() == DealStatus.DISPUTED) {
-                deal.setStatus(chainGuard != null ? chainGuard.resolvedProjectStatus(deal.getId()) : DealStatus.ACCEPTED);
+                deal.setStatus(DealStatus.ACCEPTED);
                 dealRepository.saveAndFlush(deal);
                 log.info("All open disputes resolved on deal {}. Deal status restored to ACCEPTED", deal.getId());
             }

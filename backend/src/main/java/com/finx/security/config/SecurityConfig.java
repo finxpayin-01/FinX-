@@ -64,17 +64,11 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
-                                "/api/auth/register",
-                                "/api/auth/login",
-                                "/api/auth/refresh",
-                                "/api/auth/logout",
-                                "/api/auth/oauth/**",
-                                "/api/auth/google/**",
+                                "/api/auth/**",
+                                "/api/v1/auth/**",
+                                "/api/v1/webhooks/**",
                                 "/api/payments/webhook",
-                                "/api/webhooks/onramp",
                                 "/api/payments/config",
-                                "/api/blockchain/config",
-                                "/api/blockchain/readiness",
                                 "/api/health",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
@@ -82,8 +76,8 @@ public class SecurityConfig {
                                 "/actuator/health",
                                 "/error"
                         ).permitAll()
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        .requestMatchers("/api/finance/**").hasAnyRole("ADMIN", "FINANCE")
+                        .requestMatchers("/api/admin/**", "/api/v1/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/finance/**", "/api/v1/finance/**").hasAnyRole("ADMIN", "FINANCE")
                         .anyRequest().authenticated()
                 );
 

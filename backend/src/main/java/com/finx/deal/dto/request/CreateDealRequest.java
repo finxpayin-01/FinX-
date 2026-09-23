@@ -21,6 +21,12 @@ public class CreateDealRequest {
     @NotBlank(message = "Seller ID or UID is required")
     private String sellerId;
 
+    private UUID buyerOrganizationId;
+    private UUID sellerOrganizationId;
+
+    private String invitationPhone;
+    private String invitationGstin;
+
     @NotNull(message = "Total amount is required")
     @DecimalMin(value = "0.01", message = "Total amount must be at least 0.01")
     private BigDecimal totalAmount;
@@ -85,6 +91,38 @@ public class CreateDealRequest {
 
     public void setSellerId(UUID sellerId) {
         this.sellerId = sellerId != null ? sellerId.toString() : null;
+    }
+
+    public UUID getBuyerOrganizationId() {
+        return buyerOrganizationId;
+    }
+
+    public void setBuyerOrganizationId(UUID buyerOrganizationId) {
+        this.buyerOrganizationId = buyerOrganizationId;
+    }
+
+    public UUID getSellerOrganizationId() {
+        return sellerOrganizationId;
+    }
+
+    public void setSellerOrganizationId(UUID sellerOrganizationId) {
+        this.sellerOrganizationId = sellerOrganizationId;
+    }
+
+    public String getInvitationPhone() {
+        return invitationPhone;
+    }
+
+    public void setInvitationPhone(String invitationPhone) {
+        this.invitationPhone = invitationPhone;
+    }
+
+    public String getInvitationGstin() {
+        return invitationGstin;
+    }
+
+    public void setInvitationGstin(String invitationGstin) {
+        this.invitationGstin = invitationGstin;
     }
 
     public BigDecimal getTotalAmount() {

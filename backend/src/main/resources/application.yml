@@ -3,9 +3,6 @@ server:
   servlet:
     context-path: /
 
-payment:
-  rail: ${PAYMENT_RAIL:BLOCKCHAIN}
-
 spring:
   application:
     name: finx-backend
@@ -71,14 +68,6 @@ google:
   redirect-uri: ${GOOGLE_REDIRECT_URI:http://localhost:8080/api/auth/google/callback}
   frontend-redirect-url: ${FRONTEND_OAUTH_CALLBACK_URL:${FRONTEND_URL:http://localhost:3000}/auth/callback/google}
 
-# Razorpay Fiat Payment Configuration
-razorpay:
-  key-id: ${RAZORPAY_KEY_ID:}
-  key-secret: ${RAZORPAY_KEY_SECRET:}
-  webhook-secret: ${RAZORPAY_WEBHOOK_SECRET:}
-  currency: ${RAZORPAY_CURRENCY:INR}
-  sandbox-mode: ${RAZORPAY_SANDBOX_MODE:true}
-
 # CORS Configuration
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://127.0.0.1:3000,https://finx-frontend.onrender.com,https://finx-frontend-19an.onrender.com,https://finx-frontend-*.onrender.com}
@@ -128,17 +117,16 @@ spring.mail.properties.mail.smtp.starttls.enable: true
 mailersend:
   api-key: ${MAILERSEND_API_KEY:}
   domain: ${MAILERSEND_DOMAIN:}
+
+# FinX Bank Integration Configuration
 finx:
-  onramp:
-    onramper:
-      api-key: "${ONRAMP_API_KEY:}"
-      v2-private-key: "${ONRAMP_V2_PRIVATE_KEY:}"
-      webhook-secret: "${ONRAMP_WEBHOOK_SECRET:}"
-      environment: "${ONRAMP_ENVIRONMENT:sandbox}"
-      base-url: "${ONRAMP_BASE_URL:https://api.onramper.com}"
-  blockchain:
-    rpc-url: "${FINX_RPC_URL:}"
-    chain-id: "${FINX_CHAIN_ID:}"
-    escrow-contract-address: "${FINX_ESCROW_CONTRACT_ADDRESS:}"
-    usdc-contract-address: "${USDC_CONTRACT_ADDRESS:}"
-    required-confirmations: "${FINX_REQUIRED_CONFIRMATIONS:2}"
+  banking:
+    provider: ${BANK_PROVIDER:mock}
+    currency: ${BANK_DEFAULT_CURRENCY:INR}
+    mock:
+      auto-settle: ${BANK_MOCK_AUTO_SETTLE:false}
+      simulate-latency-ms: ${BANK_MOCK_LATENCY_MS:50}
+    api-base-url: ${BANK_API_BASE_URL:}
+    client-id: ${BANK_CLIENT_ID:}
+    client-secret: ${BANK_CLIENT_SECRET:}
+    webhook-secret: ${BANK_WEBHOOK_SECRET:finx-banking-webhook-secret-key-32chars}

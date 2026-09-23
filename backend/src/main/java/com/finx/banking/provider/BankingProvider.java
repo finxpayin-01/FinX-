@@ -1,0 +1,27 @@
+package com.finx.banking.provider;
+
+import com.finx.banking.dto.BankingDtos.*;
+
+import java.time.LocalDate;
+import java.util.List;
+
+public interface BankingProvider {
+
+    String getProviderName();
+
+    PaymentInstructionResult createPaymentInstruction(PaymentInstructionRequest request);
+
+    PaymentStatusResult getPaymentStatus(String providerInstructionId);
+
+    AccountDetailsResult getAccountDetails(String virtualAccountNumber);
+
+    BeneficiaryVerificationResult verifyBeneficiary(BeneficiaryVerificationRequest request);
+
+    SettlementResult initiateSettlement(SettlementRequest request);
+
+    SettlementStatusResult getSettlementStatus(String providerSettlementId);
+
+    List<BankTransactionRecord> fetchTransactions(LocalDate fromDate, LocalDate toDate);
+
+    boolean verifyWebhookSignature(String rawPayload, String signature, String timestamp);
+}

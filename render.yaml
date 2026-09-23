@@ -14,48 +14,18 @@ services:
         value: "8080"
       - key: SPRING_PROFILES_ACTIVE
         value: "prod"
-      - key: PAYMENT_RAIL
-        value: "BLOCKCHAIN"
-      - key: BLOCKCHAIN_ENABLED
-        value: "true"
-      - key: BLOCKCHAIN_TESTNET
-        value: "true"
-      - key: BLOCKCHAIN_NETWORK_NAME
-        value: "Polygon Amoy"
-      - key: BLOCKCHAIN_CHAIN_ID
-        value: "80002"
-      - key: BLOCKCHAIN_RPC_URL
-        value: "https://polygon-amoy-bor-rpc.publicnode.com"
-      - key: ESCROW_FACTORY_ADDRESS
+      - key: BANK_PROVIDER
+        value: "mock"
+      - key: BANK_DEFAULT_CURRENCY
+        value: "INR"
+      - key: BANK_API_BASE_URL
         sync: false
-      - key: USDC_CONTRACT_ADDRESS
-        value: "0x41e94eb019c0762f9bfcf9fb1e58725bfb0e7582"
-      - key: BLOCKCHAIN_CREATOR_ADDRESS
+      - key: BANK_CLIENT_ID
         sync: false
-      - key: BLOCKCHAIN_ARBITRATOR_ADDRESS
+      - key: BANK_CLIENT_SECRET
         sync: false
-      - key: BLOCKCHAIN_TOKEN_DECIMALS
-        value: "6"
-      - key: BLOCKCHAIN_TOKEN_SYMBOL
-        value: "TEST-USDC"
-      - key: BLOCKCHAIN_CONFIRMATIONS
-        value: "12"
-      - key: BLOCKCHAIN_START_BLOCK
-        value: "0"
-      - key: BLOCKCHAIN_EXPLORER_URL
-        value: "https://amoy.polygonscan.com"
-      - key: BLOCKCHAIN_WALLET_DOMAIN
-        value: "finx-frontend.onrender.com"
-      - key: ONRAMP_WIDGET_URL
-        value: "https://buy.onramper.dev"
-      - key: ONRAMP_ASSET_ID
-        value: "usdc_polygon"
-      - key: ONRAMP_WIDGET_PUBLIC_KEY
-        sync: false
-      - key: ONRAMP_V2_PRIVATE_KEY
-        sync: false
-      - key: ONRAMP_WEBHOOK_SECRET
-        sync: false
+      - key: BANK_WEBHOOK_SECRET
+        generateValue: true
       - key: DATABASE_URL
         sync: false
       - key: SPRING_DATASOURCE_URL
@@ -68,16 +38,6 @@ services:
         generateValue: true
       - key: CORS_ALLOWED_ORIGINS
         value: "https://finx-frontend.onrender.com,https://finx-frontend-19an.onrender.com,https://finx-frontend-*.onrender.com,http://localhost:3000,http://127.0.0.1:3000"
-      - key: RAZORPAY_KEY_ID
-        sync: false
-      - key: RAZORPAY_KEY_SECRET
-        sync: false
-      - key: RAZORPAY_WEBHOOK_SECRET
-        sync: false
-      - key: RAZORPAY_SANDBOX_MODE
-        value: "true"
-      - key: RAZORPAY_CURRENCY
-        value: "INR"
       - key: GOOGLE_CLIENT_ID
         sync: false
       - key: GOOGLE_CLIENT_SECRET
@@ -108,8 +68,6 @@ services:
         value: "3000"
       - key: HOSTNAME
         value: "0.0.0.0"
-      - key: NEXT_PUBLIC_RAZORPAY_KEY_ID
-        sync: false
       - key: NEXT_PUBLIC_GOOGLE_CLIENT_ID
         sync: false
       - key: NEXT_PUBLIC_GOOGLE_REDIRECT_URI

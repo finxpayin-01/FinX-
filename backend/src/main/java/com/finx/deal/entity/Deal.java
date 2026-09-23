@@ -15,7 +15,10 @@ import java.util.UUID;
         @Index(name = "idx_deals_seller_id", columnList = "seller_id"),
         @Index(name = "idx_deals_project_manager_id", columnList = "project_manager_id"),
         @Index(name = "idx_deals_status", columnList = "status"),
-        @Index(name = "idx_deals_created_at", columnList = "created_at")
+        @Index(name = "idx_deals_created_at", columnList = "created_at"),
+        @Index(name = "idx_deals_deal_reference", columnList = "deal_reference", unique = true),
+        @Index(name = "idx_deals_buyer_org", columnList = "buyer_organization_id"),
+        @Index(name = "idx_deals_seller_org", columnList = "seller_organization_id")
 })
 public class Deal {
 
@@ -27,10 +30,34 @@ public class Deal {
     @Column(name = "project_id", unique = true, updatable = false, length = 20)
     private String projectId;
 
+    @Column(name = "deal_reference", unique = true, length = 100)
+    private String dealReference;
+
+    @Column(name = "buyer_organization_id")
+    private UUID buyerOrganizationId;
+
+    @Column(name = "seller_organization_id")
+    private UUID sellerOrganizationId;
+
+    @Column(name = "invitation_email")
+    private String invitationEmail;
+
+    @Column(name = "invitation_phone", length = 50)
+    private String invitationPhone;
+
+    @Column(name = "invitation_gstin", length = 50)
+    private String invitationGstin;
+
+    @Column(name = "agreement_status", length = 50)
+    private String agreementStatus = "DRAFT";
+
     @PrePersist
     protected void onCreate() {
         if (this.projectId == null) {
             this.projectId = "PRJ-" + java.util.UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        }
+        if (this.dealReference == null) {
+            this.dealReference = "FINX-DL-" + java.time.Year.now().getValue() + "-" + String.format("%06d", (int)(Math.random() * 900000) + 100000);
         }
     }
 
@@ -109,6 +136,62 @@ public class Deal {
 
     public void setProjectId(String projectId) {
         this.projectId = projectId;
+    }
+
+    public String getDealReference() {
+        return dealReference;
+    }
+
+    public void setDealReference(String dealReference) {
+        this.dealReference = dealReference;
+    }
+
+    public UUID getBuyerOrganizationId() {
+        return buyerOrganizationId;
+    }
+
+    public void setBuyerOrganizationId(UUID buyerOrganizationId) {
+        this.buyerOrganizationId = buyerOrganizationId;
+    }
+
+    public UUID getSellerOrganizationId() {
+        return sellerOrganizationId;
+    }
+
+    public void setSellerOrganizationId(UUID sellerOrganizationId) {
+        this.sellerOrganizationId = sellerOrganizationId;
+    }
+
+    public String getInvitationEmail() {
+        return invitationEmail;
+    }
+
+    public void setInvitationEmail(String invitationEmail) {
+        this.invitationEmail = invitationEmail;
+    }
+
+    public String getInvitationPhone() {
+        return invitationPhone;
+    }
+
+    public void setInvitationPhone(String invitationPhone) {
+        this.invitationPhone = invitationPhone;
+    }
+
+    public String getInvitationGstin() {
+        return invitationGstin;
+    }
+
+    public void setInvitationGstin(String invitationGstin) {
+        this.invitationGstin = invitationGstin;
+    }
+
+    public String getAgreementStatus() {
+        return agreementStatus;
+    }
+
+    public void setAgreementStatus(String agreementStatus) {
+        this.agreementStatus = agreementStatus;
     }
 
     public String getTitle() {

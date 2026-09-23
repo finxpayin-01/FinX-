@@ -279,6 +279,9 @@ public class AuthService {
 
     @Transactional
     public UserSummaryResponse getCurrentUser(UserPrincipal principal) {
+        if (principal == null) {
+            throw new UnauthorizedException("User is not authenticated");
+        }
         User user = userRepository.findById(principal.getId())
                 .orElseThrow(() -> new UnauthorizedException("User profile not found"));
         if (user.getUid() == null || user.getUid().isBlank()) {
