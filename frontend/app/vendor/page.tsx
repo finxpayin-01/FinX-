@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { MyTrustScore } from "@/components/trust/MyTrustScore";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Briefcase, Activity, ArrowRight, RefreshCw } from "lucide-react";
 import { dealService } from "@/services/deal.service";
@@ -27,6 +28,7 @@ export default function VendorDashboard() {
     return (
         <DashboardLayout>
             <div className="space-y-6">
+                <MyTrustScore />
                 <div>
                     <h1 className="text-2xl font-bold text-slate-900">Vendor Contracts & Deals</h1>
                     <p className="text-sm text-slate-500 mt-1">Manage assigned deals, respond to invitations, and submit deliverables.</p>

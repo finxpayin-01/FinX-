@@ -1,6 +1,6 @@
 services:
   # ============================================================================
-  # 1. Authoritative Backend: Spring Boot 3.4.3 / Java 21 / Docker Runtime
+  # 1. Authoritative Backend: Spring Boot 3.4.3 / Java 25 / Docker Runtime
   # ============================================================================
   - type: web
     name: finx-backend

@@ -169,13 +169,17 @@ public class ChainIndexer {
             }
             states.forEach((m,status) -> {
                 store.jdbc().update("update blockchain_allocations set chain_status=? where escrow_id=? and milestone_id=?",status,id,m);
-                if (status==4||status==6) store.jdbc().update("update milestones set status=? where id=?",status==4?"COMPLETED":"CANCELLED",m);
+                if (status==4||status==6) {
+                    int changed=store.jdbc().update("update milestones set status=? where id=? and status<>?",status==4?"COMPLETED":"CANCELLED",m,status==4?"COMPLETED":"CANCELLED");
+                    if(status==4 && changed>0) audit.logEvent(null,"MILESTONE_COMPLETED","MILESTONE",m.toString(),"Confirmed on-chain milestone release");
+                }
             });
             store.jdbc().update("update blockchain_escrows set funded_atomic=?,released_atomic=?,refunded_atomic=?,status=?,reconciliation_status='MATCHED',indexed_block=?,indexed_hash=? where id=?",
                     new BigDecimal(funded),new BigDecimal(releasedFinal),new BigDecimal(refundedFinal),STATES[state],end,endHash,id);
             if (funded.signum()>0) {
                 String dealState=state==4?"DISPUTED":state==5?"COMPLETED":state==6?"CANCELLED":"IN_PROGRESS";
-                store.jdbc().update("update deals set status=? where id=? and not exists(select 1 from disputes where deal_id=? and status='OPEN')",dealState,uuid(snapshot,"deal_id"),uuid(snapshot,"deal_id"));
+                int changed=store.jdbc().update("update deals set status=? where id=? and status<>? and not exists(select 1 from disputes where deal_id=? and status='OPEN')",dealState,uuid(snapshot,"deal_id"),dealState,uuid(snapshot,"deal_id"));
+                if(state==5 && changed>0) audit.logEvent(null,"DEAL_COMPLETED","DEAL",str(snapshot,"deal_id"),"Confirmed on-chain deal completion");
             }
         });
         log.info("chain_reconciled escrow={} block={} lag={}",id,end,finalized-end);

@@ -14,7 +14,7 @@ This backend service delivers the core Tuesday foundation:
 ---
 
 ## 2. Tech Stack
-* **Java**: 21 LTS (tested on Java 25)
+* **Java**: 25 LTS
 * **Framework**: Spring Boot 3.4.3
 * **Security**: Spring Security 6 + JJWT 0.12.6
 * **Database**: PostgreSQL 16 (H2 for automated tests)
@@ -62,7 +62,7 @@ backend/
 ## 4. Quick Start (Local Development)
 
 ### Prerequisites
-* Java 21+ JDK installed
+* Java 25+ JDK installed
 * PostgreSQL 16 running on port 5432 (or run via Docker)
 * Redis 7 running on port 6379 (optional for basic auth)
 

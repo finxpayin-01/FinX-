@@ -251,5 +251,24 @@ class TransactionEngineEndToEndTest {
                         .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").isArray());
+
+        // Persisted Trust Engine results from the real deal -> evidence -> payment lifecycle.
+        mockMvc.perform(post("/api/admin/trust/" + buyerId + "/recalculate")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"Verify completed transaction lifecycle\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.statistics.PAYMENT_COMPLETED").value(1));
+        mockMvc.perform(post("/api/admin/trust/" + sellerId + "/recalculate")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"Verify vendor delivery and evidence\"}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/trust/" + sellerId + "/vendor-score")
+                        .header("Authorization", "Bearer " + sellerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.statistics.MILESTONE_COMPLETED").value(1))
+                .andExpect(jsonPath("$.data.statistics.DOCUMENT_VERIFIED").value(1))
+                .andExpect(jsonPath("$.data.trustLevel").value("INSUFFICIENT_DATA"));
     }
 }

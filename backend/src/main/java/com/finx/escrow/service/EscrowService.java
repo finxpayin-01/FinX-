@@ -233,6 +233,8 @@ public class EscrowService {
 
         milestone.setStatus(MilestoneStatus.COMPLETED);
         milestoneRepository.saveAndFlush(milestone);
+        auditService.logEvent(currentUser.getId(), "MILESTONE_COMPLETED", "MILESTONE",
+                milestone.getId().toString(), "Milestone completed after confirmed escrow release");
 
         // Check if all milestones for this deal are now completed
         List<Milestone> allDealMilestones = milestoneRepository.findByDealIdOrderBySequenceAsc(deal.getId());

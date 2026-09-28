@@ -128,6 +128,12 @@ spring.mail.properties.mail.smtp.starttls.enable: true
 mailersend:
   api-key: ${MAILERSEND_API_KEY:}
   domain: ${MAILERSEND_DOMAIN:}
+trust:
+  worker:
+    enabled: ${TRUST_WORKER_ENABLED:true}
+    delay-ms: ${TRUST_WORKER_DELAY_MS:15000}
+    initial-delay-ms: ${TRUST_WORKER_INITIAL_DELAY_MS:30000}
+
 finx:
   onramp:
     onramper:

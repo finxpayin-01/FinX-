@@ -12,6 +12,9 @@ import java.util.UUID;
 @Service
 public class AuditService {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.context.ApplicationEventPublisher events;
+
     private static final Logger log = LoggerFactory.getLogger(AuditService.class);
 
     private final AuditLogRepository auditLogRepository;
@@ -25,6 +28,7 @@ public class AuditService {
         try {
             AuditLog auditLog = new AuditLog(actorUserId, action, entityType, entityId, metadata);
             AuditLog saved = auditLogRepository.save(auditLog);
+            if (events != null) events.publishEvent(new com.finx.trust.event.TrustAuditRecorded(saved));
             log.info("AUDIT_EVENT: action=[{}] entityType=[{}] entityId=[{}] actor=[{}]",
                     action, entityType, entityId, actorUserId);
             return saved;

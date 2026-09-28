@@ -12,7 +12,7 @@ import com.finx.exception.BadRequestException;
 public final class EscrowAbi {
     private EscrowAbi() {}
     public static Bytes32 id(UUID id) { return new Bytes32(Numeric.hexStringToByteArray(Hash.sha3String("finx:" + id))); }
-    public static String encode(String name, Type... args) {
+    public static String encode(String name, Type<?>... args) {
         return FunctionEncoder.encode(new Function(name, List.of(args), List.of()));
     }
     public static BigInteger atomic(String amount, int decimals) {

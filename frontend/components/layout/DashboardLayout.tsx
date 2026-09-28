@@ -41,6 +41,7 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
 
     const getNavLinks = (): NavLinkItem[] => {
         const baseLinks: NavLinkItem[] = [
+            ...(['BUYER', 'SELLER'].includes(user?.role || '') ? [{ name: "Trust Score", href: "/trust", icon: ShieldCheck }] : []),
             { name: "Blockchain Escrow", href: "/blockchain", icon: ShieldCheck },
             { name: "Compliance (KYC)", href: "/kyc", icon: ShieldCheck },
             { name: "Settings", href: `/${(user?.role === 'BUYER' ? 'corporate' : user?.role === 'SELLER' ? 'vendor' : user?.role?.toLowerCase().replace('_', '-') || 'corporate')}/settings`, icon: Settings },
@@ -50,6 +51,7 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
             case "ADMIN":
                 return [
                     { name: "Overview", href: "/admin", icon: Activity },
+                    { name: "Trust Engine", href: "/admin/trust-engine", icon: ShieldCheck },
                     { name: "Users", href: "/admin/users", icon: Users },
                     { name: "Projects", href: "/admin/projects", icon: Briefcase },
                     { name: "Escrow Transactions", href: "/admin/escrow", icon: ShieldCheck },

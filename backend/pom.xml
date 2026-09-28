@@ -18,9 +18,11 @@
     <description>FINX B2B Milestone-Based Fiat Escrow Platform - Core Backend Foundation</description>
 
     <properties>
-        <java.version>17</java.version>
+        <java.version>25</java.version>
         <jjwt.version>0.12.6</jjwt.version>
         <springdoc.version>2.8.5</springdoc.version>
+        <spring-framework.version>6.2.19</spring-framework.version>
+        <postgresql.version>42.7.12</postgresql.version>
     </properties>
 
     <dependencies>

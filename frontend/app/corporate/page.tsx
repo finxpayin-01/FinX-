@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { MyTrustScore } from "@/components/trust/MyTrustScore";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Briefcase, CreditCard, ShieldCheck, ArrowRight, ShieldAlert, RefreshCw } from "lucide-react";
 import { dealService } from "@/services/deal.service";
@@ -27,6 +28,7 @@ export default function CorporateDashboard() {
     return (
         <DashboardLayout>
             <div className="space-y-6">
+                <MyTrustScore />
                 <div>
                     <h1 className="text-2xl font-bold text-slate-900">Corporate Buyer Dashboard</h1>
                     <p className="text-sm text-slate-500 mt-1">Track active projects and B2B deals.</p>
