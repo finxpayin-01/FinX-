@@ -1,6 +1,7 @@
 package com.finx.admin.controller;
 
 import com.finx.common.response.ApiResponse;
+import com.finx.exception.ResourceNotFoundException;
 import com.finx.paymentorchestration.entity.SettlementInstruction;
 import com.finx.paymentorchestration.repository.SettlementInstructionRepository;
 import com.finx.reconciliation.entity.ReconciliationItem;
@@ -9,31 +10,32 @@ import com.finx.reconciliation.service.ReconciliationService;
 import com.finx.risk.entity.RiskAssessment;
 import com.finx.risk.service.RiskEngineService;
 import com.finx.security.service.UserPrincipal;
-import com.finx.verification.entity.KybProfile;
-import com.finx.verification.entity.KycProfile;
+import com.finx.verification.dto.VerificationDtos.*;
 import com.finx.verification.repository.KybProfileRepository;
 import com.finx.verification.repository.KycProfileRepository;
+import com.finx.verification.service.VerificationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/admin")
-@Tag(name = "Admin Operations", description = "FinX administrative inspection, reconciliation, and risk control")
+@Tag(name = "Admin Operations", description = "FinX administrative inspection, reconciliation, verification review, and risk control")
 @SecurityRequirement(name = "Bearer Authentication")
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminB2bController {
 
     private final KycProfileRepository kycRepository;
     private final KybProfileRepository kybRepository;
+    private final VerificationService verificationService;
     private final ReconciliationService reconciliationService;
     private final RiskEngineService riskEngineService;
     private final SettlementInstructionRepository settlementRepository;
@@ -41,12 +43,14 @@ public class AdminB2bController {
 
     public AdminB2bController(KycProfileRepository kycRepository,
                               KybProfileRepository kybRepository,
+                              VerificationService verificationService,
                               ReconciliationService reconciliationService,
                               RiskEngineService riskEngineService,
                               SettlementInstructionRepository settlementRepository,
                               com.finx.ledger.service.LedgerService ledgerService) {
         this.kycRepository = kycRepository;
         this.kybRepository = kybRepository;
+        this.verificationService = verificationService;
         this.reconciliationService = reconciliationService;
         this.riskEngineService = riskEngineService;
         this.settlementRepository = settlementRepository;
@@ -75,11 +79,47 @@ public class AdminB2bController {
     }
 
     @GetMapping("/verifications")
-    @Operation(summary = "List all KYC and KYB profiles")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> getVerifications() {
-        List<KycProfile> kycList = kycRepository.findAll();
-        List<KybProfile> kybList = kybRepository.findAll();
-        return ResponseEntity.ok(ApiResponse.success(Map.of("kycProfiles", kycList, "kybProfiles", kybList)));
+    @Operation(summary = "List all pending and reviewable KYC, KYB, and bank mismatches")
+    public ResponseEntity<ApiResponse<AdminVerificationSummaryResponse>> getVerifications() {
+        AdminVerificationSummaryResponse summary = verificationService.getAdminVerificationSummary();
+        return ResponseEntity.ok(ApiResponse.success(summary));
+    }
+
+    @PostMapping("/verifications/kyc/{id}/review")
+    @Operation(summary = "Perform compliance review on individual KYC")
+    public ResponseEntity<ApiResponse<KycResponse>> reviewKyc(
+            @PathVariable UUID id,
+            @Valid @RequestBody AdminReviewRequest request,
+            @AuthenticationPrincipal UserPrincipal adminUser) {
+        KycResponse res = verificationService.reviewKyc(id, request, adminUser);
+        return ResponseEntity.ok(ApiResponse.success("KYC review decision recorded", res));
+    }
+
+    @PostMapping("/verifications/kyb/{id}/review")
+    @Operation(summary = "Perform compliance review on corporate KYB")
+    public ResponseEntity<ApiResponse<KybResponse>> reviewKyb(
+            @PathVariable UUID id,
+            @Valid @RequestBody AdminReviewRequest request,
+            @AuthenticationPrincipal UserPrincipal adminUser) {
+        KybResponse res = verificationService.reviewKyb(id, request, adminUser);
+        return ResponseEntity.ok(ApiResponse.success("KYB review decision recorded", res));
+    }
+
+    @PostMapping("/verifications/{id}/review")
+    @Operation(summary = "Perform compliance review on verification record")
+    public ResponseEntity<ApiResponse<Object>> reviewGeneric(
+            @PathVariable UUID id,
+            @Valid @RequestBody AdminReviewRequest request,
+            @AuthenticationPrincipal UserPrincipal adminUser) {
+        if (kycRepository.existsById(id)) {
+            KycResponse res = verificationService.reviewKyc(id, request, adminUser);
+            return ResponseEntity.ok(ApiResponse.success("KYC review decision recorded", res));
+        } else if (kybRepository.existsById(id)) {
+            KybResponse res = verificationService.reviewKyb(id, request, adminUser);
+            return ResponseEntity.ok(ApiResponse.success("KYB review decision recorded", res));
+        } else {
+            throw new ResourceNotFoundException("VerificationProfile", "id", id);
+        }
     }
 
     @GetMapping("/reconciliation/runs")
@@ -104,7 +144,7 @@ public class AdminB2bController {
         return ResponseEntity.ok(ApiResponse.success(items));
     }
 
-    @GetMapping("/risk/{dealId}")
+    @GetMapping("/risk/deals/{dealId}")
     @Operation(summary = "Get risk assessment for deal")
     public ResponseEntity<ApiResponse<RiskAssessment>> getRiskAssessment(@PathVariable UUID dealId) {
         RiskAssessment assessment = riskEngineService.getAssessmentForDeal(dealId);

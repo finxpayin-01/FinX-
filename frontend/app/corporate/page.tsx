@@ -8,6 +8,7 @@ import { dealService } from "@/services/deal.service";
 import { Deal } from "@/types";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
+import { OverdueMilestonesCard } from "@/components/milestones/OverdueMilestonesCard";
 
 export default function CorporateDashboard() {
     const [deals, setDeals] = useState<Deal[]>([]);
@@ -73,6 +74,9 @@ export default function CorporateDashboard() {
                         </CardContent>
                     </Card>
                 </div>
+
+                {/* Overdue Milestones Alert */}
+                <OverdueMilestonesCard roleContext="BUYER" />
 
                 <div className="grid grid-cols-1 gap-6 mt-8">
                     <div>

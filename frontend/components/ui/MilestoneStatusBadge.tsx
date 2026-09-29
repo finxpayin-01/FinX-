@@ -12,6 +12,7 @@ export function MilestoneStatusBadge({ status }: { status: MilestoneStatus }) {
         RELEASED: 'bg-green-100 text-green-800 ring-green-600/30 font-bold',
         COMPLETED: 'bg-emerald-100 text-emerald-800 ring-emerald-600/30 font-bold',
         CANCELLED: 'bg-slate-100 text-slate-500 ring-slate-400/20 line-through',
+        OVERDUE: 'bg-rose-100 text-rose-800 ring-rose-600/30 font-bold border border-rose-300',
     };
 
     const labels: Record<MilestoneStatus, string> = {
@@ -25,11 +26,12 @@ export function MilestoneStatusBadge({ status }: { status: MilestoneStatus }) {
         RELEASED: 'Escrow Released',
         COMPLETED: 'Completed (Released)',
         CANCELLED: 'Cancelled',
+        OVERDUE: 'OVERDUE',
     };
 
     return (
-        <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ring-1 ring-inset ${styles[status]}`}>
-            {labels[status]}
+        <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ring-1 ring-inset ${styles[status] || styles.PENDING}`}>
+            {labels[status] || status}
         </span>
     );
 }

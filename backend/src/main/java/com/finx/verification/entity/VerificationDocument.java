@@ -29,12 +29,34 @@ public class VerificationDocument {
     @Column(nullable = false)
     private String status;
 
+    @Column(name = "mime_type")
+    private String mimeType;
+
+    @Column(name = "file_size_bytes")
+    private Long fileSizeBytes;
+
+    @Column(name = "storage_key")
+    private String storageKey;
+
+    @Column(name = "encryption_algorithm")
+    private String encryptionAlgorithm;
+
+    @Column(name = "reviewed_by")
+    private UUID reviewedBy;
+
+    @Column(name = "review_notes")
+    private String reviewNotes;
+
+    @Column(name = "reviewed_at")
+    private Instant reviewedAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
     public VerificationDocument() {
         this.id = UUID.randomUUID();
         this.status = "PENDING";
+        this.encryptionAlgorithm = "AES-256-GCM";
         this.createdAt = Instant.now();
     }
 
@@ -45,6 +67,14 @@ public class VerificationDocument {
         this.documentType = documentType;
         this.fileReference = fileReference;
         this.fileHash = fileHash;
+    }
+
+    public VerificationDocument(String entityType, UUID entityId, String documentType, String fileReference,
+                                String fileHash, String mimeType, Long fileSizeBytes, String storageKey) {
+        this(entityType, entityId, documentType, fileReference, fileHash);
+        this.mimeType = mimeType;
+        this.fileSizeBytes = fileSizeBytes;
+        this.storageKey = storageKey;
     }
 
     // Getters and Setters
@@ -62,6 +92,20 @@ public class VerificationDocument {
     public void setFileHash(String fileHash) { this.fileHash = fileHash; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+    public String getMimeType() { return mimeType; }
+    public void setMimeType(String mimeType) { this.mimeType = mimeType; }
+    public Long getFileSizeBytes() { return fileSizeBytes; }
+    public void setFileSizeBytes(Long fileSizeBytes) { this.fileSizeBytes = fileSizeBytes; }
+    public String getStorageKey() { return storageKey; }
+    public void setStorageKey(String storageKey) { this.storageKey = storageKey; }
+    public String getEncryptionAlgorithm() { return encryptionAlgorithm; }
+    public void setEncryptionAlgorithm(String encryptionAlgorithm) { this.encryptionAlgorithm = encryptionAlgorithm; }
+    public UUID getReviewedBy() { return reviewedBy; }
+    public void setReviewedBy(UUID reviewedBy) { this.reviewedBy = reviewedBy; }
+    public String getReviewNotes() { return reviewNotes; }
+    public void setReviewNotes(String reviewNotes) { this.reviewNotes = reviewNotes; }
+    public Instant getReviewedAt() { return reviewedAt; }
+    public void setReviewedAt(Instant reviewedAt) { this.reviewedAt = reviewedAt; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 }

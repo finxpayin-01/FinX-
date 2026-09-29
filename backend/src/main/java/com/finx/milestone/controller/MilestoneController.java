@@ -27,9 +27,15 @@ import java.util.UUID;
 public class MilestoneController {
 
     private final MilestoneService milestoneService;
+    private final com.finx.milestone.reminder.MilestoneDeadlineScheduler deadlineScheduler;
+    private final com.finx.common.time.FinxClock clock;
 
-    public MilestoneController(MilestoneService milestoneService) {
+    public MilestoneController(MilestoneService milestoneService,
+                               com.finx.milestone.reminder.MilestoneDeadlineScheduler deadlineScheduler,
+                               com.finx.common.time.FinxClock clock) {
         this.milestoneService = milestoneService;
+        this.deadlineScheduler = deadlineScheduler;
+        this.clock = clock;
     }
 
     @PostMapping("/deals/{dealId}/milestones")
@@ -105,5 +111,64 @@ public class MilestoneController {
         String reason = (request != null) ? request.getReason() : null;
         MilestoneResponse milestone = milestoneService.rejectMilestone(id, reason, currentUser);
         return ResponseEntity.ok(ApiResponse.success("Milestone changes requested", milestone));
+    }
+
+    @GetMapping("/milestones/upcoming")
+    @Operation(summary = "Get upcoming milestones", description = "Retrieves milestones ordered by nearest upcoming submission deadline")
+    public ResponseEntity<ApiResponse<List<MilestoneResponse>>> getUpcomingMilestones(
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+        List<MilestoneResponse> upcoming = milestoneService.getUpcomingMilestones(currentUser);
+        return ResponseEntity.ok(ApiResponse.success(upcoming));
+    }
+
+    @GetMapping("/milestones/overdue")
+    @Operation(summary = "Get overdue milestones", description = "Retrieves active milestones that passed their submission deadline")
+    public ResponseEntity<ApiResponse<List<MilestoneResponse>>> getOverdueMilestones(
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+        List<MilestoneResponse> overdue = milestoneService.getOverdueMilestones(currentUser);
+        return ResponseEntity.ok(ApiResponse.success(overdue));
+    }
+
+    @PatchMapping("/milestones/{id}/deadline")
+    @Operation(summary = "Update milestone submission deadline", description = "Buyer or PM updates deadline, cancelling obsolete reminders and scheduling new ones")
+    public ResponseEntity<ApiResponse<MilestoneResponse>> updateDeadline(
+            @PathVariable UUID id,
+            @Valid @RequestBody com.finx.milestone.dto.request.UpdateDeadlineRequest request,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+        MilestoneResponse updated = milestoneService.updateMilestoneDeadline(id, request, currentUser);
+        return ResponseEntity.ok(ApiResponse.success("Milestone deadline updated successfully", updated));
+    }
+
+    @PostMapping("/milestones/scheduler/run")
+    @Operation(summary = "Run milestone deadline scheduler immediately", description = "Manually triggers scheduler cycle for processing due reminders and overdue milestones")
+    public ResponseEntity<ApiResponse<com.finx.milestone.reminder.MilestoneDeadlineScheduler.SchedulerExecutionReport>> runScheduler(
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+        com.finx.milestone.reminder.MilestoneDeadlineScheduler.SchedulerExecutionReport report = deadlineScheduler.runSchedulerNow();
+        return ResponseEntity.ok(ApiResponse.success("Scheduler executed successfully", report));
+    }
+
+    @PostMapping("/milestones/simulation/clock")
+    @Operation(summary = "Simulate clock for time-based testing", description = "Advances or fixes system clock for zero-sleep testing")
+    public ResponseEntity<ApiResponse<java.util.Map<String, Object>>> simulateClock(
+            @RequestBody java.util.Map<String, Object> body,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+        if (body.containsKey("reset") && Boolean.TRUE.equals(body.get("reset"))) {
+            clock.reset();
+        } else if (body.containsKey("fixedInstant")) {
+            clock.setFixed(java.time.Instant.parse(body.get("fixedInstant").toString()));
+        } else if (body.containsKey("advanceMinutes")) {
+            long minutes = ((Number) body.get("advanceMinutes")).longValue();
+            clock.advance(java.time.Duration.ofMinutes(minutes));
+        } else if (body.containsKey("advanceHours")) {
+            long hours = ((Number) body.get("advanceHours")).longValue();
+            clock.advance(java.time.Duration.ofHours(hours));
+        } else if (body.containsKey("advanceDays")) {
+            long days = ((Number) body.get("advanceDays")).longValue();
+            clock.advance(java.time.Duration.ofDays(days));
+        }
+        return ResponseEntity.ok(ApiResponse.success(java.util.Map.of(
+                "currentClockTime", clock.now().toString(),
+                "instant", clock.now().toEpochMilli()
+        )));
     }
 }

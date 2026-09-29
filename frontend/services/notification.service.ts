@@ -20,6 +20,15 @@ export const notificationService = {
             return [];
         }
     },
+    getUnreadCount: async (): Promise<number> => {
+        try {
+            const response = await api.get<any>('/notifications/unread-count');
+            const data = response.data?.data || response.data;
+            return typeof data?.unreadCount === 'number' ? data.unreadCount : 0;
+        } catch {
+            return 0;
+        }
+    },
     markAsRead: async (id: string) => {
         try {
             await api.patch(`/notifications/${id}/read`);

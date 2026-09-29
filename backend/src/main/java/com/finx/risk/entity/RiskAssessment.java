@@ -12,6 +12,15 @@ import java.util.UUID;
 @Table(name = "risk_assessments")
 public class RiskAssessment {
 
+    public UUID userId;
+    public UUID organizationId;
+    public String userType;
+    public String ruleVersion;
+    public Integer previousScore;
+    public Integer scoreChange;
+    public Boolean reviewRequired;
+    public String reviewStatus;
+
     @Id
     private UUID id;
 

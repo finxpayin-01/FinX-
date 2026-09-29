@@ -102,6 +102,22 @@ public class FlywayCleanMigrationTest {
             assertTrue(tables.contains("deal_agreements"), "V15 table 'deal_agreements' must exist");
             assertTrue(tables.contains("agreement_audit_events"), "V15 table 'agreement_audit_events' must exist");
 
+            // V16 verification layer tables
+            assertTrue(tables.contains("authorized_representatives"), "V16 table 'authorized_representatives' must exist");
+            assertTrue(tables.contains("beneficial_owners"), "V16 table 'beneficial_owners' must exist");
+            assertTrue(tables.contains("verification_consents"), "V16 table 'verification_consents' must exist");
+            assertTrue(tables.contains("verification_events"), "V16 table 'verification_events' must exist");
+            assertTrue(tables.contains("verification_checks"), "V16 table 'verification_checks' must exist");
+            for (String table : List.of("risk_scores", "risk_rules", "risk_events", "risk_score_history", "risk_factors", "risk_alerts", "risk_reviews")) {
+                assertTrue(tables.contains(table), "V17 risk table must exist: " + table);
+            }
+
+            assertTrue(tables.contains("milestone_reminders"), "V20 table 'milestone_reminders' must exist");
+            assertTrue(tables.contains("invoices"), "V21 table 'invoices' must exist");
+            assertTrue(tables.contains("invoice_extracted_fields"), "V21 table 'invoice_extracted_fields' must exist");
+            assertTrue(tables.contains("invoice_checks"), "V21 table 'invoice_checks' must exist");
+            assertTrue(tables.contains("invoice_reviews"), "V21 table 'invoice_reviews' must exist");
+
             List<String> dealColumns = new ArrayList<>();
             try (ResultSet rs = conn.getMetaData().getColumns(null, null, "%", "%")) {
                 while (rs.next()) {
@@ -113,7 +129,7 @@ public class FlywayCleanMigrationTest {
             assertTrue(dealColumns.contains("deal_reference"), "V15 column 'deal_reference' on 'deals' must exist, found: " + dealColumns);
             assertTrue(dealColumns.contains("buyer_organization_id"), "V15 column 'buyer_organization_id' on 'deals' must exist, found: " + dealColumns);
 
-            System.out.println("ALL V1 - V15 TABLES AND COLUMNS VERIFIED IN SEQUENTIAL CLEAN ORDER!\n");
+            System.out.println("ALL V1 - V16 TABLES AND COLUMNS VERIFIED IN SEQUENTIAL CLEAN ORDER!\n");
         }
     }
 }

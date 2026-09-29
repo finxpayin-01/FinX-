@@ -38,6 +38,8 @@ import com.finx.common.enums.UserStatus;
 import com.finx.security.jwt.JwtTokenProvider;
 import com.finx.user.entity.User;
 import com.finx.user.repository.UserRepository;
+import com.finx.verification.dto.VerificationDtos.*;
+import com.finx.verification.enums.ConsentType;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -144,7 +146,28 @@ class BankIntegratedEndToEndTest {
         UUID vendorOrgId = UUID.fromString(objectMapper.readTree(vendorOrgRes.getResponse().getContentAsString())
                 .get("data").get("id").asText());
 
-        // 5. Vendor completes Mock KYB
+        // 5. Vendor records consent and completes Mock KYB
+        RecordConsentRequest panConsent = new RecordConsentRequest(ConsentType.PAN, vendorOrgId, "Corporate PAN Verification", "1.0");
+        mockMvc.perform(post("/api/v1/kyc/consent")
+                        .header("Authorization", "Bearer " + vendorToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(panConsent)))
+                .andExpect(status().isCreated());
+
+        RecordConsentRequest gstConsent = new RecordConsentRequest(ConsentType.GST, vendorOrgId, "Corporate GSTIN Verification", "1.0");
+        mockMvc.perform(post("/api/v1/kyc/consent")
+                        .header("Authorization", "Bearer " + vendorToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(gstConsent)))
+                .andExpect(status().isCreated());
+
+        RecordConsentRequest bankConsent = new RecordConsentRequest(ConsentType.BANK, vendorOrgId, "Penny Drop Bank Verification", "1.0");
+        mockMvc.perform(post("/api/v1/kyc/consent")
+                        .header("Authorization", "Bearer " + vendorToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(bankConsent)))
+                .andExpect(status().isCreated());
+
         SubmitKybRequest kybReq = new SubmitKybRequest(
                 "AABBA5678B",
                 "29AABBA5678B1Z2",

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { InvoiceEvidencePanel } from "@/components/milestones/InvoiceEvidencePanel";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/Card";
 import { MilestoneStatusBadge } from "@/components/ui/MilestoneStatusBadge";
@@ -137,6 +138,7 @@ export default function CorporateMilestoneDetails() {
     return (
         <DashboardLayout>
             <div className="space-y-6">
+                <InvoiceEvidencePanel milestoneId={milestoneId as string} milestoneAmount={milestone.amount} />
                 {blockchain && <BlockchainEscrow dealId={projectId as string}/>}
                 <div>
                     <Button variant="ghost" onClick={() => router.push(`/corporate/projects/${projectId}`)} className="gap-2 -ml-3 text-slate-500 hover:text-slate-900 mb-2">

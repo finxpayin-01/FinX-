@@ -8,6 +8,7 @@ import { dealService } from "@/services/deal.service";
 import { Deal } from "@/types";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
+import { UpcomingDeadlinesCard } from "@/components/milestones/UpcomingDeadlinesCard";
 
 export default function VendorDashboard() {
     const [deals, setDeals] = useState<Deal[]>([]);
@@ -122,6 +123,9 @@ export default function VendorDashboard() {
                         </div>
                     </div>
                 )}
+
+                {/* Upcoming Submission Deadlines Widget */}
+                <UpcomingDeadlinesCard />
 
                 <div>
                     <div className="flex justify-between items-center mb-4 mt-8">

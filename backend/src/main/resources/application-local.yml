@@ -15,3 +15,13 @@ spring:
     baseline-on-migrate: true
     baseline-version: 0
     locations: classpath:db/migration
+
+management:
+  health:
+    redis:
+      enabled: false
+    mail:
+      enabled: false
+  endpoint:
+    health:
+      show-details: always

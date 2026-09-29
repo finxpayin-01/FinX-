@@ -7,6 +7,8 @@ public enum MilestoneStatus {
     UNDER_REVIEW,
     APPROVED,
     REJECTED,
+    OVERDUE,
     COMPLETED,
     CANCELLED
 }
+

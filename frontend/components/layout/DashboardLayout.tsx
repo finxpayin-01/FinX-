@@ -55,6 +55,7 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
                     { name: "Escrow & Settlements", href: "/admin/escrow", icon: CreditCard },
                     { name: "Reconciliation", href: "/admin/reconciliation", icon: CheckSquare },
                     { name: "Risk Engine", href: "/admin/risk", icon: ShieldCheck },
+                    { name: "Invoice Verification", href: "/admin/invoices", icon: ShieldCheck },
                     { name: "Disputes", href: "/admin/disputes", icon: ShieldCheck },
                     { name: "Audit Logs", href: "/admin/audit-logs", icon: FileText },
                     ...baseLinks

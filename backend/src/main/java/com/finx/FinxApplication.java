@@ -16,6 +16,7 @@ import org.springframework.scheduling.annotation.EnableAsync;
 @SpringBootApplication
 @EnableJpaAuditing
 @EnableAsync
+@org.springframework.scheduling.annotation.EnableScheduling
 public class FinxApplication {
 
     private static final Logger log = LoggerFactory.getLogger(FinxApplication.class);

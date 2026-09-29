@@ -26,10 +26,12 @@ import {
     X,
     CreditCard,
     TrendingUp,
-    ShieldCheck
+    ShieldCheck,
+    CalendarClock
 } from "lucide-react";
 import Link from "next/link";
 import { MilestoneStatusBadge } from "@/components/ui/MilestoneStatusBadge";
+import { UpdateDeadlineModal } from "@/components/milestones/UpdateDeadlineModal";
 
 function CorporateMilestonesContent() {
     const searchParams = useSearchParams();
@@ -49,10 +51,14 @@ function CorporateMilestonesContent() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [formError, setFormError] = useState<string | null>(null);
     const [formDealId, setFormDealId] = useState<string>("");
+    const [invoiceRequired, setInvoiceRequired] = useState(false);
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
     const [amount, setAmount] = useState("");
     const [dueDate, setDueDate] = useState("");
+    const [submissionDate, setSubmissionDate] = useState("");
+    const [submissionTime, setSubmissionTime] = useState("18:00");
+    const [selectedMilestoneForDeadline, setSelectedMilestoneForDeadline] = useState<Milestone | null>(null);
 
     // Fetch deals
     const fetchDeals = useCallback(async () => {
@@ -166,6 +172,12 @@ function CorporateMilestonesContent() {
         defaultDue.setDate(defaultDue.getDate() + 14);
         setDueDate(defaultDue.toISOString().split("T")[0]);
 
+        // Set default submission deadline to 7 days from today at 18:00
+        const defaultSub = new Date();
+        defaultSub.setDate(defaultSub.getDate() + 7);
+        setSubmissionDate(defaultSub.toISOString().split("T")[0]);
+        setSubmissionTime("18:00");
+
         if (selectedDealId !== "ALL") {
             setFormDealId(selectedDealId);
         } else if (deals.length > 0) {
@@ -210,20 +222,33 @@ function CorporateMilestonesContent() {
             return;
         }
 
+        if (!submissionDate) {
+            setFormError("Vendor submission deadline date is required.");
+            return;
+        }
+
+        // Build ISO strings
+        const isoDueDate = new Date(`${dueDate}T23:59:59.000Z`).toISOString();
+        const isoSubmissionDeadline = new Date(`${submissionDate}T${submissionTime || "18:00"}:00`).toISOString();
+
+        if (new Date(isoSubmissionDeadline).getTime() > new Date(isoDueDate).getTime()) {
+            setFormError("Submission deadline cannot be after the milestone final due date.");
+            return;
+        }
+
         setIsSubmitting(true);
         try {
-            // ISO instant for backend
-            const isoDueDate = new Date(`${dueDate}T23:59:59.000Z`).toISOString();
-
             await milestoneService.createMilestone(formDealId, {
+                invoiceRequired,
                 title: title.trim(),
                 description: description.trim() || undefined,
                 amount: numAmount,
                 currency: "INR",
                 dueDate: isoDueDate,
+                submissionDeadline: isoSubmissionDeadline,
             });
 
-            setSuccessMessage(`Milestone "${title.trim()}" created successfully!`);
+            setSuccessMessage(`Milestone "${title.trim()}" created successfully with automated submission deadline reminders!`);
             setTimeout(() => setSuccessMessage(null), 5000);
 
             setIsCreateModalOpen(false);
@@ -492,7 +517,7 @@ function CorporateMilestonesContent() {
                                             <th className="py-3.5 px-4">Milestone & Deliverables</th>
                                             <th className="py-3.5 px-4">Project</th>
                                             <th className="py-3.5 px-4 text-right">Amount</th>
-                                            <th className="py-3.5 px-4">Due Date</th>
+                                            <th className="py-3.5 px-4">Deadlines</th>
                                             <th className="py-3.5 px-4">Status</th>
                                             <th className="py-3.5 px-4 text-right">Actions</th>
                                         </tr>
@@ -532,7 +557,33 @@ function CorporateMilestonesContent() {
                                                         </span>
                                                     </td>
                                                     <td className="py-4 px-4 text-slate-500 whitespace-nowrap">
-                                                        {m.dueDate ? (
+                                                        {m.submissionDeadline ? (
+                                                            <div className="space-y-1">
+                                                                <div className="flex items-center gap-1.5 text-xs font-medium text-slate-800">
+                                                                    <Clock size={13} className={m.overdue ? "text-red-500" : "text-blue-500"} />
+                                                                    <span>
+                                                                        {new Date(m.submissionDeadline).toLocaleString("en-IN", {
+                                                                            day: "numeric",
+                                                                            month: "short",
+                                                                            hour: "2-digit",
+                                                                            minute: "2-digit",
+                                                                        })}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                                                                    {m.dueDate && (
+                                                                        <span>Final: {new Date(m.dueDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span>
+                                                                    )}
+                                                                    {m.timeUntilDeadline && (
+                                                                        <span className={`px-1.5 py-0.2 rounded font-semibold text-[10px] ${
+                                                                            m.overdue ? "bg-red-100 text-red-700" : "bg-blue-50 text-blue-700"
+                                                                        }`}>
+                                                                            {m.timeUntilDeadline}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        ) : m.dueDate ? (
                                                             <div className="flex items-center gap-1.5 text-xs">
                                                                 <Calendar size={13} className="text-slate-400" />
                                                                 {new Date(m.dueDate).toLocaleDateString("en-IN", {
@@ -550,6 +601,17 @@ function CorporateMilestonesContent() {
                                                     </td>
                                                     <td className="py-4 px-4 text-right whitespace-nowrap">
                                                         <div className="flex items-center justify-end gap-2">
+                                                            {m.status !== "RELEASED" && m.status !== "COMPLETED" && m.status !== "CANCELLED" && (
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    onClick={() => setSelectedMilestoneForDeadline(m)}
+                                                                    className="gap-1 text-slate-700 border-slate-200 hover:bg-slate-100 text-xs h-8"
+                                                                    title="Update Submission Deadline"
+                                                                >
+                                                                    <CalendarClock size={13} /> Deadline
+                                                                </Button>
+                                                            )}
                                                             {m.status === "PENDING" && (
                                                                 <Link href={paymentUrl}>
                                                                     <Button size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8">
@@ -604,6 +666,7 @@ function CorporateMilestonesContent() {
 
                             {/* Target Deal Selection */}
                             <div>
+                                <label className="flex items-center gap-2 text-sm mb-4"><input type="checkbox" checked={invoiceRequired} onChange={e => setInvoiceRequired(e.target.checked)} />Require an approved invoice before settlement</label>
                                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                                     Project / Deal <span className="text-red-500">*</span>
                                 </label>
@@ -691,7 +754,7 @@ function CorporateMilestonesContent() {
 
                                 <div>
                                     <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                                        Due Date <span className="text-red-500">*</span>
+                                        Final Due Date <span className="text-red-500">*</span>
                                     </label>
                                     <input
                                         type="date"
@@ -701,6 +764,48 @@ function CorporateMilestonesContent() {
                                         onChange={(e) => setDueDate(e.target.value)}
                                         required
                                     />
+                                </div>
+                            </div>
+
+                            {/* Submission Deadline (Date & Time Picker + Timezone display) */}
+                            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <label className="block text-xs font-semibold text-slate-800 uppercase tracking-wider">
+                                        Vendor Submission Deadline <span className="text-red-500">*</span>
+                                    </label>
+                                    <span className="text-[11px] text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200 font-mono">
+                                        {Intl.DateTimeFormat().resolvedOptions().timeZone}
+                                    </span>
+                                </div>
+                                <p className="text-xs text-slate-500">
+                                    Automated reminder notifications will be delivered to the vendor at 7d, 3d, 24h, and 6h prior to this deadline.
+                                </p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                                            Deadline Date
+                                        </label>
+                                        <input
+                                            type="date"
+                                            min={new Date().toISOString().split("T")[0]}
+                                            className="w-full h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            value={submissionDate}
+                                            onChange={(e) => setSubmissionDate(e.target.value)}
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                                            Deadline Time
+                                        </label>
+                                        <input
+                                            type="time"
+                                            className="w-full h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            value={submissionTime}
+                                            onChange={(e) => setSubmissionTime(e.target.value)}
+                                            required
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
@@ -723,7 +828,8 @@ function CorporateMilestonesContent() {
                                         !description.trim() ||
                                         parseFloat(amount) <= 0 ||
                                         parseFloat(amount) > modalRemainingBudget ||
-                                        !dueDate
+                                        !dueDate ||
+                                        !submissionDate
                                     }
                                     className="gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium"
                                 >
@@ -734,6 +840,19 @@ function CorporateMilestonesContent() {
                         </form>
                     </div>
                 </div>
+            )}
+
+            {/* Update Deadline Modal */}
+            {selectedMilestoneForDeadline && (
+                <UpdateDeadlineModal
+                    isOpen={!!selectedMilestoneForDeadline}
+                    milestone={selectedMilestoneForDeadline}
+                    onClose={() => setSelectedMilestoneForDeadline(null)}
+                    onSuccess={() => {
+                        setSelectedMilestoneForDeadline(null);
+                        fetchMilestones();
+                    }}
+                />
             )}
         </DashboardLayout>
     );

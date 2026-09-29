@@ -59,6 +59,11 @@ class MilestoneServiceTest {
     @Mock
     private EscrowService escrowService;
 
+    @Mock
+    private com.finx.milestone.reminder.MilestoneReminderService milestoneReminderService;
+
+    private com.finx.common.time.FinxClock clock = new com.finx.common.time.FinxClock();
+
     private MilestoneService milestoneService;
 
     private UUID buyerId;
@@ -76,7 +81,9 @@ class MilestoneServiceTest {
                 dealRepository,
                 auditService,
                 notificationService,
-                escrowService
+                escrowService,
+                milestoneReminderService,
+                clock
         );
 
         buyerId = UUID.randomUUID();

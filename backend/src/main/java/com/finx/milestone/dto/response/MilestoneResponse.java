@@ -12,6 +12,10 @@ import java.util.stream.Collectors;
 
 public class MilestoneResponse {
 
+    private boolean invoiceRequired;
+    public boolean isInvoiceRequired() { return invoiceRequired; }
+    public void setInvoiceRequired(boolean value) { invoiceRequired=value; }
+
     private UUID id;
     private UUID dealId;
     private UUID projectId; // Frontend alias
@@ -21,6 +25,9 @@ public class MilestoneResponse {
     private BigDecimal amount;
     private String currency;
     private Instant dueDate;
+    private Instant submissionDeadline;
+    private boolean overdue;
+    private String timeUntilDeadline;
     private MilestoneStatus status;
     private List<DeliverableResponse> deliverables = new ArrayList<>();
     private Instant createdAt;
@@ -32,6 +39,7 @@ public class MilestoneResponse {
     public static MilestoneResponse fromEntity(Milestone milestone) {
         MilestoneResponse response = new MilestoneResponse();
         response.setId(milestone.getId());
+        response.setInvoiceRequired(milestone.isInvoiceRequired());
         response.setDealId(milestone.getDealId());
         response.setProjectId(milestone.getDealId());
         response.setTitle(milestone.getTitle());
@@ -40,6 +48,24 @@ public class MilestoneResponse {
         response.setAmount(milestone.getAmount());
         response.setCurrency(milestone.getCurrency());
         response.setDueDate(milestone.getDueDate());
+        response.setSubmissionDeadline(milestone.getSubmissionDeadline());
+
+        Instant now = Instant.now();
+        Instant deadline = milestone.getSubmissionDeadline();
+        boolean isTerminal = milestone.getStatus() == MilestoneStatus.APPROVED ||
+                milestone.getStatus() == MilestoneStatus.COMPLETED ||
+                milestone.getStatus() == MilestoneStatus.CANCELLED;
+
+        boolean isOverdue = milestone.getStatus() == MilestoneStatus.OVERDUE ||
+                (!isTerminal && deadline != null && deadline.isBefore(now) &&
+                 milestone.getStatus() != MilestoneStatus.SUBMITTED &&
+                 milestone.getStatus() != MilestoneStatus.UNDER_REVIEW);
+        response.setOverdue(isOverdue);
+
+        if (deadline != null && !isTerminal) {
+            response.setTimeUntilDeadline(formatTimeUntil(now, deadline));
+        }
+
         response.setStatus(milestone.getStatus());
         if (milestone.getDeliverables() != null) {
             response.setDeliverables(milestone.getDeliverables().stream()
@@ -49,6 +75,27 @@ public class MilestoneResponse {
         response.setCreatedAt(milestone.getCreatedAt());
         response.setUpdatedAt(milestone.getUpdatedAt());
         return response;
+    }
+
+    private static String formatTimeUntil(Instant now, Instant deadline) {
+        if (deadline.isBefore(now)) {
+            java.time.Duration diff = java.time.Duration.between(deadline, now);
+            long days = diff.toDays();
+            long hours = diff.toHours() % 24;
+            if (days > 0) return String.format("OVERDUE BY %d DAY%s", days, days > 1 ? "S" : "");
+            if (hours > 0) return String.format("OVERDUE BY %d HOUR%s", hours, hours > 1 ? "S" : "");
+            long mins = diff.toMinutes();
+            return String.format("OVERDUE BY %d MINUTE%s", Math.max(1, mins), mins != 1 ? "S" : "");
+        } else {
+            java.time.Duration diff = java.time.Duration.between(now, deadline);
+            long days = diff.toDays();
+            long hours = diff.toHours() % 24;
+            if (days >= 2) return String.format("Due in %d days", days);
+            if (days == 1) return "Due tomorrow";
+            if (hours > 0) return String.format("Due in %d hour%s", hours, hours > 1 ? "s" : "");
+            long mins = diff.toMinutes();
+            return String.format("Due in %d minute%s", Math.max(1, mins), mins != 1 ? "s" : "");
+        }
     }
 
     public UUID getId() {
@@ -121,6 +168,30 @@ public class MilestoneResponse {
 
     public void setDueDate(Instant dueDate) {
         this.dueDate = dueDate;
+    }
+
+    public Instant getSubmissionDeadline() {
+        return submissionDeadline != null ? submissionDeadline : dueDate;
+    }
+
+    public void setSubmissionDeadline(Instant submissionDeadline) {
+        this.submissionDeadline = submissionDeadline;
+    }
+
+    public boolean isOverdue() {
+        return overdue;
+    }
+
+    public void setOverdue(boolean overdue) {
+        this.overdue = overdue;
+    }
+
+    public String getTimeUntilDeadline() {
+        return timeUntilDeadline;
+    }
+
+    public void setTimeUntilDeadline(String timeUntilDeadline) {
+        this.timeUntilDeadline = timeUntilDeadline;
     }
 
     public MilestoneStatus getStatus() {

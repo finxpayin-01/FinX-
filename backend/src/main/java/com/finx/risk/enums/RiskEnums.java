@@ -4,6 +4,8 @@ public class RiskEnums {
 
     public enum RiskLevel {
         LOW,
+        MODERATE,
+        ELEVATED,
         MEDIUM,
         HIGH,
         CRITICAL

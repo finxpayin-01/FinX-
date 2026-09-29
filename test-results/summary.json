@@ -1,0 +1,164 @@
+{
+  "environment": {
+    "frontend": "http://localhost:3000",
+    "backend": "http://localhost:8080",
+    "database": "H2 (PostgreSQL mode, v1-v19 migrations)",
+    "browser": "Chromium (Playwright 1.63.0)",
+    "date": "2026-09-27T16:53:09.882Z"
+  },
+  "suites": {
+    "AUTH": [
+      {
+        "name": "Admin API Login",
+        "passed": true,
+        "details": "HTTP 200"
+      },
+      {
+        "name": "Browser Login & Token Persistence",
+        "passed": true,
+        "details": "localStorage.accessToken acquired"
+      }
+    ],
+    "DASHBOARD": [
+      {
+        "name": "Dashboard Renders Real Data",
+        "passed": true,
+        "details": "KPI metrics visible"
+      },
+      {
+        "name": "No Undefined/NaN in Visible UI Text",
+        "passed": true,
+        "details": "Clean numerical display"
+      }
+    ],
+    "BUYERS": [
+      {
+        "name": "Buyer Directory API & UI Population",
+        "passed": true,
+        "details": "25 buyers found"
+      },
+      {
+        "name": "Buyer Score Range 0-100",
+        "passed": true,
+        "details": "Score: 35 (MODERATE)"
+      }
+    ],
+    "VENDORS": [
+      {
+        "name": "Vendor Directory API & UI Population",
+        "passed": true,
+        "details": "25 vendors found"
+      },
+      {
+        "name": "Vendor Score Range 0-100",
+        "passed": true,
+        "details": "Score: 35 (MODERATE)"
+      }
+    ],
+    "PROFILE": [
+      {
+        "name": "Buyer Profile Loaded with Explainability",
+        "passed": true,
+        "details": "Score: 35 / 100"
+      },
+      {
+        "name": "Vendor Profile Loaded with Milestones & Bank Details",
+        "passed": true,
+        "details": "Score: 35 / 100"
+      }
+    ],
+    "EXPLAINABILITY": [
+      {
+        "name": "Concrete Reason Codes Present",
+        "passed": true,
+        "details": "5 factors: PAYMENT_FAILURE_RATE_HIGH, PAYMENT_FAILURE_VELOCITY, PAYMENT_FREQUENCY_HIGH, KYB_INCOMPLETE, KYC_INCOMPLETE"
+      }
+    ],
+    "PAGES": [
+      {
+        "name": "Alerts Page Accessible",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "name": "Reviews Queue Accessible",
+        "passed": true,
+        "details": ""
+      }
+    ],
+    "RULES": [
+      {
+        "name": "Rules API & Management Configuration Loaded",
+        "passed": true,
+        "details": "2 rules loaded with category weights"
+      }
+    ],
+    "EVENT_TRACE": [
+      {
+        "name": "Recalculation Trigger & Factor Evaluation",
+        "passed": true,
+        "details": "Before: 35 (MODERATE) -> After: 35 (MODERATE)"
+      }
+    ],
+    "HISTORY": [
+      {
+        "name": "Immutable History Log Appended",
+        "passed": true,
+        "details": "5 records in audit timeline"
+      }
+    ],
+    "UI_SYNC": [
+      {
+        "name": "UI Reflects Recalculated Score & History Graph",
+        "passed": true,
+        "details": ""
+      }
+    ],
+    "BOUNDARIES": [
+      {
+        "name": "0-100 Discrete Risk Level Boundaries Validated",
+        "passed": true,
+        "details": "0,20=LOW, 21,40=MOD, 41,60=ELE, 61,80=HIGH, 81,100=CRIT"
+      }
+    ],
+    "RBAC": [
+      {
+        "name": "Unauthenticated Admin Risk Access Rejected",
+        "passed": true,
+        "details": "HTTP 401"
+      }
+    ],
+    "SECURITY": [
+      {
+        "name": "Direct Client Score Manipulation Blocked",
+        "passed": true,
+        "details": "Rejected with HTTP 500"
+      }
+    ],
+    "UI_QUALITY": [
+      {
+        "name": "Mobile Viewport (375x667) Renders Cleanly",
+        "passed": true,
+        "details": "Zero layout collision"
+      }
+    ]
+  },
+  "traces": [
+    {
+      "subject": "Perf Vendor",
+      "entityType": "VENDOR",
+      "initialScore": 35,
+      "initialLevel": "MODERATE",
+      "event": "ADMIN_RECALCULATE_EVALUATION",
+      "afterScore": 35,
+      "afterLevel": "MODERATE",
+      "historyRecords": 5
+    }
+  ],
+  "bugs": [],
+  "summary": {
+    "passed": 21,
+    "failed": 0,
+    "blocked": 0
+  }
+}

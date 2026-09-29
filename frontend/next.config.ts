@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  distDir: process.env.FINX_NEXT_DIST_DIR || ".next",
   async rewrites() {
     const backendBase =
       process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, "") ||

@@ -57,4 +57,9 @@ public class NotificationService {
         unread.forEach(n -> n.setRead(true));
         notificationRepository.saveAll(unread);
     }
+
+    @Transactional(readOnly = true)
+    public long getUnreadCount(UUID userId) {
+        return notificationRepository.countByRecipientUserIdAndIsReadFalse(userId);
+    }
 }

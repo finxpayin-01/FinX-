@@ -130,3 +130,10 @@ finx:
     client-id: ${BANK_CLIENT_ID:}
     client-secret: ${BANK_CLIENT_SECRET:}
     webhook-secret: ${BANK_WEBHOOK_SECRET:finx-banking-webhook-secret-key-32chars}
+  verification:
+    provider: ${VERIFICATION_PROVIDER:mock}
+    setu:
+      base-url: ${SETU_BASE_URL:https://qa.setu.co/api}
+      client-id: ${SETU_CLIENT_ID:}
+      client-secret: ${SETU_CLIENT_SECRET:}
+      product-instance-id: ${SETU_PRODUCT_INSTANCE_ID:}

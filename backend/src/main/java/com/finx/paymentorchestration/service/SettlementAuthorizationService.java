@@ -71,6 +71,8 @@ public class SettlementAuthorizationService {
     private final BankingProvider bankingProvider;
     private final AuditService auditService;
     private final NotificationService notificationService;
+    private final com.finx.risk.service.RiskActionService riskActionService;
+    private final com.finx.invoice.repository.InvoiceRepository invoiceRepository;
 
     public SettlementAuthorizationService(SettlementInstructionRepository settlementRepository,
                                           DealRepository dealRepository,
@@ -84,7 +86,8 @@ public class SettlementAuthorizationService {
                                           LedgerService ledgerService,
                                           BankingProvider bankingProvider,
                                           AuditService auditService,
-                                          NotificationService notificationService) {
+                                          NotificationService notificationService,
+                                          com.finx.risk.service.RiskActionService riskActionService) {
         this.settlementRepository = settlementRepository;
         this.dealRepository = dealRepository;
         this.milestoneRepository = milestoneRepository;
@@ -98,6 +101,41 @@ public class SettlementAuthorizationService {
         this.bankingProvider = bankingProvider;
         this.auditService = auditService;
         this.notificationService = notificationService;
+        this.riskActionService = riskActionService;
+        this.invoiceRepository = null;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public SettlementAuthorizationService(SettlementInstructionRepository settlementRepository,
+                                          DealRepository dealRepository,
+                                          MilestoneRepository milestoneRepository,
+                                          OrganizationBankAccountRepository bankAccountRepository,
+                                          KybProfileRepository kybProfileRepository,
+                                          DisputeRepository disputeRepository,
+                                          RiskAssessmentRepository riskAssessmentRepository,
+                                          AgreementService agreementService,
+                                          EscrowService escrowService,
+                                          LedgerService ledgerService,
+                                          BankingProvider bankingProvider,
+                                          AuditService auditService,
+                                          NotificationService notificationService,
+                                          com.finx.risk.service.RiskActionService riskActionService,
+                                          @org.springframework.beans.factory.annotation.Autowired(required = false) com.finx.invoice.repository.InvoiceRepository invoiceRepository) {
+        this.settlementRepository = settlementRepository;
+        this.dealRepository = dealRepository;
+        this.milestoneRepository = milestoneRepository;
+        this.bankAccountRepository = bankAccountRepository;
+        this.kybProfileRepository = kybProfileRepository;
+        this.disputeRepository = disputeRepository;
+        this.riskAssessmentRepository = riskAssessmentRepository;
+        this.agreementService = agreementService;
+        this.escrowService = escrowService;
+        this.ledgerService = ledgerService;
+        this.bankingProvider = bankingProvider;
+        this.auditService = auditService;
+        this.notificationService = notificationService;
+        this.riskActionService = riskActionService;
+        this.invoiceRepository = invoiceRepository;
     }
 
     @Transactional
@@ -162,6 +200,15 @@ public class SettlementAuthorizationService {
             throw new BadRequestException("Payout authorization blocked: Milestone must be APPROVED before settlement. Current status: " + milestone.getStatus());
         }
 
+        // Additional evidence gate only; all existing banking authorization controls still apply.
+        if (invoiceRepository != null) {
+            var invoice = invoiceRepository.findFirstByMilestoneIdOrderByCreatedAtDesc(milestone.getId());
+            boolean required = milestone.isInvoiceRequired() || invoice.isPresent();
+            boolean allowed = !required || invoice.map(i -> i.getStatus() == com.finx.invoice.enums.InvoiceStatus.APPROVED).orElse(false);
+            auditService.recordInvoiceGate(currentUser.getId(), invoice.map(com.finx.invoice.entity.Invoice::getId).orElse(null), deal.getId(), milestone.getId(), allowed);
+            if (!allowed) throw new BadRequestException("Payout authorization blocked: Milestone invoice verification is unresolved. Latest required invoice must be human APPROVED.");
+        }
+
         // Check 7: Funds Confirmation / Escrow Balance
         EscrowAccount escrowAccount = escrowService.getOrCreateEscrowAccount(deal.getId(), deal.getCurrency());
         if (escrowAccount.getBalance().compareTo(milestone.getAmount()) < 0) {
@@ -176,12 +223,12 @@ public class SettlementAuthorizationService {
             throw new BadRequestException("Payout authorization blocked: There is an active open dispute on this deal or milestone.");
         }
 
-        // Check 9: Risk Status == CLEARED
-        riskAssessmentRepository.findByEntityTypeAndEntityId(RiskEntityType.DEAL, deal.getId()).ifPresent(assessment -> {
-            if (!assessment.isCleared() || assessment.getRiskLevel() == RiskLevel.CRITICAL) {
-                throw new BadRequestException("Payout authorization blocked: Deal flagged by Risk Engine (" + assessment.getRiskLevel() + ")");
-            }
-        });
+        // Check 9: Versioned buyer/vendor policy and auditable manual-review decisions.
+        List<UUID> riskReviews = riskActionService.payoutReviews(deal.getBuyerId(), deal.getBuyerOrganizationId(),
+                deal.getSellerId(), deal.getSellerOrganizationId(), milestone.getAmount(), deal.getCurrency());
+        if (!riskReviews.isEmpty()) {
+            throw new BadRequestException("Payout requires FinX manual risk review. Review IDs: " + riskReviews);
+        }
 
         // Double-settlement check
         Optional<SettlementInstruction> existingSettled = settlementRepository.findByMilestoneIdAndStatus(

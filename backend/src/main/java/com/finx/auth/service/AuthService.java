@@ -150,13 +150,7 @@ public class AuthService {
                 .orElseThrow(() -> new BadCredentialsException("Invalid email or password"));
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
-            auditService.logEvent(
-                    user.getId(),
-                    "FAILED_LOGIN_ATTEMPT",
-                    "USER",
-                    user.getId().toString(),
-                    "Invalid password attempt for email: " + request.getEmail()
-            );
+            auditService.recordLoginFailure(user.getId());
             throw new BadCredentialsException("Invalid email or password");
         }
 

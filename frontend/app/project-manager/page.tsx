@@ -10,11 +10,14 @@ import { Milestone } from "@/types";
 import { MilestoneStatusBadge } from "@/components/ui/MilestoneStatusBadge";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
+import { OverdueMilestonesCard } from "@/components/milestones/OverdueMilestonesCard";
+import { UpdateDeadlineModal } from "@/components/milestones/UpdateDeadlineModal";
 
 export default function ProjectManagerDashboard() {
     const [milestones, setMilestones] = useState<Milestone[]>([]);
     const [pendingCount, setPendingCount] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
+    const [selectedMilestoneForDeadline, setSelectedMilestoneForDeadline] = useState<Milestone | null>(null);
 
     useEffect(() => {
         milestoneService.getAllMilestones()
@@ -103,6 +106,12 @@ export default function ProjectManagerDashboard() {
                     </Card>
                 </div>
 
+                {/* Overdue Deliverables Escalation Queue */}
+                <OverdueMilestonesCard
+                    roleContext="PROJECT_MANAGER"
+                    onUpdateDeadline={(m) => setSelectedMilestoneForDeadline(m)}
+                />
+
                 <h2 className="text-lg font-semibold text-slate-900 mt-8 mb-4">Milestone Review Queue</h2>
                 <Card className="border-amber-200">
                     <div className="divide-y divide-slate-100">
@@ -132,6 +141,17 @@ export default function ProjectManagerDashboard() {
                         ))}
                     </div>
                 </Card>
+
+                {selectedMilestoneForDeadline && (
+                    <UpdateDeadlineModal
+                        milestone={selectedMilestoneForDeadline}
+                        isOpen={!!selectedMilestoneForDeadline}
+                        onClose={() => setSelectedMilestoneForDeadline(null)}
+                        onSuccess={() => {
+                            milestoneService.getAllMilestones().then(setMilestones);
+                        }}
+                    />
+                )}
             </div>
         </DashboardLayout>
     );

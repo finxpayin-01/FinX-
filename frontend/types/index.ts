@@ -64,7 +64,8 @@ export type MilestoneStatus =
   | "RELEASE_PENDING"
   | "RELEASED"
   | "COMPLETED"
-  | "CANCELLED";
+  | "CANCELLED"
+  | "OVERDUE";
 
 export interface Project {
   id: string;
@@ -184,6 +185,12 @@ export interface Milestone {
   amount: number;
   currency: string;
   dueDate?: string;
+  submissionDeadline?: string;
+  overdue?: boolean;
+  timeUntilDeadline?: string;
+  dealTitle?: string;
+  sellerName?: string;
+  buyerName?: string;
   status: MilestoneStatus;
   deliverables?: Deliverable[];
   createdAt: string;

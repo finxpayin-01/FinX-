@@ -45,6 +45,9 @@ public class Milestone {
     @Column(name = "due_date")
     private Instant dueDate;
 
+    @Column(name = "submission_deadline")
+    private Instant submissionDeadline;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 50)
     private MilestoneStatus status = MilestoneStatus.PENDING;
@@ -60,10 +63,19 @@ public class Milestone {
     @Transient
     private List<Deliverable> deliverables = new ArrayList<>();
 
+    @Column(name="invoice_required", nullable=false)
+    private boolean invoiceRequired;
+    public boolean isInvoiceRequired() { return invoiceRequired; }
+    public void setInvoiceRequired(boolean value) { invoiceRequired=value; }
+
     public Milestone() {
     }
 
     public Milestone(UUID dealId, String title, String description, int sequence, BigDecimal amount, String currency, Instant dueDate) {
+        this(dealId, title, description, sequence, amount, currency, dueDate, dueDate);
+    }
+
+    public Milestone(UUID dealId, String title, String description, int sequence, BigDecimal amount, String currency, Instant dueDate, Instant submissionDeadline) {
         this.dealId = dealId;
         this.title = title;
         this.description = description;
@@ -71,6 +83,7 @@ public class Milestone {
         this.amount = amount;
         this.currency = (currency != null && !currency.isBlank()) ? currency.toUpperCase() : "INR";
         this.dueDate = dueDate;
+        this.submissionDeadline = (submissionDeadline != null) ? submissionDeadline : dueDate;
         this.status = MilestoneStatus.PENDING;
     }
 
@@ -136,6 +149,14 @@ public class Milestone {
 
     public void setDueDate(Instant dueDate) {
         this.dueDate = dueDate;
+    }
+
+    public Instant getSubmissionDeadline() {
+        return submissionDeadline != null ? submissionDeadline : dueDate;
+    }
+
+    public void setSubmissionDeadline(Instant submissionDeadline) {
+        this.submissionDeadline = submissionDeadline;
     }
 
     public MilestoneStatus getStatus() {

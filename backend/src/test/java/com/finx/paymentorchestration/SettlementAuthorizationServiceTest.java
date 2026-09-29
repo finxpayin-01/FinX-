@@ -79,7 +79,10 @@ class SettlementAuthorizationServiceTest {
     private AuditService auditService;
     @Mock
     private NotificationService notificationService;
+    @Mock
+    private com.finx.risk.service.RiskActionService riskActionService;
 
+    @Mock private com.finx.invoice.repository.InvoiceRepository invoiceRepository;
     private SettlementAuthorizationService authorizationService;
 
     private UUID buyerId;
@@ -100,7 +103,7 @@ class SettlementAuthorizationServiceTest {
         authorizationService = new SettlementAuthorizationService(
                 settlementRepository, dealRepository, milestoneRepository, bankAccountRepository,
                 kybProfileRepository, disputeRepository, riskAssessmentRepository, agreementService,
-                escrowService, ledgerService, bankingProvider, auditService, notificationService
+                escrowService, ledgerService, bankingProvider, auditService, notificationService, riskActionService, invoiceRepository
         );
 
         buyerId = UUID.randomUUID();
@@ -273,5 +276,33 @@ class SettlementAuthorizationServiceTest {
         verify(bankingProvider).initiateSettlement(any());
         verify(ledgerService).postJournalEntry(any());
         verify(auditService).logEvent(eq(buyerId), eq("SETTLEMENT_COMPLETED"), eq("SETTLEMENT"), any(), any());
+    }
+
+    private void invoiceGatePrerequisites() {
+        when(milestoneRepository.findByIdForUpdate(milestoneId)).thenReturn(Optional.of(milestone));
+        when(dealRepository.findByIdForUpdate(dealId)).thenReturn(Optional.of(deal));
+        when(kybProfileRepository.existsByOrganizationIdAndStatus(sellerOrgId, VerificationStatus.VERIFIED)).thenReturn(true);
+        when(bankAccountRepository.findByOrganizationIdAndVerificationStatus(sellerOrgId, BankVerificationStatus.VERIFIED)).thenReturn(Optional.of(verifiedBank));
+        when(agreementService.isAgreementFullySigned(dealId)).thenReturn(true);
+    }
+    @Test void requiredInvoiceMissingBlocksBankCall() {
+        invoiceGatePrerequisites(); milestone.setInvoiceRequired(true);
+        assertThatThrownBy(()->authorizationService.authorizeAndInitiateSettlement(new PayoutAuthorizationRequest(milestoneId,null,"Release"),buyerPrincipal)).hasMessageContaining("invoice verification is unresolved");
+        verifyNoInteractions(bankingProvider);
+    }
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(value=com.finx.invoice.enums.InvoiceStatus.class,names={"APPROVED"},mode=org.junit.jupiter.params.provider.EnumSource.Mode.EXCLUDE)
+    void everyUnapprovedInvoiceStateBlocksBankCall(com.finx.invoice.enums.InvoiceStatus status) {
+        invoiceGatePrerequisites(); var invoice=new com.finx.invoice.entity.Invoice(); invoice.setId(UUID.randomUUID()); invoice.setStatus(status);
+        when(invoiceRepository.findFirstByMilestoneIdOrderByCreatedAtDesc(milestoneId)).thenReturn(Optional.of(invoice));
+        assertThatThrownBy(()->authorizationService.authorizeAndInitiateSettlement(new PayoutAuthorizationRequest(milestoneId,null,"Release"),buyerPrincipal)).hasMessageContaining("invoice verification is unresolved");
+        verifyNoInteractions(bankingProvider);
+    }
+    @Test void humanApprovedInvoiceRetainsExistingSettlementControls() {
+        var invoice=new com.finx.invoice.entity.Invoice(); invoice.setId(UUID.randomUUID()); invoice.setStatus(com.finx.invoice.enums.InvoiceStatus.APPROVED);
+        milestone.setInvoiceRequired(true);
+        when(invoiceRepository.findFirstByMilestoneIdOrderByCreatedAtDesc(milestoneId)).thenReturn(Optional.of(invoice));
+        shouldSettleSuccessfullyWhenAllGatesPassed();
+        verify(auditService).recordInvoiceGate(eq(buyerId),eq(invoice.getId()),eq(dealId),eq(milestoneId),eq(true));
     }
 }

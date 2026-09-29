@@ -24,6 +24,9 @@ public class OrganizationBankAccount {
     @Column(name = "account_number_hash", nullable = false)
     private String accountNumberHash;
 
+    @Column(name = "encrypted_account_number")
+    private String encryptedAccountNumber;
+
     @Column(name = "ifsc_code", nullable = false)
     private String ifscCode;
 
@@ -33,6 +36,9 @@ public class OrganizationBankAccount {
     @Column(name = "branch_name")
     private String branchName;
 
+    @Column(name = "account_type", nullable = false)
+    private String accountType;
+
     @Column(name = "is_primary", nullable = false)
     private boolean isPrimary;
 
@@ -40,8 +46,26 @@ public class OrganizationBankAccount {
     @Column(name = "verification_status", nullable = false)
     private BankVerificationStatus verificationStatus;
 
+    @Column(name = "provider")
+    private String provider;
+
+    @Column(name = "provider_reference_id")
+    private String providerReferenceId;
+
     @Column(name = "verification_reference")
     private String verificationReference;
+
+    @Column(name = "name_match_score")
+    private Double nameMatchScore;
+
+    @Column(name = "name_match_status")
+    private String nameMatchStatus;
+
+    @Column(name = "name_match_reason")
+    private String nameMatchReason;
+
+    @Column(name = "registered_name_returned")
+    private String registeredNameReturned;
 
     @Column(name = "verified_at")
     private Instant verifiedAt;
@@ -54,6 +78,7 @@ public class OrganizationBankAccount {
 
     public OrganizationBankAccount() {
         this.id = UUID.randomUUID();
+        this.accountType = "CURRENT";
         this.isPrimary = false;
         this.verificationStatus = BankVerificationStatus.NOT_STARTED;
         this.createdAt = Instant.now();
@@ -89,18 +114,34 @@ public class OrganizationBankAccount {
     public void setAccountNumberMasked(String accountNumberMasked) { this.accountNumberMasked = accountNumberMasked; }
     public String getAccountNumberHash() { return accountNumberHash; }
     public void setAccountNumberHash(String accountNumberHash) { this.accountNumberHash = accountNumberHash; }
+    public String getEncryptedAccountNumber() { return encryptedAccountNumber; }
+    public void setEncryptedAccountNumber(String encryptedAccountNumber) { this.encryptedAccountNumber = encryptedAccountNumber; }
     public String getIfscCode() { return ifscCode; }
     public void setIfscCode(String ifscCode) { this.ifscCode = ifscCode; }
     public String getBankName() { return bankName; }
     public void setBankName(String bankName) { this.bankName = bankName; }
     public String getBranchName() { return branchName; }
     public void setBranchName(String branchName) { this.branchName = branchName; }
+    public String getAccountType() { return accountType; }
+    public void setAccountType(String accountType) { this.accountType = accountType; }
     public boolean isPrimary() { return isPrimary; }
     public void setPrimary(boolean primary) { isPrimary = primary; }
     public BankVerificationStatus getVerificationStatus() { return verificationStatus; }
     public void setVerificationStatus(BankVerificationStatus verificationStatus) { this.verificationStatus = verificationStatus; }
+    public String getProvider() { return provider; }
+    public void setProvider(String provider) { this.provider = provider; }
+    public String getProviderReferenceId() { return providerReferenceId; }
+    public void setProviderReferenceId(String providerReferenceId) { this.providerReferenceId = providerReferenceId; }
     public String getVerificationReference() { return verificationReference; }
     public void setVerificationReference(String verificationReference) { this.verificationReference = verificationReference; }
+    public Double getNameMatchScore() { return nameMatchScore; }
+    public void setNameMatchScore(Double nameMatchScore) { this.nameMatchScore = nameMatchScore; }
+    public String getNameMatchStatus() { return nameMatchStatus; }
+    public void setNameMatchStatus(String nameMatchStatus) { this.nameMatchStatus = nameMatchStatus; }
+    public String getNameMatchReason() { return nameMatchReason; }
+    public void setNameMatchReason(String nameMatchReason) { this.nameMatchReason = nameMatchReason; }
+    public String getRegisteredNameReturned() { return registeredNameReturned; }
+    public void setRegisteredNameReturned(String registeredNameReturned) { this.registeredNameReturned = registeredNameReturned; }
     public Instant getVerifiedAt() { return verifiedAt; }
     public void setVerifiedAt(Instant verifiedAt) { this.verifiedAt = verifiedAt; }
     public Instant getCreatedAt() { return createdAt; }

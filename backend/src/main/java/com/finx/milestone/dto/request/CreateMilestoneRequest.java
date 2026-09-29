@@ -9,6 +9,10 @@ import java.time.Instant;
 
 public class CreateMilestoneRequest {
 
+    private boolean invoiceRequired;
+    public boolean isInvoiceRequired() { return invoiceRequired; }
+    public void setInvoiceRequired(boolean value) { invoiceRequired=value; }
+
     @NotBlank(message = "Title is required")
     private String title;
 
@@ -24,6 +28,7 @@ public class CreateMilestoneRequest {
     private String currency = "INR";
 
     private Instant dueDate;
+    private Instant submissionDeadline;
 
     public CreateMilestoneRequest() {
     }
@@ -74,5 +79,13 @@ public class CreateMilestoneRequest {
 
     public void setDueDate(Instant dueDate) {
         this.dueDate = dueDate;
+    }
+
+    public Instant getSubmissionDeadline() {
+        return submissionDeadline != null ? submissionDeadline : dueDate;
+    }
+
+    public void setSubmissionDeadline(Instant submissionDeadline) {
+        this.submissionDeadline = submissionDeadline;
     }
 }

@@ -44,19 +44,25 @@ public class MilestoneService {
     private final AuditService auditService;
     private final NotificationService notificationService;
     private final EscrowService escrowService;
+    private final com.finx.milestone.reminder.MilestoneReminderService milestoneReminderService;
+    private final com.finx.common.time.FinxClock clock;
 
     public MilestoneService(MilestoneRepository milestoneRepository,
                             DeliverableRepository deliverableRepository,
                             DealRepository dealRepository,
                             AuditService auditService,
                             NotificationService notificationService,
-                            EscrowService escrowService) {
+                            EscrowService escrowService,
+                            com.finx.milestone.reminder.MilestoneReminderService milestoneReminderService,
+                            com.finx.common.time.FinxClock clock) {
         this.milestoneRepository = milestoneRepository;
         this.deliverableRepository = deliverableRepository;
         this.dealRepository = dealRepository;
         this.auditService = auditService;
         this.notificationService = notificationService;
         this.escrowService = escrowService;
+        this.milestoneReminderService = milestoneReminderService;
+        this.clock = clock;
     }
 
     @Transactional
@@ -100,6 +106,9 @@ public class MilestoneService {
                 ? request.getCurrency().toUpperCase()
                 : deal.getCurrency();
 
+        Instant deadline = request.getSubmissionDeadline() != null ? request.getSubmissionDeadline() : request.getDueDate();
+        Instant dueDate = request.getDueDate() != null ? request.getDueDate() : deadline;
+
         Milestone milestone = new Milestone(
                 deal.getId(),
                 request.getTitle().trim(),
@@ -107,11 +116,25 @@ public class MilestoneService {
                 sequence,
                 request.getAmount(),
                 currency,
-                request.getDueDate()
+                dueDate,
+                deadline
         );
 
+        milestone.setInvoiceRequired(request.isInvoiceRequired());
         Milestone saved = milestoneRepository.saveAndFlush(milestone);
         escrowService.ensureEscrowAccount(deal.getId(), deal.getCurrency());
+
+        // Schedule persistent deadline reminders
+        if (saved.getSubmissionDeadline() != null) {
+            milestoneReminderService.scheduleRemindersForMilestone(saved, deal, 1);
+            auditService.logEvent(
+                    currentUser.getId(),
+                    "MILESTONE_DEADLINE_CREATED",
+                    "MILESTONE",
+                    saved.getId().toString(),
+                    "Created milestone submission deadline: " + saved.getSubmissionDeadline()
+            );
+        }
 
         auditService.logEvent(
                 currentUser.getId(),
@@ -262,12 +285,23 @@ public class MilestoneService {
         milestone.setStatus(MilestoneStatus.UNDER_REVIEW);
         milestoneRepository.saveAndFlush(milestone);
 
+        // Cancel all remaining pre-deadline reminders since submission has been made
+        milestoneReminderService.cancelPendingPreDeadlineReminders(milestoneId);
+
         auditService.logEvent(
                 currentUser.getId(),
                 "DELIVERABLE_SUBMITTED",
                 "DELIVERABLE",
                 savedDeliverable.getId().toString(),
                 "Submitted deliverable: " + savedDeliverable.getFileName() + " for milestone: " + milestone.getTitle()
+        );
+
+        auditService.logEvent(
+                currentUser.getId(),
+                "MILESTONE_SUBMITTED",
+                "MILESTONE",
+                milestoneId.toString(),
+                "Vendor submitted deliverable for milestone: " + milestone.getTitle()
         );
 
         notificationService.sendNotification(
@@ -390,6 +424,57 @@ public class MilestoneService {
 
         log.info("Milestone rejected: id={} dealId={} reason={}", updated.getId(), deal.getId(), rejectionReason);
         return MilestoneResponse.fromEntity(updated);
+    }
+
+    @Transactional
+    public MilestoneResponse updateMilestoneDeadline(UUID milestoneId, com.finx.milestone.dto.request.UpdateDeadlineRequest request, UserPrincipal currentUser) {
+        Milestone updated = milestoneReminderService.updateMilestoneDeadline(
+                milestoneId, request.getSubmissionDeadline(), currentUser, request.getReason());
+        List<Deliverable> deliverables = deliverableRepository.findByMilestoneIdOrderBySubmittedAtDesc(milestoneId);
+        updated.setDeliverables(deliverables);
+        return MilestoneResponse.fromEntity(updated);
+    }
+
+    @Transactional(readOnly = true)
+    public List<MilestoneResponse> getUpcomingMilestones(UserPrincipal currentUser) {
+        List<Deal> userDeals = getUserDeals(currentUser);
+        if (userDeals.isEmpty()) return Collections.emptyList();
+        List<UUID> dealIds = userDeals.stream().map(Deal::getId).collect(Collectors.toList());
+        List<Milestone> milestones = milestoneRepository.findUpcomingByDealIds(dealIds, clock.now());
+        return milestones.stream()
+                .map(m -> {
+                    List<Deliverable> deliverables = deliverableRepository.findByMilestoneIdOrderBySubmittedAtDesc(m.getId());
+                    m.setDeliverables(deliverables);
+                    return MilestoneResponse.fromEntity(m);
+                })
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<MilestoneResponse> getOverdueMilestones(UserPrincipal currentUser) {
+        List<Deal> userDeals = getUserDeals(currentUser);
+        if (userDeals.isEmpty()) return Collections.emptyList();
+        List<UUID> dealIds = userDeals.stream().map(Deal::getId).collect(Collectors.toList());
+        List<Milestone> milestones = milestoneRepository.findOverdueByDealIds(dealIds, clock.now());
+        return milestones.stream()
+                .map(m -> {
+                    List<Deliverable> deliverables = deliverableRepository.findByMilestoneIdOrderBySubmittedAtDesc(m.getId());
+                    m.setDeliverables(deliverables);
+                    return MilestoneResponse.fromEntity(m);
+                })
+                .collect(Collectors.toList());
+    }
+
+    private List<Deal> getUserDeals(UserPrincipal currentUser) {
+        if (currentUser.getRole() == Role.ADMIN || currentUser.getRole() == Role.FINANCE) {
+            return dealRepository.findAll();
+        } else if (currentUser.getRole() == Role.BUYER) {
+            return dealRepository.findByBuyerId(currentUser.getId());
+        } else if (currentUser.getRole() == Role.PROJECT_MANAGER) {
+            return dealRepository.findByProjectManagerId(currentUser.getId());
+        } else {
+            return dealRepository.findBySellerId(currentUser.getId());
+        }
     }
 
     private void validatePartyAccess(Deal deal, UserPrincipal currentUser) {
