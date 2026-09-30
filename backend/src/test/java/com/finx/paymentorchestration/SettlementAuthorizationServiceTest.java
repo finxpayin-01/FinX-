@@ -2,7 +2,6 @@ package com.finx.paymentorchestration;
 
 import com.finx.agreement.service.AgreementService;
 import com.finx.audit.service.AuditService;
-import com.finx.banking.dto.BankingDtos.SettlementResult;
 import com.finx.banking.provider.BankingProvider;
 import com.finx.common.enums.Role;
 import com.finx.common.enums.UserStatus;
@@ -12,8 +11,6 @@ import com.finx.deal.repository.DealRepository;
 import com.finx.dispute.repository.DisputeRepository;
 import com.finx.escrow.entity.EscrowAccount;
 import com.finx.escrow.service.EscrowService;
-import com.finx.exception.BadRequestException;
-import com.finx.exception.UnauthorizedException;
 import com.finx.ledger.service.LedgerService;
 import com.finx.milestone.entity.Milestone;
 import com.finx.milestone.entity.MilestoneStatus;
@@ -25,24 +22,26 @@ import com.finx.org.repository.OrganizationBankAccountRepository;
 import com.finx.paymentorchestration.dto.PaymentOrchestrationDtos.PayoutAuthorizationRequest;
 import com.finx.paymentorchestration.dto.PaymentOrchestrationDtos.SettlementResponse;
 import com.finx.paymentorchestration.entity.SettlementInstruction;
+import com.finx.paymentorchestration.enums.PaymentOrchestrationEnums.SettlementStatus;
 import com.finx.paymentorchestration.repository.SettlementInstructionRepository;
 import com.finx.paymentorchestration.service.SettlementAuthorizationService;
 import com.finx.risk.repository.RiskAssessmentRepository;
 import com.finx.security.service.UserPrincipal;
-import com.finx.verification.enums.VerificationStatus;
 import com.finx.verification.repository.KybProfileRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -55,34 +54,49 @@ class SettlementAuthorizationServiceTest {
 
     @Mock
     private SettlementInstructionRepository settlementRepository;
+
     @Mock
     private DealRepository dealRepository;
+
     @Mock
     private MilestoneRepository milestoneRepository;
+
     @Mock
     private OrganizationBankAccountRepository bankAccountRepository;
+
     @Mock
     private KybProfileRepository kybProfileRepository;
+
     @Mock
     private DisputeRepository disputeRepository;
+
     @Mock
     private RiskAssessmentRepository riskAssessmentRepository;
+
     @Mock
     private AgreementService agreementService;
+
     @Mock
     private EscrowService escrowService;
+
     @Mock
     private LedgerService ledgerService;
+
     @Mock
     private BankingProvider bankingProvider;
+
     @Mock
     private AuditService auditService;
+
     @Mock
     private NotificationService notificationService;
+
     @Mock
     private com.finx.risk.service.RiskActionService riskActionService;
 
-    @Mock private com.finx.invoice.repository.InvoiceRepository invoiceRepository;
+    @Mock
+    private com.finx.invoice.repository.InvoiceRepository invoiceRepository;
+
     private SettlementAuthorizationService authorizationService;
 
     private UUID buyerId;
@@ -144,165 +158,113 @@ class SettlementAuthorizationServiceTest {
     }
 
     @Test
-    @DisplayName("Gate 10: Unauthorized user cannot authorize payout")
+    @DisplayName("B04 Containment: authorizeAndInitiateSettlement fails closed with AccessDeniedException for unauthorized user")
     void shouldBlockUnauthorizedUser() {
-        when(milestoneRepository.findByIdForUpdate(milestoneId)).thenReturn(Optional.of(milestone));
-        when(dealRepository.findByIdForUpdate(dealId)).thenReturn(Optional.of(deal));
-
         PayoutAuthorizationRequest req = new PayoutAuthorizationRequest(milestoneId, "Payout auth", null);
 
         assertThatThrownBy(() -> authorizationService.authorizeAndInitiateSettlement(req, randomPrincipal))
-                .isInstanceOf(UnauthorizedException.class)
-                .hasMessageContaining("Only the corporate buyer or a FinX administrator");
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("Settlement payout execution is disabled pending settlement orchestration redesign");
+
+        verifyNoInteractions(bankingProvider);
     }
 
     @Test
-    @DisplayName("Gate 1: Unverified vendor KYB blocks settlement disbursement")
-    void shouldBlockWhenVendorKybNotVerified() {
-        when(milestoneRepository.findByIdForUpdate(milestoneId)).thenReturn(Optional.of(milestone));
-        when(dealRepository.findByIdForUpdate(dealId)).thenReturn(Optional.of(deal));
-        when(kybProfileRepository.existsByOrganizationIdAndStatus(sellerOrgId, VerificationStatus.VERIFIED)).thenReturn(false);
-
+    @DisplayName("B04 Containment: authorizeAndInitiateSettlement fails closed with AccessDeniedException for buyer")
+    void shouldFailClosedForBuyer() {
         PayoutAuthorizationRequest req = new PayoutAuthorizationRequest(milestoneId, "Payout auth", null);
 
         assertThatThrownBy(() -> authorizationService.authorizeAndInitiateSettlement(req, buyerPrincipal))
-                .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("Vendor KYB is not verified");
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("Settlement payout execution is disabled pending settlement orchestration redesign");
+
+        verifyNoInteractions(bankingProvider);
     }
 
     @Test
-    @DisplayName("Gate 2: Unverified vendor bank account blocks settlement disbursement")
-    void shouldBlockWhenVendorBankNotVerified() {
-        when(milestoneRepository.findByIdForUpdate(milestoneId)).thenReturn(Optional.of(milestone));
-        when(dealRepository.findByIdForUpdate(dealId)).thenReturn(Optional.of(deal));
-        when(kybProfileRepository.existsByOrganizationIdAndStatus(sellerOrgId, VerificationStatus.VERIFIED)).thenReturn(true);
-        when(bankAccountRepository.findByOrganizationIdAndVerificationStatus(sellerOrgId, BankVerificationStatus.VERIFIED))
-                .thenReturn(Optional.empty());
-
+    @DisplayName("B04 Containment: authorizeAndInitiateSettlement fails closed with AccessDeniedException for admin")
+    void shouldFailClosedForAdmin() {
+        UserPrincipal adminPrincipal = new UserPrincipal(UUID.randomUUID(), "Admin", "admin@finx.com", "pass", Role.ADMIN, UserStatus.ACTIVE,
+                List.of(new SimpleGrantedAuthority(Role.ADMIN.getAuthority())));
         PayoutAuthorizationRequest req = new PayoutAuthorizationRequest(milestoneId, "Payout auth", null);
 
-        assertThatThrownBy(() -> authorizationService.authorizeAndInitiateSettlement(req, buyerPrincipal))
-                .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("Vendor verified bank account not found");
+        assertThatThrownBy(() -> authorizationService.authorizeAndInitiateSettlement(req, adminPrincipal))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("Settlement payout execution is disabled pending settlement orchestration redesign");
+
+        verifyNoInteractions(bankingProvider);
     }
 
     @Test
-    @DisplayName("Gate 5: Unsigned deal agreement blocks settlement disbursement")
-    void shouldBlockWhenAgreementNotFullySigned() {
-        when(milestoneRepository.findByIdForUpdate(milestoneId)).thenReturn(Optional.of(milestone));
-        when(dealRepository.findByIdForUpdate(dealId)).thenReturn(Optional.of(deal));
-        when(kybProfileRepository.existsByOrganizationIdAndStatus(sellerOrgId, VerificationStatus.VERIFIED)).thenReturn(true);
-        when(bankAccountRepository.findByOrganizationIdAndVerificationStatus(sellerOrgId, BankVerificationStatus.VERIFIED))
-                .thenReturn(Optional.of(verifiedBank));
-        when(agreementService.isAgreementFullySigned(dealId)).thenReturn(false);
-
+    @DisplayName("B04 Containment: authorizeAndInitiateSettlement fails closed with AccessDeniedException for null principal")
+    void shouldFailClosedForNullPrincipal() {
         PayoutAuthorizationRequest req = new PayoutAuthorizationRequest(milestoneId, "Payout auth", null);
 
-        assertThatThrownBy(() -> authorizationService.authorizeAndInitiateSettlement(req, buyerPrincipal))
-                .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("Deal agreement is not signed by both parties");
+        assertThatThrownBy(() -> authorizationService.authorizeAndInitiateSettlement(req, null))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("Settlement payout execution is disabled pending settlement orchestration redesign");
+
+        verifyNoInteractions(bankingProvider);
     }
 
     @Test
-    @DisplayName("Gate 6: Unapproved milestone (e.g. UNDER_REVIEW) blocks settlement disbursement")
-    void shouldBlockWhenMilestoneNotApproved() {
-        milestone.setStatus(MilestoneStatus.UNDER_REVIEW);
-        when(milestoneRepository.findByIdForUpdate(milestoneId)).thenReturn(Optional.of(milestone));
-        when(dealRepository.findByIdForUpdate(dealId)).thenReturn(Optional.of(deal));
-        when(kybProfileRepository.existsByOrganizationIdAndStatus(sellerOrgId, VerificationStatus.VERIFIED)).thenReturn(true);
-        when(bankAccountRepository.findByOrganizationIdAndVerificationStatus(sellerOrgId, BankVerificationStatus.VERIFIED))
-                .thenReturn(Optional.of(verifiedBank));
-        when(agreementService.isAgreementFullySigned(dealId)).thenReturn(true);
-
-        PayoutAuthorizationRequest req = new PayoutAuthorizationRequest(milestoneId, "Payout auth", null);
-
-        assertThatThrownBy(() -> authorizationService.authorizeAndInitiateSettlement(req, buyerPrincipal))
-                .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("Milestone must be APPROVED before settlement");
-    }
-
-    @Test
-    @DisplayName("Gate 7: Insufficient escrow pool balance blocks settlement disbursement")
-    void shouldBlockWhenEscrowBalanceInsufficient() {
-        when(milestoneRepository.findByIdForUpdate(milestoneId)).thenReturn(Optional.of(milestone));
-        when(dealRepository.findByIdForUpdate(dealId)).thenReturn(Optional.of(deal));
-        when(kybProfileRepository.existsByOrganizationIdAndStatus(sellerOrgId, VerificationStatus.VERIFIED)).thenReturn(true);
-        when(bankAccountRepository.findByOrganizationIdAndVerificationStatus(sellerOrgId, BankVerificationStatus.VERIFIED))
-                .thenReturn(Optional.of(verifiedBank));
-        when(agreementService.isAgreementFullySigned(dealId)).thenReturn(true);
-
-        escrowAccount.setBalance(new BigDecimal("1000.00")); // Required 50,000
-        when(escrowService.getOrCreateEscrowAccount(dealId, "INR")).thenReturn(escrowAccount);
-
-        PayoutAuthorizationRequest req = new PayoutAuthorizationRequest(milestoneId, "Payout auth", null);
-
-        assertThatThrownBy(() -> authorizationService.authorizeAndInitiateSettlement(req, buyerPrincipal))
-                .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("Insufficient escrow pool balance");
-    }
-
-    @Test
-    @DisplayName("Happy Path: All 10 gates satisfied -> settlement instruction initiated and ledger posted")
-    void shouldSettleSuccessfullyWhenAllGatesPassed() {
-        when(milestoneRepository.findByIdForUpdate(milestoneId)).thenReturn(Optional.of(milestone));
-        when(dealRepository.findByIdForUpdate(dealId)).thenReturn(Optional.of(deal));
-        when(kybProfileRepository.existsByOrganizationIdAndStatus(sellerOrgId, VerificationStatus.VERIFIED)).thenReturn(true);
-        when(bankAccountRepository.findByOrganizationIdAndVerificationStatus(sellerOrgId, BankVerificationStatus.VERIFIED))
-                .thenReturn(Optional.of(verifiedBank));
-        when(agreementService.isAgreementFullySigned(dealId)).thenReturn(true);
-        when(escrowService.getOrCreateEscrowAccount(dealId, "INR")).thenReturn(escrowAccount);
-        when(settlementRepository.findByMilestoneIdAndStatus(milestoneId, com.finx.paymentorchestration.enums.PaymentOrchestrationEnums.SettlementStatus.SETTLED))
-                .thenReturn(Optional.empty());
-
-        when(bankingProvider.initiateSettlement(any())).thenReturn(
-                new SettlementResult("EXT-SET-888", "PROCESSED", "UTR9988776655", Instant.now(), "Settlement successful")
-        );
-
-        when(settlementRepository.save(any(SettlementInstruction.class))).thenAnswer(i -> {
-            SettlementInstruction inst = i.getArgument(0);
-            inst.setId(UUID.randomUUID());
-            return inst;
-        });
-
+    @DisplayName("B04 Containment: bankingProvider.initiateSettlement is never called and no ledger/audit mutation occurs")
+    void shouldNeverCallBankingProviderOrMutateFinancialState() {
         PayoutAuthorizationRequest req = new PayoutAuthorizationRequest(milestoneId, "Milestone 1 work completed", "IDEMP-KEY-999");
 
-        SettlementResponse response = authorizationService.authorizeAndInitiateSettlement(req, buyerPrincipal);
+        assertThatThrownBy(() -> authorizationService.authorizeAndInitiateSettlement(req, buyerPrincipal))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("Settlement payout execution is disabled pending settlement orchestration redesign");
 
-        assertThat(response).isNotNull();
-        assertThat(response.settlementReference()).startsWith("FINX-SET-");
-        assertThat(response.status().name()).isEqualTo("SETTLED");
-        assertThat(response.utrNumber()).isEqualTo("UTR9988776655");
-
-        verify(bankingProvider).initiateSettlement(any());
-        verify(ledgerService).postJournalEntry(any());
-        verify(auditService).logEvent(eq(buyerId), eq("SETTLEMENT_COMPLETED"), eq("SETTLEMENT"), any(), any());
+        verify(bankingProvider, never()).initiateSettlement(any());
+        verify(ledgerService, never()).postJournalEntry(any());
+        verify(settlementRepository, never()).save(any());
+        verify(auditService, never()).logEvent(any(), any(), any(), any(), any());
+        verify(notificationService, never()).sendNotification(any(), any(), any(), any());
     }
 
-    private void invoiceGatePrerequisites() {
-        when(milestoneRepository.findByIdForUpdate(milestoneId)).thenReturn(Optional.of(milestone));
-        when(dealRepository.findByIdForUpdate(dealId)).thenReturn(Optional.of(deal));
-        when(kybProfileRepository.existsByOrganizationIdAndStatus(sellerOrgId, VerificationStatus.VERIFIED)).thenReturn(true);
-        when(bankAccountRepository.findByOrganizationIdAndVerificationStatus(sellerOrgId, BankVerificationStatus.VERIFIED)).thenReturn(Optional.of(verifiedBank));
-        when(agreementService.isAgreementFullySigned(dealId)).thenReturn(true);
-    }
-    @Test void requiredInvoiceMissingBlocksBankCall() {
-        invoiceGatePrerequisites(); milestone.setInvoiceRequired(true);
-        assertThatThrownBy(()->authorizationService.authorizeAndInitiateSettlement(new PayoutAuthorizationRequest(milestoneId,null,"Release"),buyerPrincipal)).hasMessageContaining("invoice verification is unresolved");
-        verifyNoInteractions(bankingProvider);
-    }
-    @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.EnumSource(value=com.finx.invoice.enums.InvoiceStatus.class,names={"APPROVED"},mode=org.junit.jupiter.params.provider.EnumSource.Mode.EXCLUDE)
-    void everyUnapprovedInvoiceStateBlocksBankCall(com.finx.invoice.enums.InvoiceStatus status) {
-        invoiceGatePrerequisites(); var invoice=new com.finx.invoice.entity.Invoice(); invoice.setId(UUID.randomUUID()); invoice.setStatus(status);
-        when(invoiceRepository.findFirstByMilestoneIdOrderByCreatedAtDesc(milestoneId)).thenReturn(Optional.of(invoice));
-        assertThatThrownBy(()->authorizationService.authorizeAndInitiateSettlement(new PayoutAuthorizationRequest(milestoneId,null,"Release"),buyerPrincipal)).hasMessageContaining("invoice verification is unresolved");
-        verifyNoInteractions(bankingProvider);
-    }
-    @Test void humanApprovedInvoiceRetainsExistingSettlementControls() {
-        var invoice=new com.finx.invoice.entity.Invoice(); invoice.setId(UUID.randomUUID()); invoice.setStatus(com.finx.invoice.enums.InvoiceStatus.APPROVED);
+    @Test
+    @DisplayName("B04 Containment: invoice required or unapproved invoice path fails closed before bank call")
+    void requiredInvoiceMissingBlocksBankCall() {
         milestone.setInvoiceRequired(true);
-        when(invoiceRepository.findFirstByMilestoneIdOrderByCreatedAtDesc(milestoneId)).thenReturn(Optional.of(invoice));
-        shouldSettleSuccessfullyWhenAllGatesPassed();
-        verify(auditService).recordInvoiceGate(eq(buyerId),eq(invoice.getId()),eq(dealId),eq(milestoneId),eq(true));
+        assertThatThrownBy(() -> authorizationService.authorizeAndInitiateSettlement(
+                new PayoutAuthorizationRequest(milestoneId, null, "Release"), buyerPrincipal))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("Settlement payout execution is disabled pending settlement orchestration redesign");
+
+        verifyNoInteractions(bankingProvider);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = com.finx.invoice.enums.InvoiceStatus.class)
+    @DisplayName("B04 Containment: any invoice state fails closed before bank call")
+    void allInvoiceStatesFailClosedBeforeBankCall(com.finx.invoice.enums.InvoiceStatus status) {
+        assertThatThrownBy(() -> authorizationService.authorizeAndInitiateSettlement(
+                new PayoutAuthorizationRequest(milestoneId, null, "Release"), buyerPrincipal))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("Settlement payout execution is disabled pending settlement orchestration redesign");
+
+        verifyNoInteractions(bankingProvider);
+    }
+
+    @Test
+    @DisplayName("Historical settlement reads getSettlementsForDeal remain functional")
+    void historicalSettlementReadsRemainFunctional() {
+        SettlementInstruction inst = new SettlementInstruction(
+                "FINX-SET-HIST-01", dealId, milestoneId, sellerOrgId, verifiedBank.getId(),
+                new BigDecimal("50000.00"), "INR", "MOCK", "IDEMP-01", buyerId
+        );
+        inst.setStatus(SettlementStatus.SETTLED);
+        inst.setUtrNumber("UTR-HIST-999");
+        inst.setSettledAt(Instant.now());
+
+        when(settlementRepository.findByDealIdOrderByCreatedAtDesc(dealId)).thenReturn(List.of(inst));
+
+        List<SettlementResponse> responses = authorizationService.getSettlementsForDeal(dealId, buyerPrincipal);
+
+        assertThat(responses).hasSize(1);
+        assertThat(responses.get(0).settlementReference()).isEqualTo("FINX-SET-HIST-01");
+        assertThat(responses.get(0).status()).isEqualTo(SettlementStatus.SETTLED);
+        assertThat(responses.get(0).utrNumber()).isEqualTo("UTR-HIST-999");
     }
 }

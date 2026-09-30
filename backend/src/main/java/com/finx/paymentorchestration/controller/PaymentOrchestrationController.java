@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -62,12 +63,11 @@ public class PaymentOrchestrationController {
     }
 
     @PostMapping({"/settlements", "/settlements/authorize"})
-    @Operation(summary = "Authorize and execute milestone settlement payout", description = "Enforces all 10 trust & verification gates before bank settlement")
+    @Operation(summary = "Authorize and execute milestone settlement payout (disabled)", description = "Settlement payout execution is disabled pending settlement orchestration redesign")
     public ResponseEntity<ApiResponse<SettlementResponse>> authorizeSettlement(
             @Valid @RequestBody PayoutAuthorizationRequest request,
             @AuthenticationPrincipal UserPrincipal currentUser) {
-        SettlementResponse response = settlementService.authorizeAndInitiateSettlement(request, currentUser);
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("Settlement payout authorized and disbursed", response));
+        throw new AccessDeniedException("Settlement payout execution is disabled pending settlement orchestration redesign");
     }
 
     @GetMapping("/settlements/deal/{dealId}")

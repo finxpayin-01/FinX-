@@ -291,11 +291,10 @@ public class InvoiceServiceIntegrationTest {
 
         PayoutAuthorizationRequest payoutReq = new PayoutAuthorizationRequest(milestone.getId(), "idem-key-123", "Release payout");
 
-        BadRequestException ex = assertThrows(BadRequestException.class, () ->
+        // Under B04 containment, settlement execution fails closed with AccessDeniedException
+        assertThrows(org.springframework.security.access.AccessDeniedException.class, () ->
                 settlementAuthorizationService.authorizeAndInitiateSettlement(payoutReq, toPrincipal(buyer))
         );
-
-        assertTrue(ex.getMessage().contains("invoice verification is unresolved"), "Message should mention invoice verification unresolved, got: " + ex.getMessage());
     }
 
     @Test

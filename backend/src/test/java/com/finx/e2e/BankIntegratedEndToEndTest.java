@@ -41,11 +41,12 @@ import com.finx.user.repository.UserRepository;
 import com.finx.verification.dto.VerificationDtos.*;
 import com.finx.verification.enums.ConsentType;
 import com.finx.paymentorchestration.TestEscrowFundingFixture;
+import com.finx.paymentorchestration.TestSettlementFixture;
 
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-@Import({RazorpayTestConfiguration.class, TestEscrowFundingFixture.class})
+@Import({RazorpayTestConfiguration.class, TestEscrowFundingFixture.class, TestSettlementFixture.class})
 class BankIntegratedEndToEndTest {
 
     @Autowired
@@ -62,6 +63,9 @@ class BankIntegratedEndToEndTest {
 
     @Autowired
     private TestEscrowFundingFixture testEscrowFundingFixture;
+
+    @Autowired
+    private TestSettlementFixture testSettlementFixture;
 
     @Test
     @DisplayName("Complete Bank-Integrated B2B Milestone Payment Lifecycle E2E")
@@ -356,9 +360,7 @@ class BankIntegratedEndToEndTest {
         mockMvc.perform(post("/api/v1/milestones/" + ms1Id + "/approve")
                         .header("Authorization", "Bearer " + buyerToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("APPROVED"));
-
-        // 14. 10-Gate Payout Authorization & Bank Settlement Disbursement
+                .andExpect(jsonPath("$.data.status").value("APPROVED"));        // 14. Payout Authorization & Bank Settlement Disbursement is disabled under B04 (403 Forbidden)
         PayoutAuthorizationRequest payoutReq = new PayoutAuthorizationRequest(
                 ms1Id,
                 "Milestone 1 work approved by VP Engineering",
@@ -368,12 +370,9 @@ class BankIntegratedEndToEndTest {
                         .header("Authorization", "Bearer " + buyerToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(payoutReq)))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.status").value("SETTLED"))
-                .andExpect(jsonPath("$.data.utrNumber").isNotEmpty())
-                .andExpect(jsonPath("$.data.amount").value(400000.0));
+                .andExpect(status().isForbidden());
 
-        // 15. Attempt duplicate payout authorization with a different key -> blocked with 400 Bad Request
+        // 15. Attempt duplicate payout authorization with a different key -> also forbidden (403)
         PayoutAuthorizationRequest duplicateReq = new PayoutAuthorizationRequest(
                 ms1Id,
                 "Milestone 1 duplicate attempt",
@@ -383,7 +382,11 @@ class BankIntegratedEndToEndTest {
                         .header("Authorization", "Bearer " + buyerToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(duplicateReq)))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isForbidden());
+
+        // Use test-only fixture to simulate settled milestone state for downstream integration tests
+        testSettlementFixture.simulateSettlement(dealId, ms1Id, buyerId, vendorOrgId, bankAccountId,
+                new BigDecimal("400000.00"), "INR", "UTR-BANK-SETTL-" + ts);
 
         // 16. Verify Milestone status is now COMPLETED
         mockMvc.perform(get("/api/v1/milestones/" + ms1Id)
