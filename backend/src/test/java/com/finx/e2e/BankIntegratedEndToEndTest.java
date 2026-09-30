@@ -40,11 +40,12 @@ import com.finx.user.entity.User;
 import com.finx.user.repository.UserRepository;
 import com.finx.verification.dto.VerificationDtos.*;
 import com.finx.verification.enums.ConsentType;
+import com.finx.paymentorchestration.TestEscrowFundingFixture;
 
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-@Import(RazorpayTestConfiguration.class)
+@Import({RazorpayTestConfiguration.class, TestEscrowFundingFixture.class})
 class BankIntegratedEndToEndTest {
 
     @Autowired
@@ -58,6 +59,9 @@ class BankIntegratedEndToEndTest {
 
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
+
+    @Autowired
+    private TestEscrowFundingFixture testEscrowFundingFixture;
 
     @Test
     @DisplayName("Complete Bank-Integrated B2B Milestone Payment Lifecycle E2E")
@@ -304,7 +308,7 @@ class BankIntegratedEndToEndTest {
         UUID instructionId = UUID.fromString(objectMapper.readTree(payInstRes.getResponse().getContentAsString())
                 .get("data").get("id").asText());
 
-        // 11. Confirm Bank Payment Received (Funds Arrived at Nodal Account)
+        // 11. Confirm Bank Payment Received (Endpoint is disabled -> 403 Forbidden)
         ConfirmPaymentRequest confirmReq = new ConfirmPaymentRequest(
                 "UTR-BANK-CONFIRM-" + ts,
                 "MOCK-PROV-REF-" + ts
@@ -313,8 +317,10 @@ class BankIntegratedEndToEndTest {
                         .header("Authorization", "Bearer " + buyerToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(confirmReq)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("SUCCESS"));
+                .andExpect(status().isForbidden());
+
+        // Use test-only fixture to simulate bank deposit and funded state for downstream integration tests
+        testEscrowFundingFixture.simulateFundedDeal(instructionId, "UTR-BANK-CONFIRM-" + ts, buyerId);
 
         // Verify Deal is now FUNDED
         mockMvc.perform(get("/api/v1/deals/" + dealId)

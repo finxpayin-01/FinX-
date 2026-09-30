@@ -6,7 +6,9 @@ import java.time.Instant;
 import org.hibernate.annotations.CreationTimestamp;
 
 @Entity
-@Table(name = "webhook_events")
+@Table(name = "webhook_events", uniqueConstraints = {
+    @UniqueConstraint(name = "uq_provider_event", columnNames = {"provider", "provider_event_id"})
+})
 public class WebhookEvent {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)

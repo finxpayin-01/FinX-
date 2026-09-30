@@ -298,7 +298,7 @@ public class SettlementAuthorizationService {
         ledgerService.postJournalEntry(journalReq);
 
         // Deduct from internal escrow balance & complete milestone
-        escrowService.releaseEscrow(milestone.getId(), request.comment(), currentUser);
+        escrowService.releaseEscrowForSettlement(savedInstruction, request.comment(), currentUser);
 
         auditService.logEvent(
                 currentUser.getId(),

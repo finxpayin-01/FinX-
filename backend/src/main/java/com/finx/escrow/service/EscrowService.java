@@ -24,6 +24,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.finx.dispute.entity.DisputeStatus;
 import com.finx.dispute.repository.DisputeRepository;
+import com.finx.paymentorchestration.entity.SettlementInstruction;
+import com.finx.paymentorchestration.enums.PaymentOrchestrationEnums.SettlementStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -165,15 +168,35 @@ public class EscrowService {
 
     @Transactional
     public EscrowLedgerResponse releaseEscrow(UUID milestoneId, String comment, UserPrincipal currentUser) {
+        throw new AccessDeniedException("Direct escrow release is disabled pending settlement orchestration");
+    }
+
+    /**
+     * Internal-only settlement finalization boundary.
+     * Requires a verified, persisted SettlementInstruction in SETTLED status with a valid bank UTR.
+     * Not reachable via direct user API calls.
+     */
+    @Transactional
+    public EscrowLedgerResponse releaseEscrowForSettlement(
+            SettlementInstruction settlement,
+            String comment,
+            UserPrincipal currentUser) {
+        if (settlement == null || settlement.getId() == null) {
+            throw new AccessDeniedException("Settlement finalization requires a valid persisted SettlementInstruction");
+        }
+        if (settlement.getStatus() != SettlementStatus.SETTLED) {
+            throw new AccessDeniedException("Settlement finalization requires a SETTLED status instruction");
+        }
+        if (settlement.getUtrNumber() == null || settlement.getUtrNumber().isBlank()) {
+            throw new AccessDeniedException("Settlement finalization requires a valid bank UTR number");
+        }
+
+        UUID milestoneId = settlement.getMilestoneId();
         Milestone milestone = milestoneRepository.findByIdForUpdate(milestoneId)
                 .orElseThrow(() -> new ResourceNotFoundException("Milestone", "id", milestoneId));
 
         Deal deal = dealRepository.findByIdForUpdate(milestone.getDealId())
                 .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", milestone.getDealId()));
-
-        if (currentUser.getRole() != Role.ADMIN && !deal.getBuyerId().equals(currentUser.getId())) {
-            throw new UnauthorizedException("Only the corporate buyer or an administrator can release escrow funds");
-        }
 
         if (deal.getStatus() == DealStatus.DISPUTED ||
                 disputeRepository.existsByDealIdAndStatus(deal.getId(), DisputeStatus.OPEN) ||
@@ -234,7 +257,7 @@ public class EscrowService {
             deal.setStatus(DealStatus.COMPLETED);
             dealRepository.saveAndFlush(deal);
             auditService.logEvent(
-                    currentUser.getId(),
+                    currentUser != null ? currentUser.getId() : null,
                     "DEAL_COMPLETED",
                     "DEAL",
                     deal.getId().toString(),
@@ -243,7 +266,7 @@ public class EscrowService {
         }
 
         auditService.logEvent(
-                currentUser.getId(),
+                currentUser != null ? currentUser.getId() : null,
                 "ESCROW_RELEASED",
                 "ESCROW",
                 account.getId().toString(),
@@ -257,7 +280,8 @@ public class EscrowService {
                 "/vendor/projects/" + deal.getId()
         );
 
-        log.info("Escrow released: milestoneId={} amount={} remainingBalance={}", milestoneId, milestone.getAmount(), newBalance);
+        log.info("Escrow released for settlement: milestoneId={} amount={} remainingBalance={} utr={}",
+                milestoneId, milestone.getAmount(), newBalance, settlement.getUtrNumber());
         return EscrowLedgerResponse.fromEntity(savedLedger);
     }
 

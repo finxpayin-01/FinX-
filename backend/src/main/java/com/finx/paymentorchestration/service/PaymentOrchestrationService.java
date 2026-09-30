@@ -13,10 +13,6 @@ import com.finx.escrow.service.EscrowService;
 import com.finx.exception.BadRequestException;
 import com.finx.exception.ResourceNotFoundException;
 import com.finx.exception.UnauthorizedException;
-import com.finx.ledger.dto.LedgerDtos.JournalLineItem;
-import com.finx.ledger.dto.LedgerDtos.PostJournalEntryRequest;
-import com.finx.ledger.enums.LedgerEnums.EntryType;
-import com.finx.ledger.enums.LedgerEnums.LedgerTransactionType;
 import com.finx.ledger.service.LedgerService;
 import com.finx.milestone.entity.Milestone;
 import com.finx.milestone.entity.MilestoneStatus;
@@ -24,7 +20,6 @@ import com.finx.milestone.repository.MilestoneRepository;
 import com.finx.notification.service.NotificationService;
 import com.finx.paymentorchestration.dto.PaymentOrchestrationDtos.*;
 import com.finx.paymentorchestration.entity.PaymentInstruction;
-import com.finx.paymentorchestration.entity.PaymentTransaction;
 import com.finx.paymentorchestration.enums.PaymentOrchestrationEnums.InstructionStatus;
 import com.finx.paymentorchestration.repository.PaymentInstructionRepository;
 import com.finx.paymentorchestration.repository.PaymentTransactionRepository;
@@ -32,10 +27,10 @@ import com.finx.security.service.UserPrincipal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -187,91 +182,14 @@ public class PaymentOrchestrationService {
         return mapToResponse(saved);
     }
 
-    @Transactional
+    /**
+     * Confirmation is disabled until authenticated bank ingestion, credit identity,
+     * and atomic financial posting are remediated. Neither a user role nor a null
+     * principal establishes bank evidence. Deny before lookup, including replays
+     * of historical SUCCESS records; never fabricate a UTR or funding event.
+     */
     public PaymentInstructionResponse confirmPayment(UUID instructionId, ConfirmPaymentRequest request, UserPrincipal currentUser) {
-        PaymentInstruction instruction = instructionRepository.findById(instructionId)
-                .orElseThrow(() -> new ResourceNotFoundException("PaymentInstruction", "id", instructionId));
-
-        if (instruction.getStatus() == InstructionStatus.SUCCESS) {
-            log.info("Payment instruction {} already marked SUCCESS (idempotent)", instructionId);
-            return mapToResponse(instruction);
-        }
-
-        String utr = (request.utrNumber() != null && !request.utrNumber().isBlank())
-                ? request.utrNumber().trim()
-                : "UTR-BANK-CONF-" + UUID.randomUUID().toString().substring(0, 10).toUpperCase();
-
-        String txnRef = "TXN-" + instruction.getInstructionReference();
-
-        // Record payment transaction
-        PaymentTransaction tx = new PaymentTransaction(
-                txnRef,
-                instruction.getId(),
-                request.providerReference() != null ? request.providerReference() : instruction.getProviderInstructionId(),
-                instruction.getAmount(),
-                instruction.getCurrency(),
-                "SUCCESS",
-                utr,
-                "{\"status\": \"SUCCESS\", \"confirmedAt\": \"" + Instant.now() + "\"}"
-        );
-        transactionRepository.save(tx);
-
-        instruction.setStatus(InstructionStatus.SUCCESS);
-        instruction.setConfirmedAt(Instant.now());
-        PaymentInstruction savedInstruction = instructionRepository.save(instruction);
-
-        // Post balanced double-entry ledger entry:
-        // DEBIT: 1010-ESCROW-POOL (Asset)
-        // CREDIT: 2010-ESCROW-LIABILITY (Liability)
-        PostJournalEntryRequest journalReq = new PostJournalEntryRequest(
-                LedgerTransactionType.ESCROW_DEPOSIT,
-                savedInstruction.getId(),
-                savedInstruction.getDealId(),
-                savedInstruction.getMilestoneId(),
-                savedInstruction.getCurrency(),
-                "Bank inbound deposit confirmed via UTR " + utr + " for deal " + savedInstruction.getDealId(),
-                currentUser != null ? currentUser.getId() : savedInstruction.getInitiatedBy(),
-                List.of(
-                        new JournalLineItem(LedgerService.ACC_ESCROW_POOL, EntryType.DEBIT, savedInstruction.getAmount(), "Escrow pool bank nodal deposit"),
-                        new JournalLineItem(LedgerService.ACC_ESCROW_LIABILITY, EntryType.CREDIT, savedInstruction.getAmount(), "Deal escrow liability created")
-                )
-        );
-        ledgerService.postJournalEntry(journalReq);
-
-        // Update Escrow balance
-        escrowService.fundEscrow(
-                savedInstruction.getDealId(),
-                savedInstruction.getMilestoneId(),
-                savedInstruction.getId(),
-                savedInstruction.getAmount(),
-                savedInstruction.getCurrency(),
-                currentUser != null ? currentUser.getId() : savedInstruction.getInitiatedBy()
-        );
-
-        // Update Deal status
-        Deal deal = dealRepository.findById(savedInstruction.getDealId()).orElse(null);
-        if (deal != null) {
-            deal.setStatus(DealStatus.FUNDED);
-            dealRepository.save(deal);
-
-            notificationService.sendNotification(
-                    deal.getSellerId(),
-                    "Escrow Funds Deposited",
-                    "Bank deposit of " + savedInstruction.getAmount() + " " + savedInstruction.getCurrency() + " verified and deposited into FinX escrow nodal pool (UTR: " + utr + ").",
-                    "/vendor/projects/" + deal.getId()
-            );
-        }
-
-        auditService.logEvent(
-                currentUser != null ? currentUser.getId() : savedInstruction.getInitiatedBy(),
-                "PAYMENT_CONFIRMED",
-                "PAYMENT_INSTRUCTION",
-                savedInstruction.getId().toString(),
-                "Confirmed bank deposit of " + savedInstruction.getAmount() + " " + savedInstruction.getCurrency() + " UTR: " + utr
-        );
-
-        log.info("Payment confirmed and balanced ledger posted: instructionId={} UTR={}", instructionId, utr);
-        return mapToResponse(savedInstruction);
+        throw new AccessDeniedException("Payment confirmation is disabled pending trusted bank ingestion");
     }
 
     @Transactional(readOnly = true)

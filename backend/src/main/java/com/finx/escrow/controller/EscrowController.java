@@ -52,9 +52,8 @@ public class EscrowController {
             @PathVariable UUID milestoneId,
             @RequestBody(required = false) ReleaseEscrowRequest request,
             @AuthenticationPrincipal UserPrincipal currentUser) {
-        String comment = request != null ? request.getComment() : null;
-        EscrowLedgerResponse ledger = escrowService.releaseEscrow(milestoneId, comment, currentUser);
-        return ResponseEntity.ok(ApiResponse.success("Escrow funds released successfully to vendor", ledger));
+        throw new org.springframework.security.access.AccessDeniedException(
+                "Direct escrow release is disabled pending settlement orchestration");
     }
 
     @GetMapping

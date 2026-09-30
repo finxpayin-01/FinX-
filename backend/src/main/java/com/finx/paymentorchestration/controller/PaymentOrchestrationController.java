@@ -42,7 +42,7 @@ public class PaymentOrchestrationController {
     }
 
     @PostMapping("/payments/instructions/{id}/confirm")
-    @Operation(summary = "Confirm bank payment received", description = "Server-side trusted bank confirmation that posts balanced double-entry ledger")
+    @Operation(summary = "Payment confirmation (disabled)", description = "Returns 403 for authenticated callers until trusted bank ingestion is available; does not confirm or fund payments")
     public ResponseEntity<ApiResponse<PaymentInstructionResponse>> confirmPayment(
             @PathVariable UUID id,
             @RequestBody(required = false) ConfirmPaymentRequest request,

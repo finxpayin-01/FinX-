@@ -33,8 +33,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-@Import(RazorpayTestConfiguration.class)
+@Import({RazorpayTestConfiguration.class, com.finx.escrow.TestEscrowReleaseFixture.class})
 class TransactionEngineEndToEndTest {
+
+    @Autowired
+    private com.finx.escrow.TestEscrowReleaseFixture testEscrowReleaseFixture;
 
     @Autowired
     private MockMvc mockMvc;
@@ -206,15 +209,15 @@ class TransactionEngineEndToEndTest {
                 .andExpect(jsonPath("$.data[0].transactionType").value("FUND"))
                 .andExpect(jsonPath("$.data[0].amount").value(10000.00));
 
-        // 12. Buyer Releases Escrow Funds to Vendor
+        // 12. Buyer Direct Escrow Release is disabled pending settlement orchestration (403 Forbidden)
         mockMvc.perform(post("/api/escrow/" + milestoneId + "/release")
                         .header("Authorization", "Bearer " + buyerToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"comment\":\"Corporate approved milestone completion\"}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.transactionType").value("RELEASE"))
-                .andExpect(jsonPath("$.data.amount").value(10000.00))
-                .andExpect(jsonPath("$.data.balanceAfter").value(0.00));
+                .andExpect(status().isForbidden());
+
+        // Simulate release via test-only fixture for downstream assertions
+        testEscrowReleaseFixture.simulateEscrowRelease(milestoneId, "Corporate approved milestone completion");
 
         // 13. Verify Escrow Balance is now 0.00
         mockMvc.perform(get("/api/escrow/deal/" + dealId)
@@ -222,12 +225,12 @@ class TransactionEngineEndToEndTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.balance").value(0.00));
 
-        // 14. Double-Release Prevention: Second release attempt must be rejected with 400 Bad Request
+        // 14. Direct release attempt remains blocked (403 Forbidden)
         mockMvc.perform(post("/api/escrow/" + milestoneId + "/release")
                         .header("Authorization", "Bearer " + buyerToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"comment\":\"Attempt duplicate release\"}"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isForbidden());
 
         // 15. Verify Admin Authorization & Audit Trail
         // Buyer must be forbidden (403) from admin endpoints

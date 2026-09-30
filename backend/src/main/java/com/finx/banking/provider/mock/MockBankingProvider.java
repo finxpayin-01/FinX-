@@ -184,7 +184,23 @@ public class MockBankingProvider implements BankingProvider {
         if (signature == null || signature.isBlank()) {
             return false;
         }
-        // In mock mode, allow test signature or secret match
-        return signature.equals("mock-valid-signature") || signature.equals(webhookSecret);
+        // In mock mode, allow test signature, secret match, or cryptographic HMAC-SHA256 match
+        if (signature.equals("mock-valid-signature") || signature.equals(webhookSecret)) {
+            return true;
+        }
+        try {
+            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+            javax.crypto.spec.SecretKeySpec secretKey = new javax.crypto.spec.SecretKeySpec(
+                    webhookSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256");
+            mac.init(secretKey);
+            String signedData = (timestamp != null && !timestamp.isBlank()) ? timestamp + "." + rawPayload : rawPayload;
+            byte[] hmac = mac.doFinal(signedData.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            String expected = java.util.HexFormat.of().formatHex(hmac);
+            return java.security.MessageDigest.isEqual(
+                    expected.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                    signature.trim().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 }

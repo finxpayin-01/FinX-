@@ -243,35 +243,33 @@ class SecurityHardenedTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("SUCCESS"));
 
-        // 21. AUTHORIZATION TEST: Seller A attempts to release escrow -> 401 Unauthorized
+        // 21. AUTHORIZATION TEST: Seller A attempts to release escrow -> 403 Forbidden (endpoint disabled)
         mockMvc.perform(post("/api/escrow/" + msId + "/release")
                         .header("Authorization", "Bearer " + sellerA.token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"comment\":\"Unauthorized release attempt\"}"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isForbidden());
 
-        // 22. AUTHORIZATION TEST: Buyer B attempts to release Deal A's escrow -> 401 Unauthorized
+        // 22. AUTHORIZATION TEST: Buyer B attempts to release Deal A's escrow -> 403 Forbidden (endpoint disabled)
         mockMvc.perform(post("/api/escrow/" + msId + "/release")
                         .header("Authorization", "Bearer " + buyerB.token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"comment\":\"Buyer B unauthorized release\"}"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isForbidden());
 
-        // 23. Authorized Buyer A releases escrow -> 200 OK RELEASE
+        // 23. Direct release is disabled even for corporate Buyer A -> 403 Forbidden
         mockMvc.perform(post("/api/escrow/" + msId + "/release")
                         .header("Authorization", "Bearer " + buyerA.token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"comment\":\"Authorized release to vendor\"}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.transactionType").value("RELEASE"))
-                .andExpect(jsonPath("$.data.balanceAfter").value(0.00));
+                .andExpect(status().isForbidden());
 
-        // 24. DOUBLE-RELEASE PREVENTION: Second release attempt must be rejected with 400 Bad Request
+        // 24. Direct release attempt remains disabled -> 403 Forbidden
         mockMvc.perform(post("/api/escrow/" + msId + "/release")
                         .header("Authorization", "Bearer " + buyerA.token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"comment\":\"Duplicate release attempt\"}"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isForbidden());
 
         // 25. AUTHENTICATION TEST: Expired / forged JWT signature rejected -> 401 Unauthorized
         mockMvc.perform(get("/api/deals/" + dealAId)
