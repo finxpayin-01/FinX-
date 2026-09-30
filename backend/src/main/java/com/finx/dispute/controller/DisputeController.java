@@ -50,7 +50,7 @@ public class DisputeController {
     @Operation(summary = "Get disputes for deal", description = "Retrieves disputes for a specific deal")
     public ResponseEntity<ApiResponse<List<DisputeResponse>>> getDisputesForDeal(
             @PathVariable UUID dealId, @AuthenticationPrincipal UserPrincipal actor) {
-        List<DisputeResponse> disputes = disputeService.getDisputesForDeal(dealId);
+        List<DisputeResponse> disputes = disputeService.getDisputesForDeal(dealId, actor);
         return ResponseEntity.ok(ApiResponse.success(disputes));
     }
 

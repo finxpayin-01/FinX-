@@ -18,6 +18,7 @@ import com.finx.org.entity.Organization;
 import com.finx.org.entity.OrganizationBankAccount;
 import com.finx.org.entity.OrganizationMember;
 import com.finx.org.enums.OrgEnums.BankVerificationStatus;
+import com.finx.org.enums.OrgEnums.MemberStatus;
 import com.finx.org.enums.OrgEnums.OrgRole;
 import com.finx.org.enums.OrgEnums.OrgVerificationStatus;
 import com.finx.org.repository.OrganizationBankAccountRepository;
@@ -250,9 +251,16 @@ public class OrganizationService {
     }
 
     @Transactional(readOnly = true)
-    public VerifiedBusinessProfile getVerifiedBusinessProfile(UUID orgId) {
+    public VerifiedBusinessProfile getVerifiedBusinessProfile(UUID orgId, UserPrincipal currentUser) {
         Organization org = orgRepository.findById(orgId)
                 .orElseThrow(() -> new ResourceNotFoundException("Organization", "id", orgId));
+
+        if (currentUser == null) {
+            throw new UnauthorizedException("Authentication required to view verified business profile");
+        }
+        if (currentUser.getRole() != Role.ADMIN && currentUser.getRole() != Role.FINANCE) {
+            validateOrgMembership(orgId, currentUser);
+        }
 
         boolean isKybVerified = kybProfileRepository.existsByOrganizationIdAndStatus(orgId, VerificationStatus.VERIFIED)
                 || org.getVerificationStatus() == OrgVerificationStatus.VERIFIED;
@@ -264,7 +272,7 @@ public class OrganizationService {
                 .filter(m -> m.getRole() == OrgRole.OWNER || m.getRole() == OrgRole.AUTHORIZED_SIGNATORY)
                 .anyMatch(m -> kycProfileRepository.existsByUserIdAndStatus(m.getUserId(), VerificationStatus.VERIFIED));
 
-        // Calculate platform metrics
+        // Calculate platform metrics (note: metrics remain non-authoritative pending D06)
         int completedDeals = dealRepository.findAll().stream()
                 .filter(d -> (orgId.equals(d.getBuyerId()) || orgId.equals(d.getSellerId())) && d.getStatus() == DealStatus.COMPLETED)
                 .mapToInt(d -> 1).sum();
@@ -290,11 +298,17 @@ public class OrganizationService {
         );
     }
 
+    @Transactional(readOnly = true)
+    public VerifiedBusinessProfile getVerifiedBusinessProfile(UUID orgId) {
+        return getVerifiedBusinessProfile(orgId, null);
+    }
+
     public void validateOrgMembership(UUID orgId, UserPrincipal currentUser) {
         if (currentUser.getRole() == Role.ADMIN) return;
-        boolean isMember = memberRepository.findByOrganizationIdAndUserId(orgId, currentUser.getId()).isPresent();
-        if (!isMember) {
-            throw new UnauthorizedException("You are not a member of this organization");
+        OrganizationMember member = memberRepository.findByOrganizationIdAndUserId(orgId, currentUser.getId())
+                .orElseThrow(() -> new UnauthorizedException("You are not a member of this organization"));
+        if (member.getStatus() != MemberStatus.ACTIVE) {
+            throw new UnauthorizedException("Organization membership is not active (status: " + member.getStatus() + ")");
         }
     }
 
@@ -302,6 +316,9 @@ public class OrganizationService {
         if (currentUser.getRole() == Role.ADMIN) return;
         OrganizationMember member = memberRepository.findByOrganizationIdAndUserId(orgId, currentUser.getId())
                 .orElseThrow(() -> new UnauthorizedException("You are not a member of this organization"));
+        if (member.getStatus() != MemberStatus.ACTIVE) {
+            throw new UnauthorizedException("Organization membership is not active (status: " + member.getStatus() + ")");
+        }
         if (!allowedRoles.contains(member.getRole())) {
             throw new UnauthorizedException("Your role (" + member.getRole() + ") is not authorized to perform this operation");
         }

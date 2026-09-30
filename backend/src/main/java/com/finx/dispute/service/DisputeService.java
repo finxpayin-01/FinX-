@@ -3,6 +3,8 @@ package com.finx.dispute.service;
 import com.finx.audit.service.AuditService;
 import com.finx.common.enums.Role;
 import com.finx.deal.entity.Deal;
+import com.finx.deal.service.DealAccessService;
+import org.springframework.beans.factory.annotation.Autowired;
 import com.finx.deal.entity.DealStatus;
 import com.finx.deal.repository.DealRepository;
 import com.finx.dispute.dto.request.CreateDisputeRequest;
@@ -37,14 +39,26 @@ public class DisputeService {
     private final AuditService auditService;
     private final NotificationService notificationService;
 
+    private final DealAccessService dealAccessService;
+
     public DisputeService(DisputeRepository disputeRepository,
                           DealRepository dealRepository,
                           AuditService auditService,
                           NotificationService notificationService) {
+        this(disputeRepository, dealRepository, auditService, notificationService, null);
+    }
+
+    @Autowired
+    public DisputeService(DisputeRepository disputeRepository,
+                          DealRepository dealRepository,
+                          AuditService auditService,
+                          NotificationService notificationService,
+                          @Autowired(required = false) DealAccessService dealAccessService) {
         this.disputeRepository = disputeRepository;
         this.dealRepository = dealRepository;
         this.auditService = auditService;
         this.notificationService = notificationService;
+        this.dealAccessService = dealAccessService;
     }
 
     @Transactional
@@ -55,7 +69,9 @@ public class DisputeService {
                 .map(m -> m.getDealId().equals(deal.getId())).orElse(false))
             throw new BadRequestException("Milestone is not in this deal");
 
-        if (currentUser.getRole() != Role.ADMIN) {
+        if (dealAccessService != null) {
+            dealAccessService.requireDealAccess(deal, currentUser);
+        } else if (currentUser.getRole() != Role.ADMIN) {
             boolean isParty = deal.getBuyerId().equals(currentUser.getId()) || deal.getSellerId().equals(currentUser.getId());
             if (!isParty) {
                 throw new BadRequestException("Only participating parties may raise a dispute on this deal");
@@ -89,10 +105,20 @@ public class DisputeService {
     }
 
     @Transactional(readOnly = true)
-    public List<DisputeResponse> getDisputesForDeal(UUID dealId) {
+    public List<DisputeResponse> getDisputesForDeal(UUID dealId, UserPrincipal currentUser) {
+        Deal deal = dealRepository.findById(dealId)
+                .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", dealId));
+        if (dealAccessService != null) {
+            dealAccessService.requireDealAccess(deal, currentUser);
+        }
         return disputeRepository.findByDealIdOrderByCreatedAtDesc(dealId).stream()
                 .map(DisputeResponse::fromEntity)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<DisputeResponse> getDisputesForDeal(UUID dealId) {
+        return getDisputesForDeal(dealId, null);
     }
 
     @Transactional(readOnly = true)

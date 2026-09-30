@@ -41,6 +41,9 @@ public class DealService {
     private final ApplicationEventPublisher eventPublisher;
     private final EscrowService escrowService;
     private final com.finx.projectmanager.repository.ProjectManagerInvitationRepository invitationRepository;
+    private final com.finx.org.repository.OrganizationRepository organizationRepository;
+    private final com.finx.org.repository.OrganizationMemberRepository organizationMemberRepository;
+    private final DealAccessService dealAccessService;
 
     public DealService(DealRepository dealRepository,
                        UserRepository userRepository,
@@ -48,7 +51,17 @@ public class DealService {
                        NotificationService notificationService,
                        ApplicationEventPublisher eventPublisher,
                        EscrowService escrowService) {
-        this(dealRepository, userRepository, auditService, notificationService, eventPublisher, escrowService, null);
+        this(dealRepository, userRepository, auditService, notificationService, eventPublisher, escrowService, null, null, null, null);
+    }
+
+    public DealService(DealRepository dealRepository,
+                       UserRepository userRepository,
+                       AuditService auditService,
+                       NotificationService notificationService,
+                       ApplicationEventPublisher eventPublisher,
+                       EscrowService escrowService,
+                       com.finx.projectmanager.repository.ProjectManagerInvitationRepository invitationRepository) {
+        this(dealRepository, userRepository, auditService, notificationService, eventPublisher, escrowService, invitationRepository, null, null, null);
     }
 
     @Autowired
@@ -58,7 +71,10 @@ public class DealService {
                        NotificationService notificationService,
                        ApplicationEventPublisher eventPublisher,
                        EscrowService escrowService,
-                       com.finx.projectmanager.repository.ProjectManagerInvitationRepository invitationRepository) {
+                       @Autowired(required = false) com.finx.projectmanager.repository.ProjectManagerInvitationRepository invitationRepository,
+                       @Autowired(required = false) com.finx.org.repository.OrganizationRepository organizationRepository,
+                       @Autowired(required = false) com.finx.org.repository.OrganizationMemberRepository organizationMemberRepository,
+                       @Autowired(required = false) DealAccessService dealAccessService) {
         this.dealRepository = dealRepository;
         this.userRepository = userRepository;
         this.auditService = auditService;
@@ -66,6 +82,9 @@ public class DealService {
         this.eventPublisher = eventPublisher;
         this.escrowService = escrowService;
         this.invitationRepository = invitationRepository;
+        this.organizationRepository = organizationRepository;
+        this.organizationMemberRepository = organizationMemberRepository;
+        this.dealAccessService = dealAccessService != null ? dealAccessService : (organizationMemberRepository != null ? new DealAccessService(organizationMemberRepository) : null);
     }
 
     @Transactional
@@ -134,6 +153,37 @@ public class DealService {
             throw new BadRequestException("Specified seller must have the SELLER role");
         }
 
+        if (request.getBuyerOrganizationId() != null) {
+            if (organizationRepository != null) {
+                organizationRepository.findById(request.getBuyerOrganizationId())
+                        .orElseThrow(() -> new BadRequestException("Buyer organization not found"));
+            }
+            if (currentUser != null && currentUser.getRole() != Role.ADMIN) {
+                if (organizationMemberRepository != null) {
+                    boolean isActiveMember = organizationMemberRepository
+                            .findByOrganizationIdAndUserId(request.getBuyerOrganizationId(), currentUser.getId())
+                            .map(m -> m.getStatus() == com.finx.org.enums.OrgEnums.MemberStatus.ACTIVE)
+                            .orElse(false);
+                    if (!isActiveMember) {
+                        throw new UnauthorizedException("Caller does not have active membership in the specified buyer organization");
+                    }
+                }
+            }
+        }
+
+        if (request.getSellerOrganizationId() != null) {
+            if (organizationRepository != null) {
+                organizationRepository.findById(request.getSellerOrganizationId())
+                        .orElseThrow(() -> new BadRequestException("Seller organization not found"));
+            }
+        }
+
+        if (request.getBuyerOrganizationId() != null && request.getSellerOrganizationId() != null) {
+            if (request.getBuyerOrganizationId().equals(request.getSellerOrganizationId())) {
+                throw new BadRequestException("Buyer and Seller organization cannot be the same");
+            }
+        }
+
         Deal deal = new Deal(
                 request.getTitle().trim(),
                 request.getDescription() != null ? request.getDescription().trim() : null,
@@ -194,14 +244,21 @@ public class DealService {
                 .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", id));
 
         if (currentUser != null && currentUser.getRole() != Role.ADMIN && currentUser.getRole() != Role.FINANCE) {
-            boolean isParty = deal.getBuyerId().equals(currentUser.getId()) || deal.getSellerId().equals(currentUser.getId());
-            boolean isAssignedPm = currentUser.getRole() == Role.PROJECT_MANAGER &&
-                    deal.getProjectManagerId() != null && deal.getProjectManagerId().equals(currentUser.getId());
             boolean hasPendingInvitation = currentUser.getRole() == Role.PROJECT_MANAGER &&
+                    invitationRepository != null &&
                     invitationRepository.existsByDealIdAndProjectManagerIdAndStatus(deal.getId(), currentUser.getId(), com.finx.projectmanager.entity.InvitationStatus.PENDING);
 
-            if (!isParty && !isAssignedPm && !hasPendingInvitation) {
-                throw new UnauthorizedException("You are not authorized to view this deal");
+            if (!hasPendingInvitation) {
+                if (dealAccessService != null) {
+                    dealAccessService.requireDealAccess(deal, currentUser);
+                } else {
+                    boolean isParty = deal.getBuyerId().equals(currentUser.getId()) || deal.getSellerId().equals(currentUser.getId());
+                    boolean isAssignedPm = currentUser.getRole() == Role.PROJECT_MANAGER &&
+                            deal.getProjectManagerId() != null && deal.getProjectManagerId().equals(currentUser.getId());
+                    if (!isParty && !isAssignedPm) {
+                        throw new UnauthorizedException("You are not authorized to view this deal");
+                    }
+                }
             }
         }
 

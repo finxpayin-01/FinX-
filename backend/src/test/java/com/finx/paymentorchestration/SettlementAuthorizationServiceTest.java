@@ -258,6 +258,7 @@ class SettlementAuthorizationServiceTest {
         inst.setUtrNumber("UTR-HIST-999");
         inst.setSettledAt(Instant.now());
 
+        when(dealRepository.findById(dealId)).thenReturn(java.util.Optional.of(deal));
         when(settlementRepository.findByDealIdOrderByCreatedAtDesc(dealId)).thenReturn(List.of(inst));
 
         List<SettlementResponse> responses = authorizationService.getSettlementsForDeal(dealId, buyerPrincipal);

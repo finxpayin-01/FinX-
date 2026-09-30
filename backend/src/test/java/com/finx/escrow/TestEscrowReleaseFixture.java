@@ -80,4 +80,34 @@ public class TestEscrowReleaseFixture {
             dealRepository.saveAndFlush(deal);
         }
     }
+
+    @Transactional
+    public void simulateDirectEscrowFunding(UUID dealId, UUID milestoneId, UUID paymentId, BigDecimal amount, String currency, UUID buyerId) {
+        EscrowAccount account = escrowAccountRepository.findByDealId(dealId).orElseGet(() -> {
+            EscrowAccount newAcc = new EscrowAccount(dealId, BigDecimal.ZERO, currency);
+            return escrowAccountRepository.saveAndFlush(newAcc);
+        });
+
+        BigDecimal newBalance = account.getBalance().add(amount);
+        account.setBalance(newBalance);
+        account.setTotalFunded(account.getTotalFunded().add(amount));
+        escrowAccountRepository.saveAndFlush(account);
+
+        EscrowLedger ledger = new EscrowLedger(
+                account.getId(),
+                paymentId,
+                milestoneId,
+                TransactionType.FUND,
+                amount,
+                newBalance,
+                "Test fixture direct escrow funding for milestone " + milestoneId
+        );
+        escrowLedgerRepository.saveAndFlush(ledger);
+
+        Deal deal = dealRepository.findById(dealId).orElse(null);
+        if (deal != null) {
+            deal.setStatus(DealStatus.FUNDED);
+            dealRepository.saveAndFlush(deal);
+        }
+    }
 }

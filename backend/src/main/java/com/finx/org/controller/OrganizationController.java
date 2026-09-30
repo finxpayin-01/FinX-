@@ -57,8 +57,9 @@ public class OrganizationController {
     @GetMapping("/{id}/profile")
     @Operation(summary = "Get verified business profile", description = "Returns objective verification badges and transaction history metrics")
     public ResponseEntity<ApiResponse<VerifiedBusinessProfile>> getVerifiedBusinessProfile(
-            @PathVariable UUID id) {
-        VerifiedBusinessProfile profile = orgService.getVerifiedBusinessProfile(id);
+            @PathVariable UUID id,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+        VerifiedBusinessProfile profile = orgService.getVerifiedBusinessProfile(id, currentUser);
         return ResponseEntity.ok(ApiResponse.success("Verified business profile retrieved", profile));
     }
 

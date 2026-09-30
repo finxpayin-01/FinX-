@@ -57,6 +57,11 @@ class ReconciliationServiceTest {
         when(bankingProvider.getProviderName()).thenReturn("MOCK");
     }
 
+    private final com.finx.security.service.UserPrincipal adminPrincipal = new com.finx.security.service.UserPrincipal(
+            UUID.randomUUID(), "Admin", "admin@finx.com", "hash", com.finx.common.enums.Role.ADMIN, com.finx.common.enums.UserStatus.ACTIVE,
+            List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN"))
+    );
+
     @Test
     @DisplayName("Should detect MATCHED items when internal amount and bank amount agree")
     void shouldReconcileMatchedTransactions() {
@@ -79,7 +84,7 @@ class ReconciliationServiceTest {
         );
         when(bankingProvider.fetchTransactions(any(), any())).thenReturn(List.of(bankRecord));
 
-        ReconciliationRun run = reconciliationService.triggerReconciliation(null);
+        ReconciliationRun run = reconciliationService.triggerReconciliation(adminPrincipal);
 
         assertThat(run).isNotNull();
         ArgumentCaptor<ReconciliationItem> itemCaptor = ArgumentCaptor.forClass(ReconciliationItem.class);
@@ -114,7 +119,7 @@ class ReconciliationServiceTest {
         );
         when(bankingProvider.fetchTransactions(any(), any())).thenReturn(List.of(bankRecord));
 
-        reconciliationService.triggerReconciliation(null);
+        reconciliationService.triggerReconciliation(adminPrincipal);
 
         ArgumentCaptor<ReconciliationItem> itemCaptor = ArgumentCaptor.forClass(ReconciliationItem.class);
         verify(itemRepository).save(itemCaptor.capture());
@@ -141,7 +146,7 @@ class ReconciliationServiceTest {
         when(settlementRepository.findAll()).thenReturn(Collections.emptyList());
         when(bankingProvider.fetchTransactions(any(), any())).thenReturn(Collections.emptyList());
 
-        reconciliationService.triggerReconciliation(null);
+        reconciliationService.triggerReconciliation(adminPrincipal);
 
         ArgumentCaptor<ReconciliationItem> itemCaptor = ArgumentCaptor.forClass(ReconciliationItem.class);
         verify(itemRepository).save(itemCaptor.capture());

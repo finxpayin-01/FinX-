@@ -7,6 +7,7 @@ import com.finx.banking.dto.BankingDtos.SettlementResult;
 import com.finx.banking.provider.BankingProvider;
 import com.finx.common.enums.Role;
 import com.finx.deal.entity.Deal;
+import com.finx.deal.service.DealAccessService;
 import com.finx.deal.entity.DealStatus;
 import com.finx.deal.repository.DealRepository;
 import com.finx.dispute.entity.DisputeStatus;
@@ -74,6 +75,7 @@ public class SettlementAuthorizationService {
     private final NotificationService notificationService;
     private final com.finx.risk.service.RiskActionService riskActionService;
     private final com.finx.invoice.repository.InvoiceRepository invoiceRepository;
+    private final DealAccessService dealAccessService;
 
     public SettlementAuthorizationService(SettlementInstructionRepository settlementRepository,
                                           DealRepository dealRepository,
@@ -104,6 +106,28 @@ public class SettlementAuthorizationService {
         this.notificationService = notificationService;
         this.riskActionService = riskActionService;
         this.invoiceRepository = null;
+        this.dealAccessService = null;
+    }
+
+    public SettlementAuthorizationService(SettlementInstructionRepository settlementRepository,
+                                          DealRepository dealRepository,
+                                          MilestoneRepository milestoneRepository,
+                                          OrganizationBankAccountRepository bankAccountRepository,
+                                          KybProfileRepository kybProfileRepository,
+                                          DisputeRepository disputeRepository,
+                                          RiskAssessmentRepository riskAssessmentRepository,
+                                          AgreementService agreementService,
+                                          EscrowService escrowService,
+                                          LedgerService ledgerService,
+                                          BankingProvider bankingProvider,
+                                          AuditService auditService,
+                                          NotificationService notificationService,
+                                          com.finx.risk.service.RiskActionService riskActionService,
+                                          com.finx.invoice.repository.InvoiceRepository invoiceRepository) {
+        this(settlementRepository, dealRepository, milestoneRepository, bankAccountRepository,
+                kybProfileRepository, disputeRepository, riskAssessmentRepository, agreementService,
+                escrowService, ledgerService, bankingProvider, auditService, notificationService,
+                riskActionService, invoiceRepository, null);
     }
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -121,7 +145,8 @@ public class SettlementAuthorizationService {
                                           AuditService auditService,
                                           NotificationService notificationService,
                                           com.finx.risk.service.RiskActionService riskActionService,
-                                          @org.springframework.beans.factory.annotation.Autowired(required = false) com.finx.invoice.repository.InvoiceRepository invoiceRepository) {
+                                          @org.springframework.beans.factory.annotation.Autowired(required = false) com.finx.invoice.repository.InvoiceRepository invoiceRepository,
+                                          @org.springframework.beans.factory.annotation.Autowired(required = false) DealAccessService dealAccessService) {
         this.settlementRepository = settlementRepository;
         this.dealRepository = dealRepository;
         this.milestoneRepository = milestoneRepository;
@@ -137,6 +162,7 @@ public class SettlementAuthorizationService {
         this.notificationService = notificationService;
         this.riskActionService = riskActionService;
         this.invoiceRepository = invoiceRepository;
+        this.dealAccessService = dealAccessService;
     }
 
     @Transactional
@@ -146,6 +172,17 @@ public class SettlementAuthorizationService {
 
     @Transactional(readOnly = true)
     public List<SettlementResponse> getSettlementsForDeal(UUID dealId, UserPrincipal currentUser) {
+        Deal deal = dealRepository.findById(dealId)
+                .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", dealId));
+        if (dealAccessService != null) {
+            dealAccessService.requireDealAccess(deal, currentUser);
+        } else if (currentUser != null && currentUser.getRole() != Role.ADMIN && currentUser.getRole() != Role.FINANCE) {
+            boolean isParty = (deal.getBuyerId() != null && deal.getBuyerId().equals(currentUser.getId())) ||
+                    (deal.getSellerId() != null && deal.getSellerId().equals(currentUser.getId()));
+            if (!isParty) {
+                throw new UnauthorizedException("You are not authorized to view settlements for this deal");
+            }
+        }
         return settlementRepository.findByDealIdOrderByCreatedAtDesc(dealId).stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());

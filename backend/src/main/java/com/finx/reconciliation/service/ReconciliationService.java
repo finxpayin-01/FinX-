@@ -1,6 +1,8 @@
 package com.finx.reconciliation.service;
 
 import com.finx.audit.service.AuditService;
+import com.finx.common.enums.Role;
+import org.springframework.security.access.AccessDeniedException;
 import com.finx.banking.dto.BankingDtos.BankTransactionRecord;
 import com.finx.banking.provider.BankingProvider;
 import com.finx.paymentorchestration.entity.PaymentTransaction;
@@ -51,8 +53,15 @@ public class ReconciliationService {
         this.auditService = auditService;
     }
 
+    private void requirePlatformAdminOrFinance(UserPrincipal currentUser) {
+        if (currentUser == null || (currentUser.getRole() != Role.ADMIN && currentUser.getRole() != Role.FINANCE)) {
+            throw new AccessDeniedException("Platform ADMIN or FINANCE role required for reconciliation operations");
+        }
+    }
+
     @Transactional
     public ReconciliationRun triggerReconciliation(UserPrincipal currentUser) {
+        requirePlatformAdminOrFinance(currentUser);
         String runRef = String.format("FINX-REC-%d-%06d",
                 java.time.Year.now().getValue(), RECON_SEQ.incrementAndGet());
 
@@ -141,8 +150,20 @@ public class ReconciliationService {
     }
 
     @Transactional(readOnly = true)
+    public List<ReconciliationRun> getRuns(UserPrincipal currentUser) {
+        requirePlatformAdminOrFinance(currentUser);
+        return runRepository.findAll();
+    }
+
+    @Transactional(readOnly = true)
     public List<ReconciliationRun> getRuns() {
         return runRepository.findAll();
+    }
+
+    @Transactional(readOnly = true)
+    public List<ReconciliationItem> getItemsForRun(UUID runId, UserPrincipal currentUser) {
+        requirePlatformAdminOrFinance(currentUser);
+        return itemRepository.findByReconciliationRunId(runId);
     }
 
     @Transactional(readOnly = true)

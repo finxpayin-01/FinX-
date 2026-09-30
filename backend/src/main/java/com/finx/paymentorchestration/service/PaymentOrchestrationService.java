@@ -36,6 +36,8 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
+import com.finx.deal.service.DealAccessService;
+import org.springframework.beans.factory.annotation.Autowired;
 
 @Service
 public class PaymentOrchestrationService {
@@ -53,6 +55,7 @@ public class PaymentOrchestrationService {
     private final AgreementService agreementService;
     private final AuditService auditService;
     private final NotificationService notificationService;
+    private final DealAccessService dealAccessService;
 
     public PaymentOrchestrationService(PaymentInstructionRepository instructionRepository,
                                        PaymentTransactionRepository transactionRepository,
@@ -64,6 +67,23 @@ public class PaymentOrchestrationService {
                                        AgreementService agreementService,
                                        AuditService auditService,
                                        NotificationService notificationService) {
+        this(instructionRepository, transactionRepository, dealRepository, milestoneRepository,
+                bankingProvider, ledgerService, escrowService, agreementService, auditService,
+                notificationService, null);
+    }
+
+    @Autowired
+    public PaymentOrchestrationService(PaymentInstructionRepository instructionRepository,
+                                       PaymentTransactionRepository transactionRepository,
+                                       DealRepository dealRepository,
+                                       MilestoneRepository milestoneRepository,
+                                       BankingProvider bankingProvider,
+                                       LedgerService ledgerService,
+                                       EscrowService escrowService,
+                                       AgreementService agreementService,
+                                       AuditService auditService,
+                                       NotificationService notificationService,
+                                       @Autowired(required = false) DealAccessService dealAccessService) {
         this.instructionRepository = instructionRepository;
         this.transactionRepository = transactionRepository;
         this.dealRepository = dealRepository;
@@ -74,6 +94,7 @@ public class PaymentOrchestrationService {
         this.agreementService = agreementService;
         this.auditService = auditService;
         this.notificationService = notificationService;
+        this.dealAccessService = dealAccessService;
     }
 
     @Transactional
@@ -91,6 +112,10 @@ public class PaymentOrchestrationService {
 
         if (deal.getStatus() == DealStatus.CANCELLED || deal.getStatus() == DealStatus.REJECTED || deal.getStatus() == DealStatus.COMPLETED) {
             throw new BadRequestException("Cannot initiate payment for a " + deal.getStatus() + " deal");
+        }
+
+        if (deal.getBuyerOrganizationId() == null || deal.getSellerOrganizationId() == null) {
+            throw new BadRequestException("Cannot create payment instruction for deal without verified buyer and seller organizations");
         }
 
         // Agreement gate check
@@ -129,7 +154,11 @@ public class PaymentOrchestrationService {
         if (request.idempotencyKey() != null && !request.idempotencyKey().isBlank()) {
             Optional<PaymentInstruction> existing = instructionRepository.findByIdempotencyKey(request.idempotencyKey());
             if (existing.isPresent()) {
-                return mapToResponse(existing.get());
+                PaymentInstruction existingInstruction = existing.get();
+                if (!existingInstruction.getDealId().equals(deal.getId())) {
+                    throw new BadRequestException("Idempotency key already exists for another deal");
+                }
+                return mapToResponse(existingInstruction);
             }
         }
 
@@ -152,8 +181,8 @@ public class PaymentOrchestrationService {
                 instructionRef,
                 deal.getId(),
                 milestoneId,
-                null,
-                null,
+                deal.getBuyerOrganizationId(),
+                deal.getSellerOrganizationId(),
                 instructionAmount,
                 deal.getCurrency(),
                 bankingProvider.getProviderName(),
@@ -194,6 +223,17 @@ public class PaymentOrchestrationService {
 
     @Transactional(readOnly = true)
     public List<PaymentInstructionResponse> getInstructionsForDeal(UUID dealId, UserPrincipal currentUser) {
+        Deal deal = dealRepository.findById(dealId)
+                .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", dealId));
+        if (dealAccessService != null) {
+            dealAccessService.requireDealAccess(deal, currentUser);
+        } else if (currentUser != null && currentUser.getRole() != Role.ADMIN && currentUser.getRole() != Role.FINANCE) {
+            boolean isParty = (deal.getBuyerId() != null && deal.getBuyerId().equals(currentUser.getId())) ||
+                    (deal.getSellerId() != null && deal.getSellerId().equals(currentUser.getId()));
+            if (!isParty) {
+                throw new UnauthorizedException("You are not authorized to view payment instructions for this deal");
+            }
+        }
         return instructionRepository.findByDealIdOrderByCreatedAtDesc(dealId).stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
