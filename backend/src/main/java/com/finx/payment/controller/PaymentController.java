@@ -16,6 +16,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import com.finx.payment.config.PaymentRailPolicy;
+import org.springframework.security.access.AccessDeniedException;
 import java.util.List;
 import java.util.UUID;
 
@@ -26,9 +28,16 @@ import java.util.UUID;
 public class PaymentController {
 
     private final PaymentService paymentService;
+    private final PaymentRailPolicy paymentRailPolicy;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public PaymentController(PaymentService paymentService, PaymentRailPolicy paymentRailPolicy) {
+        this.paymentService = paymentService;
+        this.paymentRailPolicy = paymentRailPolicy != null ? paymentRailPolicy : new PaymentRailPolicy("BANK");
+    }
 
     public PaymentController(PaymentService paymentService) {
-        this.paymentService = paymentService;
+        this(paymentService, new PaymentRailPolicy("BANK"));
     }
 
     @GetMapping("/config")
@@ -43,6 +52,9 @@ public class PaymentController {
     public ResponseEntity<ApiResponse<CreateOrderResponse>> createPaymentOrder(
             @Valid @RequestBody CreateOrderRequest request,
             @AuthenticationPrincipal UserPrincipal currentUser) {
+        if (paymentRailPolicy != null && paymentRailPolicy.isBank()) {
+            throw new AccessDeniedException("Razorpay payment order creation is disabled in BANK mode. Use bank payment orchestration.");
+        }
         CreateOrderResponse order = paymentService.createPaymentOrder(request, currentUser);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("Payment order created successfully", order));
     }
@@ -52,6 +64,9 @@ public class PaymentController {
     public ResponseEntity<ApiResponse<PaymentResponse>> verifyPayment(
             @Valid @RequestBody VerifyPaymentRequest request,
             @AuthenticationPrincipal UserPrincipal currentUser) {
+        if (paymentRailPolicy != null && paymentRailPolicy.isBank()) {
+            throw new AccessDeniedException("Razorpay payment verification is disabled in BANK mode. Use bank payment orchestration.");
+        }
         PaymentResponse payment = paymentService.verifyPayment(request, currentUser);
         return ResponseEntity.ok(ApiResponse.success("Payment verified and credited to escrow successfully", payment));
     }

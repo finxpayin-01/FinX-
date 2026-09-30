@@ -12,6 +12,7 @@ import com.finx.exception.UnauthorizedException;
 import com.finx.milestone.entity.Milestone;
 import com.finx.milestone.repository.MilestoneRepository;
 import com.finx.notification.service.NotificationService;
+import com.finx.payment.config.PaymentRailPolicy;
 import com.finx.payment.config.RazorpayProperties;
 import com.finx.payment.dto.request.CreateOrderRequest;
 import com.finx.payment.dto.request.VerifyPaymentRequest;
@@ -30,6 +31,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.math.BigDecimal;
 import java.util.Optional;
@@ -65,6 +67,7 @@ class PaymentServiceTest {
     private NotificationService notificationService;
 
     private PaymentService paymentService;
+    private PaymentService legacyPaymentService;
 
     private UUID buyerId;
     private UUID sellerId;
@@ -84,7 +87,19 @@ class PaymentServiceTest {
                 razorpayService,
                 escrowService,
                 auditService,
-                notificationService
+                notificationService,
+                new PaymentRailPolicy("BANK")
+        );
+
+        legacyPaymentService = new PaymentService(
+                paymentRepository,
+                dealRepository,
+                milestoneRepository,
+                razorpayService,
+                escrowService,
+                auditService,
+                notificationService,
+                new PaymentRailPolicy("RAZORPAY")
         );
 
         buyerId = UUID.randomUUID();
@@ -107,8 +122,19 @@ class PaymentServiceTest {
     }
 
     @Test
-    @DisplayName("Create Razorpay payment order for milestone")
-    void createPaymentOrder_success() {
+    @DisplayName("In BANK mode, create payment order fails closed with AccessDeniedException")
+    void createPaymentOrder_bankModeDenied() {
+        CreateOrderRequest req = new CreateOrderRequest(dealId, milestoneId);
+        assertThatThrownBy(() -> paymentService.createPaymentOrder(req, buyerPrincipal))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("BANK mode");
+
+        verify(razorpayService, never()).createOrder(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Historical RAZORPAY mode: Create Razorpay payment order for milestone")
+    void createPaymentOrder_historicalRazorpaySuccess() {
         CreateOrderRequest req = new CreateOrderRequest(dealId, milestoneId);
 
         when(dealRepository.findByIdForUpdate(dealId)).thenReturn(Optional.of(deal));
@@ -123,7 +149,7 @@ class PaymentServiceTest {
             return p;
         });
 
-        CreateOrderResponse res = paymentService.createPaymentOrder(req, buyerPrincipal);
+        CreateOrderResponse res = legacyPaymentService.createPaymentOrder(req, buyerPrincipal);
 
         assertThat(res.getOrderId()).isEqualTo("order_test_12345");
         assertThat(res.getAmount()).isEqualByComparingTo(BigDecimal.valueOf(10000));
@@ -132,8 +158,21 @@ class PaymentServiceTest {
     }
 
     @Test
-    @DisplayName("Verify valid payment signature and fund escrow account")
-    void verifyPayment_success() {
+    @DisplayName("In BANK mode, manual verify payment fails closed with AccessDeniedException")
+    void verifyPayment_bankModeDenied() {
+        VerifyPaymentRequest req = new VerifyPaymentRequest(UUID.randomUUID(), "order_test_12345", "pay_test_999", "sig_valid");
+
+        assertThatThrownBy(() -> paymentService.verifyPayment(req, buyerPrincipal))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("BANK mode");
+
+        verify(razorpayService, never()).verifyPaymentSignature(any(), any(), any());
+        verify(escrowService, never()).fundEscrow(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Historical RAZORPAY mode: Verify valid payment signature and fund escrow account")
+    void verifyPayment_historicalRazorpaySuccess() {
         Payment payment = new Payment(dealId, milestoneId, buyerId, BigDecimal.valueOf(10000), "INR", "order_test_12345", null);
         payment.setId(UUID.randomUUID());
 
@@ -143,7 +182,7 @@ class PaymentServiceTest {
         when(razorpayService.verifyPaymentSignature("order_test_12345", "pay_test_999", "sig_valid")).thenReturn(true);
         when(paymentRepository.saveAndFlush(any(Payment.class))).thenAnswer(i -> i.getArgument(0));
 
-        PaymentResponse res = paymentService.verifyPayment(req, buyerPrincipal);
+        PaymentResponse res = legacyPaymentService.verifyPayment(req, buyerPrincipal);
 
         assertThat(res.getStatus()).isEqualTo(PaymentStatus.SUCCESS);
         verify(escrowService).fundEscrow(eq(dealId), eq(milestoneId), eq(payment.getId()), eq(BigDecimal.valueOf(10000)), eq("INR"), eq(buyerId));
@@ -151,7 +190,7 @@ class PaymentServiceTest {
     }
 
     @Test
-    @DisplayName("Reject verification on fraudulent payment signature")
+    @DisplayName("Reject verification on fraudulent payment signature in legacy mode")
     void verifyPayment_invalidSignature() {
         Payment payment = new Payment(dealId, milestoneId, buyerId, BigDecimal.valueOf(10000), "INR", "order_test_12345", null);
         payment.setId(UUID.randomUUID());
@@ -161,7 +200,7 @@ class PaymentServiceTest {
         when(paymentRepository.findByIdForUpdate(payment.getId())).thenReturn(Optional.of(payment));
         when(razorpayService.verifyPaymentSignature("order_test_12345", "pay_test_999", "fraudulent_sig")).thenReturn(false);
 
-        assertThatThrownBy(() -> paymentService.verifyPayment(req, buyerPrincipal))
+        assertThatThrownBy(() -> legacyPaymentService.verifyPayment(req, buyerPrincipal))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("Invalid payment signature");
 
@@ -169,7 +208,7 @@ class PaymentServiceTest {
     }
 
     @Test
-    @DisplayName("Reject a valid signature submitted for a different Razorpay order")
+    @DisplayName("Reject a valid signature submitted for a different Razorpay order in legacy mode")
     void verifyPayment_rejectsMismatchedOrder() {
         Payment payment = new Payment(dealId, milestoneId, buyerId, BigDecimal.valueOf(10000), "INR", "order_test_12345", null);
         payment.setId(UUID.randomUUID());
@@ -177,7 +216,7 @@ class PaymentServiceTest {
 
         when(paymentRepository.findByIdForUpdate(payment.getId())).thenReturn(Optional.of(payment));
 
-        assertThatThrownBy(() -> paymentService.verifyPayment(req, buyerPrincipal))
+        assertThatThrownBy(() -> legacyPaymentService.verifyPayment(req, buyerPrincipal))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("does not match");
 
@@ -240,6 +279,37 @@ class PaymentServiceTest {
     }
 
     @Test
+    @DisplayName("In BANK mode, webhook with unknown order is rejected with BadRequestException")
+    void processWebhook_unknownOrder_rejectedInBankMode() {
+        String payload = "{\"event\":\"payment.captured\",\"payload\":{\"payment\":{\"entity\":{\"id\":\"pay_wbk_unknown\",\"order_id\":\"order_unknown_999\",\"status\":\"captured\"}}}}";
+        String signature = "valid_sig";
+
+        when(razorpayService.verifyWebhookSignature(payload, signature)).thenReturn(true);
+        when(paymentRepository.findByProviderOrderIdForUpdate("order_unknown_999")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> paymentService.processWebhook(payload, signature))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("unknown order");
+
+        verify(escrowService, never()).fundEscrow(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("In BANK mode, webhook missing order_id is rejected with BadRequestException")
+    void processWebhook_missingOrder_rejectedInBankMode() {
+        String payload = "{\"event\":\"payment.captured\",\"payload\":{\"payment\":{\"entity\":{\"id\":\"pay_wbk_missing\",\"status\":\"captured\"}}}}";
+        String signature = "valid_sig";
+
+        when(razorpayService.verifyWebhookSignature(payload, signature)).thenReturn(true);
+
+        assertThatThrownBy(() -> paymentService.processWebhook(payload, signature))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("order_id is required");
+
+        verify(escrowService, never()).fundEscrow(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
     @DisplayName("Retrieve payment configuration correctly")
     void getPaymentConfig_returnsAccurateStatus() {
         RazorpayProperties props = new RazorpayProperties();
@@ -265,7 +335,7 @@ class PaymentServiceTest {
     }
 
     @Test
-    @DisplayName("Reject payment order initiation if user is not the corporate buyer")
+    @DisplayName("Reject payment order initiation if user is not the corporate buyer (legacy mode)")
     void createPaymentOrder_wrongBuyerDenied() {
         CreateOrderRequest req = new CreateOrderRequest(dealId, milestoneId);
         User otherUser = new User("Other", "other@finx.test", "pass", Role.BUYER, com.finx.common.enums.UserStatus.ACTIVE);
@@ -275,13 +345,13 @@ class PaymentServiceTest {
         when(dealRepository.findByIdForUpdate(dealId)).thenReturn(Optional.of(deal));
         when(milestoneRepository.findByIdForUpdate(milestoneId)).thenReturn(Optional.of(milestone));
 
-        assertThatThrownBy(() -> paymentService.createPaymentOrder(req, otherPrincipal))
+        assertThatThrownBy(() -> legacyPaymentService.createPaymentOrder(req, otherPrincipal))
                 .isInstanceOf(UnauthorizedException.class)
                 .hasMessageContaining("Only the corporate buyer can initiate payment");
     }
 
     @Test
-    @DisplayName("Reject payment order if no vendor is assigned to the deal")
+    @DisplayName("Reject payment order if no vendor is assigned to the deal (legacy mode)")
     void createPaymentOrder_noVendorAssignedDenied() {
         deal.setSellerId(null);
         CreateOrderRequest req = new CreateOrderRequest(dealId, milestoneId);
@@ -289,13 +359,13 @@ class PaymentServiceTest {
         when(dealRepository.findByIdForUpdate(dealId)).thenReturn(Optional.of(deal));
         when(milestoneRepository.findByIdForUpdate(milestoneId)).thenReturn(Optional.of(milestone));
 
-        assertThatThrownBy(() -> paymentService.createPaymentOrder(req, buyerPrincipal))
+        assertThatThrownBy(() -> legacyPaymentService.createPaymentOrder(req, buyerPrincipal))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("No vendor is assigned to this project");
     }
 
     @Test
-    @DisplayName("Reject payment order if milestone is already completed")
+    @DisplayName("Reject payment order if milestone is already completed (legacy mode)")
     void createPaymentOrder_alreadyCompletedMilestoneDenied() {
         milestone.setStatus(com.finx.milestone.entity.MilestoneStatus.COMPLETED);
         CreateOrderRequest req = new CreateOrderRequest(dealId, milestoneId);
@@ -303,7 +373,7 @@ class PaymentServiceTest {
         when(dealRepository.findByIdForUpdate(dealId)).thenReturn(Optional.of(deal));
         when(milestoneRepository.findByIdForUpdate(milestoneId)).thenReturn(Optional.of(milestone));
 
-        assertThatThrownBy(() -> paymentService.createPaymentOrder(req, buyerPrincipal))
+        assertThatThrownBy(() -> legacyPaymentService.createPaymentOrder(req, buyerPrincipal))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("already been completed");
     }

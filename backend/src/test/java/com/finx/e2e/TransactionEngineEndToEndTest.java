@@ -166,36 +166,32 @@ class TransactionEngineEndToEndTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("APPROVED"));
 
-        // 9. Buyer Initiates Razorpay Payment Order
+        // 9. Buyer Initiates Razorpay Payment Order -> in BANK mode, fails closed with 403 Forbidden
         CreateOrderRequest orderReq = new CreateOrderRequest(dealId, milestoneId);
         orderReq.setIdempotencyKey("idemp_" + timestamp);
 
-        MvcResult orderResult = mockMvc.perform(post("/api/payments/create-order")
+        mockMvc.perform(post("/api/payments/create-order")
                         .header("Authorization", "Bearer " + buyerToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(orderReq)))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.orderId").isNotEmpty())
-                .andExpect(jsonPath("$.data.paymentId").isNotEmpty())
-                .andReturn();
-        JsonNode orderJson = objectMapper.readTree(orderResult.getResponse().getContentAsString());
-        String orderId = orderJson.get("data").get("orderId").asText();
-        UUID paymentId = UUID.fromString(orderJson.get("data").get("paymentId").asText());
+                .andExpect(status().isForbidden());
 
-        // 10. Buyer Verifies Payment -> Escrow Account & Ledger Funded
+        // 10. Buyer Verifies Payment -> in BANK mode, fails closed with 403 Forbidden
         String razorpayPaymentId = "pay_test_txn_" + timestamp;
         VerifyPaymentRequest verifyReq = new VerifyPaymentRequest(
-                paymentId,
-                orderId,
+                UUID.randomUUID(),
+                "order_dummy_" + timestamp,
                 razorpayPaymentId,
-                razorpayService.generateTestSignature(orderId, razorpayPaymentId)
+                "dummy_sig"
         );
         mockMvc.perform(post("/api/payments/verify")
                         .header("Authorization", "Bearer " + buyerToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(verifyReq)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("SUCCESS"));
+                .andExpect(status().isForbidden());
+
+        // Establish escrow funding via test fixture for downstream assertions
+        testEscrowReleaseFixture.simulateDirectEscrowFunding(dealId, milestoneId, UUID.randomUUID(), BigDecimal.valueOf(10000), "INR", buyerId);
 
         // 11. Verify Escrow Account Balance & Ledger
         mockMvc.perform(get("/api/escrow/deal/" + dealId)

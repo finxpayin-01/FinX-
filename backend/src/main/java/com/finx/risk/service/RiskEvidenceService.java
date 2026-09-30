@@ -15,7 +15,30 @@ public class RiskEvidenceService {
     private final com.finx.risk.repository.BusinessRiskRepository db;
     public RiskEvidenceService(NamedParameterJdbcTemplate jdbc,com.finx.risk.repository.BusinessRiskRepository db) { this.jdbc = jdbc; this.db=db; }
 
-    public record Snapshot(Map<String,Evidence> metrics, String verificationStatus, double volume) {}
+    public record Snapshot(
+            Map<String,Evidence> metrics,
+            String verificationStatus,
+            double volume,
+            double bankVolume,
+            double legacyVolume,
+            long bankPaymentCount,
+            long legacyPaymentCount,
+            boolean hasMixedFundingEvidence,
+            List<FundingProvenance> fundingProvenances
+    ) {
+        public Snapshot(Map<String,Evidence> metrics, String verificationStatus, double volume) {
+            this(metrics, verificationStatus, volume, 0.0, volume, 0L, 0L, false, List.of());
+        }
+    }
+
+    public record FundingProvenance(
+            String sourceType,
+            String sourceId,
+            String rail,
+            String status,
+            double amount,
+            boolean authoritativeBank
+    ) {}
 
     public Snapshot collect(RiskScore subject, Policy policy, Instant now) {
         Map<String,Object> p = parameters(subject,policy,now);
@@ -56,7 +79,58 @@ public class RiskEvidenceService {
             if (avg > 0) add(e,"milestoneValueRatio",number("select coalesce(max(m.amount),0)" + milestones + " and m.created_at>=:velocity and m.currency=:currency",p)/avg,"milestones",subject,now);
         }
 
-        // Both fiat rails contribute, without counting provider transaction retries as separate payments.
+        // Query payments from both rails separately to preserve distinct provenance and avoid heuristic deduplication.
+        String bankFrom = " from payment_instructions x join deals d on d.id=x.deal_id where " + deal;
+        String legacyFrom = " from payments x join deals d on d.id=x.deal_id where " + deal;
+
+        double bankVolume = number("select coalesce(sum(x.amount),0)" + bankFrom + " and x.created_at>=:since and x.status='SUCCESS' and x.currency=:currency", p);
+        double legacyVolume = number("select coalesce(sum(x.amount),0)" + legacyFrom + " and x.created_at>=:since and x.status='SUCCESS' and x.currency=:currency", p);
+        long bankPaymentCount = (long) number("select count(*)" + bankFrom + " and x.created_at>=:since", p);
+        long legacyPaymentCount = (long) number("select count(*)" + legacyFrom + " and x.created_at>=:since", p);
+        boolean hasMixedFundingEvidence = bankPaymentCount > 0 && legacyPaymentCount > 0;
+
+        List<FundingProvenance> provenances = new ArrayList<>();
+        jdbc.query("select cast(x.id as varchar) as id, x.amount, cast(x.status as varchar) as status, x.provider" + bankFrom + " and x.created_at>=:since", p, rs -> {
+            provenances.add(new FundingProvenance(
+                    "payment_instruction",
+                    rs.getString("id"),
+                    "BANK",
+                    rs.getString("status"),
+                    rs.getDouble("amount"),
+                    true
+            ));
+        });
+
+        jdbc.query("select cast(x.id as varchar) as id, x.amount, cast(x.status as varchar) as status, cast(x.funding_rail as varchar) as funding_rail, x.provider" + legacyFrom + " and x.created_at>=:since", p, rs -> {
+            String rail = rs.getString("funding_rail");
+            String provider = rs.getString("provider");
+            String assignedRail;
+            if ("RAZORPAY".equalsIgnoreCase(rail) || ("RAZORPAY".equalsIgnoreCase(provider) && rail == null)) {
+                assignedRail = "RAZORPAY";
+            } else if ("BLOCKCHAIN_ONRAMP".equalsIgnoreCase(rail)) {
+                assignedRail = "LEGACY_BLOCKCHAIN";
+            } else {
+                assignedRail = "UNKNOWN";
+            }
+            provenances.add(new FundingProvenance(
+                    "payment",
+                    rs.getString("id"),
+                    assignedRail,
+                    rs.getString("status"),
+                    rs.getDouble("amount"),
+                    false
+            ));
+        });
+
+        // Add explicit rail-specific evidence metrics
+        add(e, "bankPaymentCount", (double) bankPaymentCount, "payment_instructions", subject, now);
+        add(e, "legacyPaymentCount", (double) legacyPaymentCount, "payments", subject, now);
+        add(e, "bankVolume", bankVolume, "payment_instructions", subject, now);
+        add(e, "legacyVolume", legacyVolume, "payments", subject, now);
+        add(e, "authoritativeBankVolume", bankVolume, "payment_instructions", subject, now);
+        add(e, "hasMixedFundingEvidence", hasMixedFundingEvidence ? 1.0 : 0.0, "funding_evidence", subject, now);
+
+        // Retain compatibility aggregates without heuristic cross-rail deduplication
         String payments = " from (select deal_id,amount,currency,cast(status as varchar) as status,created_at from payments union all select deal_id,amount,currency,cast(status as varchar) as status,created_at from payment_instructions) x join deals d on d.id=x.deal_id where " + deal;
         double attempts = number("select count(*)" + payments + " and x.created_at>=:since",p);
         add(e,"paymentFailureRatio",ratio(number("select count(*)" + payments + " and x.created_at>=:since and x.status='FAILED'",p),attempts),"payments",subject,now);
@@ -65,7 +139,7 @@ public class RiskEvidenceService {
         add(e,"paymentVelocity",number("select count(*)" + payments + " and x.created_at>=:velocity",p),"payments",subject,now);
         add(e,"delayedFundingRatio",ratio(number("select count(*)" + payments + " and x.created_at<:since and x.created_at>=:baseline and x.status in ('PENDING','CREATED','SUBMITTED','PROCESSING')",p),
                 number("select count(*)" + payments + " and x.created_at<:since and x.created_at>=:baseline",p)),"payments",subject,now);
-        double volume = number("select coalesce(sum(x.amount),0)" + payments + " and x.created_at>=:since and x.status='SUCCESS' and x.currency=:currency",p);
+        double volume = bankVolume + legacyVolume;
         double baselineVolume = number("select coalesce(sum(x.amount),0)" + payments + " and x.created_at>=:baseline and x.created_at<:since and x.status='SUCCESS' and x.currency=:currency",p);
         double baselinePayments = number("select count(*)" + payments + " and x.created_at>=:baseline and x.created_at<:since and x.status='SUCCESS' and x.currency=:currency",p);
         if (baselineVolume > 0 && baselinePayments >= policy.minimumBaselineProjects()) add(e,"volumeRatio",volume/baselineVolume,"payments",subject,now);
@@ -118,7 +192,7 @@ public class RiskEvidenceService {
                 e.put(metric.metric,new Evidence(value+(prior==null?0:prior.value()),reference,occurredAt));
             });
         });
-        return new Snapshot(e,kybStatus,volume);
+        return new Snapshot(e, kybStatus, volume, bankVolume, legacyVolume, bankPaymentCount, legacyPaymentCount, hasMixedFundingEvidence, provenances);
     }
 
     private double events(RiskScore s, EventType type, Map<String,Object> p) {

@@ -5,11 +5,11 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class PaymentRailPolicy {
-    public enum Rail { BANK }
+    public enum Rail { BANK, RAZORPAY }
     private final Rail rail;
 
     public PaymentRailPolicy(@Value("${payment.rail:BANK}") String rail) {
-        this.rail = Rail.BANK;
+        this.rail = "RAZORPAY".equalsIgnoreCase(rail) ? Rail.RAZORPAY : Rail.BANK;
     }
 
     public boolean isBank() { return rail == Rail.BANK; }

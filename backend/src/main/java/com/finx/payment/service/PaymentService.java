@@ -18,6 +18,8 @@ import com.finx.payment.dto.request.CreateOrderRequest;
 import com.finx.payment.dto.request.VerifyPaymentRequest;
 import com.finx.payment.dto.response.CreateOrderResponse;
 import com.finx.payment.dto.response.PaymentResponse;
+import com.finx.payment.config.PaymentRailPolicy;
+import com.finx.payment.entity.FundingRail;
 import com.finx.payment.entity.Payment;
 import com.finx.payment.entity.PaymentStatus;
 import com.finx.payment.repository.PaymentRepository;
@@ -26,6 +28,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,6 +51,26 @@ public class PaymentService {
     private final RazorpayService razorpayService;
     private final AuditService auditService;
     private final NotificationService notificationService;
+    private final PaymentRailPolicy paymentRailPolicy;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public PaymentService(PaymentRepository paymentRepository,
+                          DealRepository dealRepository,
+                          MilestoneRepository milestoneRepository,
+                          RazorpayService razorpayService,
+                          EscrowService escrowService,
+                          AuditService auditService,
+                          NotificationService notificationService,
+                          PaymentRailPolicy paymentRailPolicy) {
+        this.paymentRepository = paymentRepository;
+        this.dealRepository = dealRepository;
+        this.milestoneRepository = milestoneRepository;
+        this.razorpayService = razorpayService;
+        this.escrowService = escrowService;
+        this.auditService = auditService;
+        this.notificationService = notificationService;
+        this.paymentRailPolicy = paymentRailPolicy != null ? paymentRailPolicy : new PaymentRailPolicy("BANK");
+    }
 
     public PaymentService(PaymentRepository paymentRepository,
                           DealRepository dealRepository,
@@ -56,17 +79,15 @@ public class PaymentService {
                           EscrowService escrowService,
                           AuditService auditService,
                           NotificationService notificationService) {
-        this.paymentRepository = paymentRepository;
-        this.dealRepository = dealRepository;
-        this.milestoneRepository = milestoneRepository;
-        this.razorpayService = razorpayService;
-        this.escrowService = escrowService;
-        this.auditService = auditService;
-        this.notificationService = notificationService;
+        this(paymentRepository, dealRepository, milestoneRepository, razorpayService, escrowService, auditService, notificationService, new PaymentRailPolicy("BANK"));
     }
 
     @Transactional
     public CreateOrderResponse createPaymentOrder(CreateOrderRequest request, UserPrincipal currentUser) {
+        if (paymentRailPolicy != null && paymentRailPolicy.isBank()) {
+            throw new AccessDeniedException("Razorpay payment order creation is disabled in BANK mode. Use bank payment orchestration.");
+        }
+
         Deal deal = dealRepository.findByIdForUpdate(request.getDealId())
                 .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", request.getDealId()));
 
@@ -183,6 +204,10 @@ public class PaymentService {
 
     @Transactional
     public PaymentResponse verifyPayment(VerifyPaymentRequest request, UserPrincipal currentUser) {
+        if (paymentRailPolicy != null && paymentRailPolicy.isBank()) {
+            throw new AccessDeniedException("Razorpay payment verification is disabled in BANK mode. Use bank payment orchestration.");
+        }
+
         Payment payment = paymentRepository.findByIdForUpdate(request.getPaymentId())
                 .orElseThrow(() -> new ResourceNotFoundException("Payment", "id", request.getPaymentId()));
 
@@ -304,6 +329,10 @@ public class PaymentService {
             String status = paymentNode.path("status").asText("");
 
             if (orderId == null || orderId.isBlank()) {
+                if (paymentRailPolicy != null && paymentRailPolicy.isBank()) {
+                    log.warn("Webhook rejected in BANK mode: missing order_id");
+                    throw new BadRequestException("Razorpay webhook rejected in BANK mode: order_id is required to bind to an existing legacy payment obligation.");
+                }
                 log.info("Webhook event {} does not contain order_id, acknowledging receipt", event);
                 return Map.of("status", "acknowledged", "event", event);
             }
@@ -311,10 +340,27 @@ public class PaymentService {
             Optional<Payment> paymentOpt = paymentRepository.findByProviderOrderIdForUpdate(orderId);
             if (paymentOpt.isEmpty()) {
                 log.warn("Webhook received for unknown orderId: {}", orderId);
+                if (paymentRailPolicy != null && paymentRailPolicy.isBank()) {
+                    throw new BadRequestException("Razorpay webhook rejected in BANK mode: unknown order " + orderId + ". New Razorpay payment obligations are not permitted.");
+                }
                 return Map.of("status", "order_not_found", "orderId", orderId);
             }
 
             Payment payment = paymentOpt.get();
+
+            if (paymentRailPolicy != null && paymentRailPolicy.isBank()) {
+                boolean isLegacy = (payment.getFundingRail() == FundingRail.RAZORPAY) || "RAZORPAY".equalsIgnoreCase(payment.getProvider());
+                if (!isLegacy) {
+                    log.warn("Webhook rejected in BANK mode: payment {} is not a legacy Razorpay payment (fundingRail={}, provider={})",
+                            payment.getId(), payment.getFundingRail(), payment.getProvider());
+                    throw new BadRequestException("Razorpay webhook rejected: payment is not a legacy Razorpay payment obligation.");
+                }
+                if (!orderId.equals(payment.getProviderOrderId())) {
+                    log.warn("Webhook rejected in BANK mode: orderId mismatch (orderId={}, paymentProviderOrderId={})",
+                            orderId, payment.getProviderOrderId());
+                    throw new BadRequestException("Razorpay webhook rejected: provider order ID mismatch.");
+                }
+            }
 
             String currency = paymentNode.path("currency").asText("");
             long amountPaise = paymentNode.path("amount").asLong(0);

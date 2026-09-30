@@ -195,35 +195,30 @@ class SecurityHardenedTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("APPROVED"));
 
-        // 16. Buyer A creates Razorpay order
+        // 16. Buyer A attempts to create Razorpay order -> 403 Forbidden in BANK mode
         CreateOrderRequest orderReq = new CreateOrderRequest(dealAId, msId);
         orderReq.setIdempotencyKey("sec_order_" + ts);
 
-        MvcResult orderRes = mockMvc.perform(post("/api/payments/create-order")
+        mockMvc.perform(post("/api/payments/create-order")
                         .header("Authorization", "Bearer " + buyerA.token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(orderReq)))
-                .andExpect(status().isCreated())
-                .andReturn();
+                .andExpect(status().isForbidden());
 
-        JsonNode orderJson = objectMapper.readTree(orderRes.getResponse().getContentAsString());
-        UUID paymentId = UUID.fromString(orderJson.get("data").get("paymentId").asText());
-        String orderId = orderJson.get("data").get("orderId").asText();
-
-        // 17. IDOR TEST: Buyer B attempts to verify Buyer A's payment -> 401 Unauthorized
+        // 17. IDOR / CONTAINMENT: Buyer B attempts to verify payment -> 403 Forbidden in BANK mode
         String razorpayPaymentId = "pay_sec_" + ts;
         VerifyPaymentRequest verifyReq = new VerifyPaymentRequest(
-                paymentId,
-                orderId,
+                UUID.randomUUID(),
+                "order_sec_" + ts,
                 razorpayPaymentId,
-                razorpayService.generateTestSignature(orderId, razorpayPaymentId)
+                "dummy_sig"
         );
 
         mockMvc.perform(post("/api/payments/verify")
                         .header("Authorization", "Bearer " + buyerB.token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(verifyReq)))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isForbidden());
 
         // 18. IDOR TEST: Buyer B attempts to read Deal A's escrow balance -> 401 Unauthorized
         mockMvc.perform(get("/api/escrow/deal/" + dealAId)
@@ -235,13 +230,12 @@ class SecurityHardenedTest {
                         .header("Authorization", "Bearer " + buyerB.token))
                 .andExpect(status().isUnauthorized());
 
-        // 20. Authorized Buyer A verifies payment -> 200 OK SUCCESS
+        // 20. Authorized Buyer A attempts to verify payment -> 403 Forbidden in BANK mode
         mockMvc.perform(post("/api/payments/verify")
                         .header("Authorization", "Bearer " + buyerA.token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(verifyReq)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("SUCCESS"));
+                .andExpect(status().isForbidden());
 
         // 21. AUTHORIZATION TEST: Seller A attempts to release escrow -> 403 Forbidden (endpoint disabled)
         mockMvc.perform(post("/api/escrow/" + msId + "/release")
