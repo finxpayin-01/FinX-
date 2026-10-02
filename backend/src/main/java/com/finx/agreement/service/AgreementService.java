@@ -14,6 +14,9 @@ import com.finx.exception.BadRequestException;
 import com.finx.exception.ResourceNotFoundException;
 import com.finx.exception.UnauthorizedException;
 import com.finx.security.service.UserPrincipal;
+import com.finx.org.enums.OrgEnums.MemberStatus;
+import com.finx.org.enums.OrgEnums.OrgRole;
+import com.finx.org.repository.OrganizationMemberRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -36,15 +39,26 @@ public class AgreementService {
     private final AgreementAuditEventRepository auditEventRepository;
     private final DealRepository dealRepository;
     private final AuditService auditService;
+    private final OrganizationMemberRepository memberRepository;
 
     public AgreementService(DealAgreementRepository agreementRepository,
                             AgreementAuditEventRepository auditEventRepository,
                             DealRepository dealRepository,
                             AuditService auditService) {
+        this(agreementRepository, auditEventRepository, dealRepository, auditService, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public AgreementService(DealAgreementRepository agreementRepository,
+                            AgreementAuditEventRepository auditEventRepository,
+                            DealRepository dealRepository,
+                            AuditService auditService,
+                            @org.springframework.beans.factory.annotation.Autowired(required = false) OrganizationMemberRepository memberRepository) {
         this.agreementRepository = agreementRepository;
         this.auditEventRepository = auditEventRepository;
         this.dealRepository = dealRepository;
         this.auditService = auditService;
+        this.memberRepository = memberRepository;
     }
 
     @Transactional
@@ -111,11 +125,57 @@ public class AgreementService {
             throw new BadRequestException("This agreement has already been fully signed");
         }
 
-        boolean isBuyer = deal.getBuyerId().equals(currentUser.getId());
-        boolean isSeller = deal.getSellerId() != null && deal.getSellerId().equals(currentUser.getId());
+        boolean isBuyerParty = deal.getBuyerId().equals(currentUser.getId());
+        boolean isSellerParty = deal.getSellerId() != null && deal.getSellerId().equals(currentUser.getId());
+        boolean isBuyer = false;
+        boolean isSeller = false;
+
+        if (deal.getBuyerOrganizationId() != null) {
+            if (memberRepository != null) {
+                var memberOpt = memberRepository.findByOrganizationIdAndUserId(deal.getBuyerOrganizationId(), currentUser.getId());
+                if (memberOpt.isPresent()) {
+                    var m = memberOpt.get();
+                    if (m.getStatus() != MemberStatus.ACTIVE) {
+                        throw new UnauthorizedException("Signer organization membership is not active (status: " + m.getStatus() + ")");
+                    }
+                    if (m.getRole() != OrgRole.OWNER && m.getRole() != OrgRole.ADMIN && m.getRole() != OrgRole.AUTHORIZED_SIGNATORY) {
+                        throw new UnauthorizedException("Signer role (" + m.getRole() + ") is not authorized to sign agreements");
+                    }
+                    isBuyer = true;
+                } else if (isBuyerParty) {
+                    throw new UnauthorizedException("Signer is not an active member of buyer organization " + deal.getBuyerOrganizationId());
+                }
+            } else if (isBuyerParty) {
+                isBuyer = true;
+            }
+        } else if (isBuyerParty) {
+            isBuyer = true;
+        }
+
+        if (deal.getSellerOrganizationId() != null) {
+            if (memberRepository != null) {
+                var memberOpt = memberRepository.findByOrganizationIdAndUserId(deal.getSellerOrganizationId(), currentUser.getId());
+                if (memberOpt.isPresent()) {
+                    var m = memberOpt.get();
+                    if (m.getStatus() != MemberStatus.ACTIVE) {
+                        throw new UnauthorizedException("Signer organization membership is not active (status: " + m.getStatus() + ")");
+                    }
+                    if (m.getRole() != OrgRole.OWNER && m.getRole() != OrgRole.ADMIN && m.getRole() != OrgRole.AUTHORIZED_SIGNATORY) {
+                        throw new UnauthorizedException("Signer role (" + m.getRole() + ") is not authorized to sign agreements");
+                    }
+                    isSeller = true;
+                } else if (isSellerParty) {
+                    throw new UnauthorizedException("Signer is not an active member of seller organization " + deal.getSellerOrganizationId());
+                }
+            } else if (isSellerParty) {
+                isSeller = true;
+            }
+        } else if (isSellerParty) {
+            isSeller = true;
+        }
 
         if (!isBuyer && !isSeller && currentUser.getRole() != Role.ADMIN) {
-            throw new UnauthorizedException("Only the buyer or seller can sign this agreement");
+            throw new UnauthorizedException("Only an authorized active buyer or seller representative can sign this agreement");
         }
 
         if (isBuyer) {

@@ -660,6 +660,11 @@ public class VerificationService {
     }
 
     @Transactional
+    public BankAccountResponse verifyBankAccount(UUID orgId, UUID accountId, UserPrincipal currentUser) {
+        return verifyBankAccount(orgId, accountId, currentUser, null, null);
+    }
+
+    @Transactional
     public BankAccountResponse verifyBankAccount(UUID orgId, UUID accountId, UserPrincipal currentUser, String ip, String userAgent) {
         orgService.validateOrgRole(orgId, currentUser, Set.of(OrgRole.OWNER, OrgRole.ADMIN, OrgRole.FINANCE));
         enforceConsent(currentUser.getId(), orgId, ConsentType.BANK);
@@ -674,9 +679,11 @@ public class VerificationService {
             throw new BadRequestException("Bank account does not belong to specified organization");
         }
 
-        String rawAccount = account.getEncryptedAccountNumber() != null
-                ? piiEncryptionService.decrypt(account.getEncryptedAccountNumber())
-                : account.getAccountNumberMasked();
+        if (account.getEncryptedAccountNumber() == null || account.getEncryptedAccountNumber().isBlank()) {
+            throw new BadRequestException("Cannot verify bank account: full account details are missing (masked-only record)");
+        }
+
+        String rawAccount = piiEncryptionService.decrypt(account.getEncryptedAccountNumber());
 
         BankVerificationRequest req = new BankVerificationRequest(
                 rawAccount, account.getIfscCode(), null, account.getAccountHolderName()

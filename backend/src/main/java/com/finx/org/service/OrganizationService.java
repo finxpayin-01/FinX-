@@ -28,8 +28,11 @@ import com.finx.security.service.UserPrincipal;
 import com.finx.verification.enums.VerificationStatus;
 import com.finx.verification.repository.KybProfileRepository;
 import com.finx.verification.repository.KycProfileRepository;
+import com.finx.verification.service.PiiEncryptionService;
+import com.finx.verification.service.VerificationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -55,6 +58,8 @@ public class OrganizationService {
     private final DisputeRepository disputeRepository;
     private final BankingProvider bankingProvider;
     private final AuditService auditService;
+    private final PiiEncryptionService piiEncryptionService;
+    private final VerificationService verificationService;
 
     public OrganizationService(OrganizationRepository orgRepository,
                                OrganizationMemberRepository memberRepository,
@@ -66,6 +71,24 @@ public class OrganizationService {
                                DisputeRepository disputeRepository,
                                BankingProvider bankingProvider,
                                AuditService auditService) {
+        this(orgRepository, memberRepository, bankAccountRepository, kybProfileRepository,
+                kycProfileRepository, dealRepository, milestoneRepository, disputeRepository,
+                bankingProvider, auditService, null, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public OrganizationService(OrganizationRepository orgRepository,
+                               OrganizationMemberRepository memberRepository,
+                               OrganizationBankAccountRepository bankAccountRepository,
+                               KybProfileRepository kybProfileRepository,
+                               KycProfileRepository kycProfileRepository,
+                               DealRepository dealRepository,
+                               MilestoneRepository milestoneRepository,
+                               DisputeRepository disputeRepository,
+                               BankingProvider bankingProvider,
+                               AuditService auditService,
+                               @org.springframework.beans.factory.annotation.Autowired(required = false) PiiEncryptionService piiEncryptionService,
+                               @org.springframework.beans.factory.annotation.Autowired(required = false) @Lazy VerificationService verificationService) {
         this.orgRepository = orgRepository;
         this.memberRepository = memberRepository;
         this.bankAccountRepository = bankAccountRepository;
@@ -76,6 +99,8 @@ public class OrganizationService {
         this.disputeRepository = disputeRepository;
         this.bankingProvider = bankingProvider;
         this.auditService = auditService;
+        this.piiEncryptionService = piiEncryptionService;
+        this.verificationService = verificationService;
     }
 
     @Transactional
@@ -165,7 +190,8 @@ public class OrganizationService {
             throw new BadRequestException("This bank account has already been registered");
         }
 
-        String masked = maskAccountNumber(rawAcc);
+        String masked = piiEncryptionService != null ? piiEncryptionService.maskBankAccount(rawAcc) : maskAccountNumber(rawAcc);
+        String encrypted = piiEncryptionService != null ? piiEncryptionService.encrypt(rawAcc) : null;
 
         // If marked primary, unset other primary accounts
         if (request.isPrimary()) {
@@ -185,6 +211,8 @@ public class OrganizationService {
                 request.branchName(),
                 request.isPrimary()
         );
+        bankAcc.setEncryptedAccountNumber(encrypted);
+        bankAcc.setAccountType("CURRENT");
 
         OrganizationBankAccount saved = bankAccountRepository.save(bankAcc);
 
@@ -209,6 +237,12 @@ public class OrganizationService {
 
     @Transactional
     public BankAccountResponse verifyBankAccount(UUID orgId, UUID accountId, UserPrincipal currentUser) {
+        if (verificationService != null) {
+            verificationService.verifyBankAccount(orgId, accountId, currentUser);
+            OrganizationBankAccount updated = bankAccountRepository.findById(accountId)
+                    .orElseThrow(() -> new ResourceNotFoundException("OrganizationBankAccount", "id", accountId));
+            return mapBankToResponse(updated);
+        }
         validateOrgRole(orgId, currentUser, Set.of(OrgRole.OWNER, OrgRole.ADMIN, OrgRole.FINANCE));
 
         OrganizationBankAccount account = bankAccountRepository.findById(accountId)
@@ -218,36 +252,11 @@ public class OrganizationService {
             throw new BadRequestException("Bank account does not belong to specified organization");
         }
 
-        BeneficiaryVerificationRequest verifReq = new BeneficiaryVerificationRequest(
-                account.getAccountHolderName(),
-                account.getAccountNumberMasked(),
-                account.getIfscCode(),
-                "CORPORATE",
-                null
-        );
-
-        BeneficiaryVerificationResult result = bankingProvider.verifyBeneficiary(verifReq);
-        if (!result.verified()) {
-            account.setVerificationStatus(BankVerificationStatus.FAILED);
-            bankAccountRepository.save(account);
-            throw new BadRequestException("Bank account penny drop verification failed: " + result.message());
+        if (account.getEncryptedAccountNumber() == null || account.getEncryptedAccountNumber().isBlank()) {
+            throw new BadRequestException("Cannot verify bank account: full account details are missing (masked-only record)");
         }
 
-        account.setVerificationStatus(BankVerificationStatus.VERIFIED);
-        account.setVerificationReference(result.verificationReference());
-        account.setVerifiedAt(Instant.now());
-        OrganizationBankAccount saved = bankAccountRepository.save(account);
-
-        auditService.logEvent(
-                currentUser.getId(),
-                "BANK_ACCOUNT_VERIFIED",
-                "BANK_ACCOUNT",
-                saved.getId().toString(),
-                "Verified bank account " + saved.getAccountNumberMasked() + " via penny drop ref: " + result.verificationReference()
-        );
-
-        log.info("Bank account verified: id={} orgId={} ref={}", saved.getId(), orgId, result.verificationReference());
-        return mapBankToResponse(saved);
+        throw new BadRequestException("Direct organization bank account verification is deprecated; canonical VerificationService required");
     }
 
     @Transactional(readOnly = true)
@@ -274,7 +283,7 @@ public class OrganizationService {
 
         // Calculate platform metrics (note: metrics remain non-authoritative pending D06)
         int completedDeals = dealRepository.findAll().stream()
-                .filter(d -> (orgId.equals(d.getBuyerId()) || orgId.equals(d.getSellerId())) && d.getStatus() == DealStatus.COMPLETED)
+                .filter(d -> (orgId.equals(d.getBuyerOrganizationId()) || orgId.equals(d.getSellerOrganizationId())) && d.getStatus() == DealStatus.COMPLETED)
                 .mapToInt(d -> 1).sum();
 
         int completedMilestones = milestoneRepository.findAll().stream()

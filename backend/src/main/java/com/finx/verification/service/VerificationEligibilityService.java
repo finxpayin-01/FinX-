@@ -26,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class VerificationEligibilityService {
@@ -224,5 +225,62 @@ public class VerificationEligibilityService {
 
     public void validateProductionMoneyMovement() {
         throw new BadRequestException("BANKING_PARTNER_NOT_CONFIGURED: Production money movement is disabled. Regulated banking/payment partner integration has not been configured yet.");
+    }
+
+    public record BeneficiaryEligibilityResult(
+            boolean eligible,
+            OrganizationBankAccount bankAccount,
+            String failureReason,
+            boolean isSandbox
+    ) {}
+
+    @Transactional(readOnly = true)
+    public BeneficiaryEligibilityResult evaluateBeneficiaryEligibility(UUID organizationId) {
+        if (organizationId == null) {
+            return new BeneficiaryEligibilityResult(false, null, "Organization ID is required", false);
+        }
+
+        Organization org = orgRepository.findById(organizationId).orElse(null);
+        if (org == null) {
+            return new BeneficiaryEligibilityResult(false, null, "Organization not found: " + organizationId, false);
+        }
+
+        List<OrganizationBankAccount> accounts = bankRepository.findByOrganizationId(organizationId);
+
+        List<OrganizationBankAccount> eligibleAccounts = accounts.stream()
+                .filter(a -> a.getVerificationStatus() == BankVerificationStatus.VERIFIED)
+                .filter(a -> a.getEncryptedAccountNumber() != null && !a.getEncryptedAccountNumber().isBlank())
+                .filter(a -> a.getVerifiedAt() != null)
+                .filter(a -> !"MISMATCH".equalsIgnoreCase(a.getNameMatchStatus()))
+                .collect(Collectors.toList());
+
+        if (eligibleAccounts.isEmpty()) {
+            return new BeneficiaryEligibilityResult(false, null, "No eligible verified bank accounts found for organization " + organizationId, false);
+        }
+
+        if (eligibleAccounts.size() > 1) {
+            return new BeneficiaryEligibilityResult(
+                    false,
+                    null,
+                    "Ambiguous beneficiary: multiple eligible verified bank accounts found (" + eligibleAccounts.size() + ") for organization " + organizationId + ". Explicit beneficiary selection required.",
+                    false
+            );
+        }
+
+        OrganizationBankAccount single = eligibleAccounts.get(0);
+        boolean isSandbox = "MOCK".equalsIgnoreCase(single.getProvider())
+                || (single.getVerificationReference() != null && single.getVerificationReference().startsWith("MOCK"))
+                || verificationProvider.isSandbox();
+
+        return new BeneficiaryEligibilityResult(true, single, null, isSandbox);
+    }
+
+    @Transactional(readOnly = true)
+    public OrganizationBankAccount requireSingleEligibleBeneficiary(UUID organizationId) {
+        BeneficiaryEligibilityResult result = evaluateBeneficiaryEligibility(organizationId);
+        if (!result.eligible()) {
+            throw new BadRequestException("Beneficiary eligibility check failed: " + result.failureReason());
+        }
+        return result.bankAccount();
     }
 }

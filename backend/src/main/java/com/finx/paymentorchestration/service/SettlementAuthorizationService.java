@@ -76,6 +76,7 @@ public class SettlementAuthorizationService {
     private final com.finx.risk.service.RiskActionService riskActionService;
     private final com.finx.invoice.repository.InvoiceRepository invoiceRepository;
     private final DealAccessService dealAccessService;
+    private final com.finx.verification.service.VerificationEligibilityService eligibilityService;
 
     public SettlementAuthorizationService(SettlementInstructionRepository settlementRepository,
                                           DealRepository dealRepository,
@@ -91,22 +92,10 @@ public class SettlementAuthorizationService {
                                           AuditService auditService,
                                           NotificationService notificationService,
                                           com.finx.risk.service.RiskActionService riskActionService) {
-        this.settlementRepository = settlementRepository;
-        this.dealRepository = dealRepository;
-        this.milestoneRepository = milestoneRepository;
-        this.bankAccountRepository = bankAccountRepository;
-        this.kybProfileRepository = kybProfileRepository;
-        this.disputeRepository = disputeRepository;
-        this.riskAssessmentRepository = riskAssessmentRepository;
-        this.agreementService = agreementService;
-        this.escrowService = escrowService;
-        this.ledgerService = ledgerService;
-        this.bankingProvider = bankingProvider;
-        this.auditService = auditService;
-        this.notificationService = notificationService;
-        this.riskActionService = riskActionService;
-        this.invoiceRepository = null;
-        this.dealAccessService = null;
+        this(settlementRepository, dealRepository, milestoneRepository, bankAccountRepository,
+                kybProfileRepository, disputeRepository, riskAssessmentRepository, agreementService,
+                escrowService, ledgerService, bankingProvider, auditService, notificationService,
+                riskActionService, null, null, null);
     }
 
     public SettlementAuthorizationService(SettlementInstructionRepository settlementRepository,
@@ -127,7 +116,7 @@ public class SettlementAuthorizationService {
         this(settlementRepository, dealRepository, milestoneRepository, bankAccountRepository,
                 kybProfileRepository, disputeRepository, riskAssessmentRepository, agreementService,
                 escrowService, ledgerService, bankingProvider, auditService, notificationService,
-                riskActionService, invoiceRepository, null);
+                riskActionService, invoiceRepository, null, null);
     }
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -147,6 +136,29 @@ public class SettlementAuthorizationService {
                                           com.finx.risk.service.RiskActionService riskActionService,
                                           @org.springframework.beans.factory.annotation.Autowired(required = false) com.finx.invoice.repository.InvoiceRepository invoiceRepository,
                                           @org.springframework.beans.factory.annotation.Autowired(required = false) DealAccessService dealAccessService) {
+        this(settlementRepository, dealRepository, milestoneRepository, bankAccountRepository,
+                kybProfileRepository, disputeRepository, riskAssessmentRepository, agreementService,
+                escrowService, ledgerService, bankingProvider, auditService, notificationService,
+                riskActionService, invoiceRepository, dealAccessService, null);
+    }
+
+    public SettlementAuthorizationService(SettlementInstructionRepository settlementRepository,
+                                          DealRepository dealRepository,
+                                          MilestoneRepository milestoneRepository,
+                                          OrganizationBankAccountRepository bankAccountRepository,
+                                          KybProfileRepository kybProfileRepository,
+                                          DisputeRepository disputeRepository,
+                                          RiskAssessmentRepository riskAssessmentRepository,
+                                          AgreementService agreementService,
+                                          EscrowService escrowService,
+                                          LedgerService ledgerService,
+                                          BankingProvider bankingProvider,
+                                          AuditService auditService,
+                                          NotificationService notificationService,
+                                          com.finx.risk.service.RiskActionService riskActionService,
+                                          com.finx.invoice.repository.InvoiceRepository invoiceRepository,
+                                          DealAccessService dealAccessService,
+                                          com.finx.verification.service.VerificationEligibilityService eligibilityService) {
         this.settlementRepository = settlementRepository;
         this.dealRepository = dealRepository;
         this.milestoneRepository = milestoneRepository;
@@ -163,11 +175,50 @@ public class SettlementAuthorizationService {
         this.riskActionService = riskActionService;
         this.invoiceRepository = invoiceRepository;
         this.dealAccessService = dealAccessService;
+        this.eligibilityService = eligibilityService;
     }
 
     @Transactional
     public SettlementResponse authorizeAndInitiateSettlement(PayoutAuthorizationRequest request, UserPrincipal currentUser) {
         throw new AccessDeniedException("Settlement payout execution is disabled pending settlement orchestration redesign");
+    }
+
+    @Transactional(readOnly = true)
+    public com.finx.verification.service.VerificationEligibilityService.BeneficiaryEligibilityResult evaluateBeneficiaryEligibility(UUID organizationId) {
+        if (eligibilityService != null) {
+            return eligibilityService.evaluateBeneficiaryEligibility(organizationId);
+        }
+        if (organizationId == null) {
+            return new com.finx.verification.service.VerificationEligibilityService.BeneficiaryEligibilityResult(
+                    false, null, "Organization ID is required", false);
+        }
+        List<OrganizationBankAccount> accounts = bankAccountRepository.findByOrganizationId(organizationId);
+        List<OrganizationBankAccount> eligible = accounts.stream()
+                .filter(a -> a.getVerificationStatus() == BankVerificationStatus.VERIFIED)
+                .filter(a -> a.getEncryptedAccountNumber() != null && !a.getEncryptedAccountNumber().isBlank())
+                .filter(a -> a.getVerifiedAt() != null)
+                .filter(a -> !"MISMATCH".equalsIgnoreCase(a.getNameMatchStatus()))
+                .collect(Collectors.toList());
+        if (eligible.isEmpty()) {
+            return new com.finx.verification.service.VerificationEligibilityService.BeneficiaryEligibilityResult(
+                    false, null, "No eligible verified bank accounts found for organization " + organizationId, false);
+        }
+        if (eligible.size() > 1) {
+            return new com.finx.verification.service.VerificationEligibilityService.BeneficiaryEligibilityResult(
+                    false, null, "Ambiguous beneficiary: multiple eligible verified bank accounts found (" + eligible.size() + ") for organization " + organizationId + ". Explicit beneficiary selection required.", false);
+        }
+        OrganizationBankAccount single = eligible.get(0);
+        boolean isSandbox = "MOCK".equalsIgnoreCase(single.getProvider()) || (single.getVerificationReference() != null && single.getVerificationReference().startsWith("MOCK"));
+        return new com.finx.verification.service.VerificationEligibilityService.BeneficiaryEligibilityResult(true, single, null, isSandbox);
+    }
+
+    @Transactional(readOnly = true)
+    public OrganizationBankAccount requireSingleEligibleBeneficiary(UUID organizationId) {
+        var result = evaluateBeneficiaryEligibility(organizationId);
+        if (!result.eligible()) {
+            throw new BadRequestException("Beneficiary eligibility check failed: " + result.failureReason());
+        }
+        return result.bankAccount();
     }
 
     @Transactional(readOnly = true)

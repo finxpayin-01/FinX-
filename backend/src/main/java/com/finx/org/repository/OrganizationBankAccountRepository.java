@@ -14,5 +14,6 @@ public interface OrganizationBankAccountRepository extends JpaRepository<Organiz
     List<OrganizationBankAccount> findByOrganizationId(UUID organizationId);
     Optional<OrganizationBankAccount> findByOrganizationIdAndIsPrimaryTrue(UUID organizationId);
     Optional<OrganizationBankAccount> findByOrganizationIdAndVerificationStatus(UUID organizationId, BankVerificationStatus status);
+    List<OrganizationBankAccount> findAllByOrganizationIdAndVerificationStatus(UUID organizationId, BankVerificationStatus status);
     boolean existsByAccountNumberHash(String accountNumberHash);
 }

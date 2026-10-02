@@ -200,9 +200,9 @@ public class InvoiceService {
             extracted.setConfidenceByField(Map.of());
         }
 
-        // Authoritative Vendor and Buyer Org IDs from Deal
-        UUID vendorOrgId = deal.getSellerOrganizationId() != null ? deal.getSellerOrganizationId() : deal.getSellerId();
-        UUID buyerOrgId = deal.getBuyerOrganizationId() != null ? deal.getBuyerOrganizationId() : deal.getBuyerId();
+        // Authoritative Vendor and Buyer Org IDs from Deal (no fallback to User ID)
+        UUID vendorOrgId = deal.getSellerOrganizationId();
+        UUID buyerOrgId = deal.getBuyerOrganizationId();
 
         // Build Invoice entity
         Invoice invoice = new Invoice();
@@ -451,8 +451,13 @@ public class InvoiceService {
 
         OrganizationBankAccount vendorBank = null;
         if (vendorOrg != null) {
-            vendorBank = bankAccountRepository.findByOrganizationIdAndVerificationStatus(
-                    vendorOrg.getId(), BankVerificationStatus.VERIFIED).orElse(null);
+            List<OrganizationBankAccount> verifiedBanks = bankAccountRepository.findByOrganizationId(vendorOrg.getId()).stream()
+                    .filter(a -> a.getVerificationStatus() == BankVerificationStatus.VERIFIED)
+                    .filter(a -> a.getEncryptedAccountNumber() != null && !a.getEncryptedAccountNumber().isBlank())
+                    .collect(Collectors.toList());
+            if (verifiedBanks.size() == 1) {
+                vendorBank = verifiedBanks.get(0);
+            }
         }
 
         List<Deliverable> deliverables = deliverableRepository.findByMilestoneIdOrderBySubmittedAtDesc(milestone.getId());
