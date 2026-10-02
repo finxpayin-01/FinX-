@@ -25,7 +25,7 @@ public class RegisterRequest {
     )
     private String password;
 
-    @NotNull(message = "Role is required (BUYER, SELLER, PROJECT_MANAGER, or FINANCE)")
+    @NotNull(message = "Role is required (BUYER, SELLER, or PROJECT_MANAGER)")
     private Role role;
 
     public RegisterRequest() {

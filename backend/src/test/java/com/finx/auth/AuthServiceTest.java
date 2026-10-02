@@ -122,6 +122,18 @@ class AuthServiceTest {
     }
 
     @Test
+    @DisplayName("Should reject public registration for FINANCE role")
+    void testRegister_FinanceRole_ThrowsBadRequestException() {
+        RegisterRequest request = new RegisterRequest("Finance User", "finance@finx.com", rawPassword, Role.FINANCE);
+
+        assertThatThrownBy(() -> authService.register(request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("FINANCE accounts cannot be registered publicly");
+
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
     @DisplayName("Should reject duplicate email registration")
     void testRegister_DuplicateEmail_ThrowsDuplicateResourceException() {
         RegisterRequest request = new RegisterRequest("Alice Client", "alice@example.com", rawPassword, Role.BUYER);

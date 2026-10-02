@@ -52,7 +52,7 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    @Operation(summary = "Register a new user (Buyer or Seller)", description = "Public registration endpoint for Buyer or Seller accounts. Admin accounts cannot be registered publicly.")
+    @Operation(summary = "Register a new user (Buyer, Seller, or Project Manager)", description = "Public registration endpoint for Buyer, Seller, or Project Manager accounts. Privileged platform accounts (Admin, Finance) cannot be registered publicly.")
     @ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "User registered successfully"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid request payload or unauthorized role"),

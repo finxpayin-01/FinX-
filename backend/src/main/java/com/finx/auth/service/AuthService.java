@@ -92,10 +92,25 @@ public class AuthService {
         this.restTemplate = new org.springframework.web.client.RestTemplate();
     }
 
+    private static final java.util.Set<Role> PUBLIC_REGISTRATION_ROLES = java.util.Set.of(
+            Role.BUYER,
+            Role.SELLER,
+            Role.PROJECT_MANAGER
+    );
+
     @Transactional
     public AuthResponse register(RegisterRequest request) {
+        if (request.getRole() == null) {
+            throw new BadRequestException("Role is required");
+        }
         if (request.getRole() == Role.ADMIN) {
             throw new BadRequestException("ADMIN accounts cannot be registered publicly");
+        }
+        if (request.getRole() == Role.FINANCE) {
+            throw new BadRequestException("FINANCE accounts cannot be registered publicly. Platform finance authority must be provisioned administratively.");
+        }
+        if (!PUBLIC_REGISTRATION_ROLES.contains(request.getRole())) {
+            throw new BadRequestException("Registration for role " + request.getRole() + " is not permitted publicly");
         }
 
         if (userRepository.existsByEmail(request.getEmail())) {
@@ -302,6 +317,10 @@ public class AuthService {
 
     @Transactional
     public AuthResponse authenticateWithGoogle(GoogleOAuthRequest request) {
+        if (request.getRole() == Role.ADMIN || request.getRole() == Role.FINANCE) {
+            throw new BadRequestException("Privileged platform roles (ADMIN, FINANCE) cannot be provisioned via OAuth");
+        }
+
         if (!googleOAuthProperties.isConfigured()) {
             throw new BadRequestException("Google OAuth is not configured on the server. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.");
         }
@@ -395,13 +414,10 @@ public class AuthService {
             }
         } else {
             isNewUser = true;
-            // Map role: BUYER for Corporate users, SELLER for Vendor users. Never allow ADMIN via public flow.
+            // Map role: BUYER for Corporate users, SELLER for Vendor users. Never allow privileged platform roles.
             Role assignedRole = Role.BUYER;
             if (request.getRole() == Role.SELLER) {
                 assignedRole = Role.SELLER;
-            } else if (request.getRole() == Role.ADMIN) {
-                log.warn("Attempt to register ADMIN via Google OAuth denied. Defaulting to BUYER.");
-                assignedRole = Role.BUYER;
             }
 
             // Generate cryptographically secure random password hash for OAuth users

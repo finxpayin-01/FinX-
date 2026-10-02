@@ -34,7 +34,7 @@ public enum Role {
                 return r;
             }
         }
-        throw new IllegalArgumentException("Invalid role: '" + value + "'. Permitted registration roles are: BUYER (or CORPORATE), SELLER (or VENDOR), PROJECT_MANAGER (or PROJ_MANAGER), FINANCE");
+        throw new IllegalArgumentException("Invalid role: '" + value + "'. Permitted registration roles are: BUYER (or CORPORATE), SELLER (or VENDOR), PROJECT_MANAGER (or PROJ_MANAGER)");
     }
 
     @JsonValue

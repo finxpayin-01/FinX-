@@ -170,7 +170,7 @@ class AuthEndToEndTest {
     }
 
     @Test
-    @DisplayName("Verify registration works for all supported roles and aliases (BUYER, SELLER, CORPORATE, VENDOR, PROJECT_MANAGER, FINANCE)")
+    @DisplayName("Verify registration works for allowed public roles (BUYER, SELLER, CORPORATE, VENDOR, PROJECT_MANAGER) and denies FINANCE")
     void testRegistrationWithAllSupportedRolesAndAliases() throws Exception {
         String password = "StrongPassword123!";
 
@@ -214,13 +214,14 @@ class AuthEndToEndTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.user.role").value("PROJECT_MANAGER"));
 
-        // 6. FINANCE
+        // 6. FINANCE -> 400 Bad Request (Public FINANCE registration denied under B08)
         String financeEmail = "test.finance@finx.com";
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Finance User\",\"email\":\"" + financeEmail + "\",\"password\":\"" + password + "\",\"role\":\"FINANCE\"}"))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.user.role").value("FINANCE"));
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("FINANCE accounts cannot be registered publicly")));
 
         // 7. Invalid role -> 400 Bad Request
         mockMvc.perform(post("/api/auth/register")
