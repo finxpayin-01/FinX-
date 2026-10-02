@@ -77,6 +77,7 @@ public class SettlementAuthorizationService {
     private final com.finx.invoice.repository.InvoiceRepository invoiceRepository;
     private final DealAccessService dealAccessService;
     private final com.finx.verification.service.VerificationEligibilityService eligibilityService;
+    private final ApprovalApplicabilityService approvalApplicabilityService;
 
     public SettlementAuthorizationService(SettlementInstructionRepository settlementRepository,
                                           DealRepository dealRepository,
@@ -95,7 +96,7 @@ public class SettlementAuthorizationService {
         this(settlementRepository, dealRepository, milestoneRepository, bankAccountRepository,
                 kybProfileRepository, disputeRepository, riskAssessmentRepository, agreementService,
                 escrowService, ledgerService, bankingProvider, auditService, notificationService,
-                riskActionService, null, null, null);
+                riskActionService, null, null, null, null);
     }
 
     public SettlementAuthorizationService(SettlementInstructionRepository settlementRepository,
@@ -116,10 +117,9 @@ public class SettlementAuthorizationService {
         this(settlementRepository, dealRepository, milestoneRepository, bankAccountRepository,
                 kybProfileRepository, disputeRepository, riskAssessmentRepository, agreementService,
                 escrowService, ledgerService, bankingProvider, auditService, notificationService,
-                riskActionService, invoiceRepository, null, null);
+                riskActionService, invoiceRepository, null, null, null);
     }
 
-    @org.springframework.beans.factory.annotation.Autowired
     public SettlementAuthorizationService(SettlementInstructionRepository settlementRepository,
                                           DealRepository dealRepository,
                                           MilestoneRepository milestoneRepository,
@@ -134,12 +134,12 @@ public class SettlementAuthorizationService {
                                           AuditService auditService,
                                           NotificationService notificationService,
                                           com.finx.risk.service.RiskActionService riskActionService,
-                                          @org.springframework.beans.factory.annotation.Autowired(required = false) com.finx.invoice.repository.InvoiceRepository invoiceRepository,
-                                          @org.springframework.beans.factory.annotation.Autowired(required = false) DealAccessService dealAccessService) {
+                                          com.finx.invoice.repository.InvoiceRepository invoiceRepository,
+                                          DealAccessService dealAccessService) {
         this(settlementRepository, dealRepository, milestoneRepository, bankAccountRepository,
                 kybProfileRepository, disputeRepository, riskAssessmentRepository, agreementService,
                 escrowService, ledgerService, bankingProvider, auditService, notificationService,
-                riskActionService, invoiceRepository, dealAccessService, null);
+                riskActionService, invoiceRepository, dealAccessService, null, null);
     }
 
     public SettlementAuthorizationService(SettlementInstructionRepository settlementRepository,
@@ -159,6 +159,31 @@ public class SettlementAuthorizationService {
                                           com.finx.invoice.repository.InvoiceRepository invoiceRepository,
                                           DealAccessService dealAccessService,
                                           com.finx.verification.service.VerificationEligibilityService eligibilityService) {
+        this(settlementRepository, dealRepository, milestoneRepository, bankAccountRepository,
+                kybProfileRepository, disputeRepository, riskAssessmentRepository, agreementService,
+                escrowService, ledgerService, bankingProvider, auditService, notificationService,
+                riskActionService, invoiceRepository, dealAccessService, eligibilityService, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public SettlementAuthorizationService(SettlementInstructionRepository settlementRepository,
+                                          DealRepository dealRepository,
+                                          MilestoneRepository milestoneRepository,
+                                          OrganizationBankAccountRepository bankAccountRepository,
+                                          KybProfileRepository kybProfileRepository,
+                                          DisputeRepository disputeRepository,
+                                          RiskAssessmentRepository riskAssessmentRepository,
+                                          AgreementService agreementService,
+                                          EscrowService escrowService,
+                                          LedgerService ledgerService,
+                                          BankingProvider bankingProvider,
+                                          AuditService auditService,
+                                          NotificationService notificationService,
+                                          com.finx.risk.service.RiskActionService riskActionService,
+                                          @org.springframework.beans.factory.annotation.Autowired(required = false) com.finx.invoice.repository.InvoiceRepository invoiceRepository,
+                                          @org.springframework.beans.factory.annotation.Autowired(required = false) DealAccessService dealAccessService,
+                                          @org.springframework.beans.factory.annotation.Autowired(required = false) com.finx.verification.service.VerificationEligibilityService eligibilityService,
+                                          @org.springframework.beans.factory.annotation.Autowired(required = false) ApprovalApplicabilityService approvalApplicabilityService) {
         this.settlementRepository = settlementRepository;
         this.dealRepository = dealRepository;
         this.milestoneRepository = milestoneRepository;
@@ -176,11 +201,20 @@ public class SettlementAuthorizationService {
         this.invoiceRepository = invoiceRepository;
         this.dealAccessService = dealAccessService;
         this.eligibilityService = eligibilityService;
+        this.approvalApplicabilityService = approvalApplicabilityService;
     }
 
     @Transactional
     public SettlementResponse authorizeAndInitiateSettlement(PayoutAuthorizationRequest request, UserPrincipal currentUser) {
         throw new AccessDeniedException("Settlement payout execution is disabled pending settlement orchestration redesign");
+    }
+
+    @Transactional(readOnly = true)
+    public ApprovalApplicabilityService.ApprovalApplicabilityResult evaluateApprovalApplicability(UUID dealId, UUID milestoneId) {
+        if (approvalApplicabilityService != null) {
+            return approvalApplicabilityService.evaluateApprovalApplicability(dealId, milestoneId);
+        }
+        throw new BadRequestException("Approval applicability service is not configured");
     }
 
     @Transactional(readOnly = true)
