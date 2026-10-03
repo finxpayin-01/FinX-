@@ -171,7 +171,11 @@ public class FlywayCleanMigrationTest {
             assertTrue(escrowLedgerColumns.contains("payment_instruction_id"), "V24 column 'payment_instruction_id' on 'escrow_ledger' must exist, found: " + escrowLedgerColumns);
             assertTrue(escrowLedgerColumns.contains("payment_id"), "Legacy column 'payment_id' on 'escrow_ledger' must be preserved, found: " + escrowLedgerColumns);
 
-            System.out.println("ALL V1 - V24 TABLES AND COLUMNS VERIFIED IN SEQUENTIAL CLEAN ORDER!\n");
+            // V25 engine decision framework tables
+            assertTrue(tables.contains("engine_policy_versions"), "V25 table 'engine_policy_versions' must exist");
+            assertTrue(tables.contains("engine_decisions"), "V25 table 'engine_decisions' must exist");
+
+            System.out.println("ALL V1 - V25 TABLES AND COLUMNS VERIFIED IN SEQUENTIAL CLEAN ORDER!\n");
         }
     }
 }
