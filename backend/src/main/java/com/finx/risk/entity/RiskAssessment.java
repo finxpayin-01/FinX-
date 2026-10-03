@@ -21,6 +21,9 @@ public class RiskAssessment {
     public Boolean reviewRequired;
     public String reviewStatus;
 
+    @Transient
+    public boolean isTransient = false;
+
     @Id
     private UUID id;
 
@@ -97,4 +100,6 @@ public class RiskAssessment {
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
     public List<RiskSignal> getSignals() { return signals; }
     public void setSignals(List<RiskSignal> signals) { this.signals = signals; }
+    public boolean isTransient() { return isTransient; }
+    public void setTransient(boolean isTransient) { this.isTransient = isTransient; }
 }
