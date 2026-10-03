@@ -12,6 +12,7 @@ public class EscrowLedgerResponse {
     private UUID id;
     private UUID escrowAccountId;
     private UUID paymentId;
+    private UUID paymentInstructionId;
     private UUID milestoneId;
     private TransactionType transactionType;
     private BigDecimal amount;
@@ -27,6 +28,7 @@ public class EscrowLedgerResponse {
         response.setId(ledger.getId());
         response.setEscrowAccountId(ledger.getEscrowAccountId());
         response.setPaymentId(ledger.getPaymentId());
+        response.setPaymentInstructionId(ledger.getPaymentInstructionId());
         response.setMilestoneId(ledger.getMilestoneId());
         response.setTransactionType(ledger.getTransactionType());
         response.setAmount(ledger.getAmount());
@@ -58,6 +60,14 @@ public class EscrowLedgerResponse {
 
     public void setPaymentId(UUID paymentId) {
         this.paymentId = paymentId;
+    }
+
+    public UUID getPaymentInstructionId() {
+        return paymentInstructionId;
+    }
+
+    public void setPaymentInstructionId(UUID paymentInstructionId) {
+        this.paymentInstructionId = paymentInstructionId;
     }
 
     public UUID getMilestoneId() {

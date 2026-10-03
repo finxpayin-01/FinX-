@@ -11,9 +11,11 @@ import java.util.UUID;
 @Entity
 @Table(name = "escrow_ledger", uniqueConstraints = {
         @UniqueConstraint(name = "uk_escrow_ledger_payment_id", columnNames = "payment_id"),
+        @UniqueConstraint(name = "uk_escrow_ledger_payment_instruction_id", columnNames = "payment_instruction_id"),
         @UniqueConstraint(name = "uk_escrow_ledger_milestone_type", columnNames = {"milestone_id", "transaction_type"})
 }, indexes = {
         @Index(name = "idx_escrow_ledger_account_id", columnList = "escrow_account_id"),
+        @Index(name = "idx_escrow_ledger_payment_instruction_id", columnList = "payment_instruction_id"),
         @Index(name = "idx_escrow_ledger_milestone_id", columnList = "milestone_id"),
         @Index(name = "idx_escrow_ledger_type", columnList = "transaction_type"),
         @Index(name = "idx_escrow_ledger_created_at", columnList = "created_at")
@@ -30,6 +32,9 @@ public class EscrowLedger {
 
     @Column(name = "payment_id")
     private UUID paymentId;
+
+    @Column(name = "payment_instruction_id")
+    private UUID paymentInstructionId;
 
     @Column(name = "milestone_id")
     private UUID milestoneId;
@@ -55,8 +60,13 @@ public class EscrowLedger {
     }
 
     public EscrowLedger(UUID escrowAccountId, UUID paymentId, UUID milestoneId, TransactionType transactionType, BigDecimal amount, BigDecimal balanceAfter, String description) {
+        this(escrowAccountId, paymentId, null, milestoneId, transactionType, amount, balanceAfter, description);
+    }
+
+    public EscrowLedger(UUID escrowAccountId, UUID paymentId, UUID paymentInstructionId, UUID milestoneId, TransactionType transactionType, BigDecimal amount, BigDecimal balanceAfter, String description) {
         this.escrowAccountId = escrowAccountId;
         this.paymentId = paymentId;
+        this.paymentInstructionId = paymentInstructionId;
         this.milestoneId = milestoneId;
         this.transactionType = transactionType;
         this.amount = amount;
@@ -86,6 +96,14 @@ public class EscrowLedger {
 
     public void setPaymentId(UUID paymentId) {
         this.paymentId = paymentId;
+    }
+
+    public UUID getPaymentInstructionId() {
+        return paymentInstructionId;
+    }
+
+    public void setPaymentInstructionId(UUID paymentInstructionId) {
+        this.paymentInstructionId = paymentInstructionId;
     }
 
     public UUID getMilestoneId() {

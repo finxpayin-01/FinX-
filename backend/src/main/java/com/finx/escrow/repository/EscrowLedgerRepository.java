@@ -13,4 +13,6 @@ import java.util.UUID;
 public interface EscrowLedgerRepository extends JpaRepository<EscrowLedger, UUID> {
     List<EscrowLedger> findByEscrowAccountIdOrderByCreatedAtDesc(UUID escrowAccountId);
     Optional<EscrowLedger> findByMilestoneIdAndTransactionType(UUID milestoneId, TransactionType transactionType);
+    Optional<EscrowLedger> findByPaymentInstructionId(UUID paymentInstructionId);
+    Optional<EscrowLedger> findByPaymentId(UUID paymentId);
 }

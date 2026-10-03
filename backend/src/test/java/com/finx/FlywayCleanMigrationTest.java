@@ -15,22 +15,47 @@ import static org.junit.jupiter.api.Assertions.*;
 
 public class FlywayCleanMigrationTest {
 
+    private static boolean isPostgresAvailable() {
+        try (java.net.Socket socket = new java.net.Socket()) {
+            socket.connect(new java.net.InetSocketAddress("127.0.0.1", 5432), 1000);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     @Test
     public void testCompleteFlywaySequenceAgainstCleanDatabase() throws Exception {
-        String jdbcUrl = "jdbc:h2:mem:flyway_clean_test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1";
-        String user = "sa";
-        String pass = "";
+        boolean postgres = isPostgresAvailable();
+        String jdbcUrl;
+        String user;
+        String pass;
+
+        if (postgres) {
+            jdbcUrl = System.getProperty("spring.datasource.url",
+                    System.getenv().getOrDefault("SPRING_DATASOURCE_URL", "jdbc:postgresql://127.0.0.1:5432/finx_b06_test"));
+            user = System.getProperty("spring.datasource.username",
+                    System.getenv().getOrDefault("SPRING_DATASOURCE_USERNAME", "finx_user"));
+            pass = System.getProperty("spring.datasource.password",
+                    System.getenv().getOrDefault("SPRING_DATASOURCE_PASSWORD", "finx_password"));
+        } else {
+            jdbcUrl = "jdbc:h2:mem:flyway_clean_test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1";
+            user = "sa";
+            pass = "";
+        }
 
         System.out.println("\n=== FLYWAY CLEAN DATABASE MIGRATION TEST ===");
-        System.out.println("Configuring Flyway against clean in-memory database: " + jdbcUrl);
+        System.out.println("Configuring Flyway against clean database: " + jdbcUrl);
 
         Flyway flyway = Flyway.configure()
                 .dataSource(jdbcUrl, user, pass)
                 .locations("classpath:db/migration")
                 .baselineOnMigrate(true)
                 .baselineVersion("0")
+                .cleanDisabled(false)
                 .load();
 
+        flyway.clean();
         var result = flyway.migrate();
         System.out.println("Migrations successfully executed: " + result.migrationsExecuted);
         assertTrue(result.migrationsExecuted >= 10, "Expected at least 10 migrations to execute, executed: " + result.migrationsExecuted);
@@ -45,6 +70,12 @@ public class FlywayCleanMigrationTest {
         // Verify tables exist in the database
         try (Connection conn = DriverManager.getConnection(jdbcUrl, user, pass);
              Statement stmt = conn.createStatement()) {
+
+            String product = conn.getMetaData().getDatabaseProductName();
+            System.out.println("Database product: " + product);
+            if (postgres) {
+                assertEquals("PostgreSQL", product, "Database product must be PostgreSQL");
+            }
 
             List<String> tables = new ArrayList<>();
             try (ResultSet rs = conn.getMetaData().getTables(null, null, "%", new String[]{"TABLE"})) {
@@ -129,7 +160,18 @@ public class FlywayCleanMigrationTest {
             assertTrue(dealColumns.contains("deal_reference"), "V15 column 'deal_reference' on 'deals' must exist, found: " + dealColumns);
             assertTrue(dealColumns.contains("buyer_organization_id"), "V15 column 'buyer_organization_id' on 'deals' must exist, found: " + dealColumns);
 
-            System.out.println("ALL V1 - V16 TABLES AND COLUMNS VERIFIED IN SEQUENTIAL CLEAN ORDER!\n");
+            List<String> escrowLedgerColumns = new ArrayList<>();
+            try (ResultSet rs = conn.getMetaData().getColumns(null, null, "%", "%")) {
+                while (rs.next()) {
+                    if ("escrow_ledger".equalsIgnoreCase(rs.getString("TABLE_NAME"))) {
+                        escrowLedgerColumns.add(rs.getString("COLUMN_NAME").toLowerCase());
+                    }
+                }
+            }
+            assertTrue(escrowLedgerColumns.contains("payment_instruction_id"), "V24 column 'payment_instruction_id' on 'escrow_ledger' must exist, found: " + escrowLedgerColumns);
+            assertTrue(escrowLedgerColumns.contains("payment_id"), "Legacy column 'payment_id' on 'escrow_ledger' must be preserved, found: " + escrowLedgerColumns);
+
+            System.out.println("ALL V1 - V24 TABLES AND COLUMNS VERIFIED IN SEQUENTIAL CLEAN ORDER!\n");
         }
     }
 }

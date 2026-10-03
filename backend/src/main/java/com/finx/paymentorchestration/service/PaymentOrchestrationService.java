@@ -13,6 +13,10 @@ import com.finx.escrow.service.EscrowService;
 import com.finx.exception.BadRequestException;
 import com.finx.exception.ResourceNotFoundException;
 import com.finx.exception.UnauthorizedException;
+import com.finx.ledger.dto.LedgerDtos.JournalLineItem;
+import com.finx.ledger.dto.LedgerDtos.PostJournalEntryRequest;
+import com.finx.ledger.enums.LedgerEnums.EntryType;
+import com.finx.ledger.enums.LedgerEnums.LedgerTransactionType;
 import com.finx.ledger.service.LedgerService;
 import com.finx.milestone.entity.Milestone;
 import com.finx.milestone.entity.MilestoneStatus;
@@ -20,6 +24,7 @@ import com.finx.milestone.repository.MilestoneRepository;
 import com.finx.notification.service.NotificationService;
 import com.finx.paymentorchestration.dto.PaymentOrchestrationDtos.*;
 import com.finx.paymentorchestration.entity.PaymentInstruction;
+import com.finx.paymentorchestration.entity.PaymentTransaction;
 import com.finx.paymentorchestration.enums.PaymentOrchestrationEnums.InstructionStatus;
 import com.finx.paymentorchestration.repository.PaymentInstructionRepository;
 import com.finx.paymentorchestration.repository.PaymentTransactionRepository;
@@ -241,6 +246,110 @@ public class PaymentOrchestrationService {
                 instructionRef, deal.getId(), instructionAmount);
 
         return mapToResponse(saved);
+    }
+
+    /**
+     * B06: Internal atomic finalization of confirmed bank funding.
+     * Posts double-entry journal, projects escrow ledger (using bank PaymentInstruction FK),
+     * records payment transaction with provider credit identity, and finalizes local statuses
+     * within ONE local database transaction.
+     *
+     * If any operation fails, the entire transaction rolls back atomically.
+     * Strictly internal - not exposed to external user or controller endpoints.
+     */
+    @Transactional
+    public PaymentInstruction finalizeBankFunding(UUID instructionId, String utr, UUID actorId) {
+        if (instructionId == null) {
+            throw new BadRequestException("Instruction ID is required for bank funding finalization");
+        }
+        if (utr == null || utr.isBlank()) {
+            throw new BadRequestException("Valid UTR number is required for bank funding finalization");
+        }
+
+        PaymentInstruction instruction = instructionRepository.findById(instructionId)
+                .orElseThrow(() -> new ResourceNotFoundException("PaymentInstruction", "id", instructionId));
+
+        if (instruction.getStatus() == InstructionStatus.SUCCESS) {
+            log.info("Payment instruction {} is already in SUCCESS status", instructionId);
+            return instruction;
+        }
+
+        UUID dealId = instruction.getDealId();
+        UUID milestoneId = instruction.getMilestoneId();
+
+        // B11: Canonical lock order Deal -> Milestone -> EscrowAccount
+        Deal deal = dealRepository.findByIdForUpdate(dealId)
+                .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", dealId));
+
+        if (milestoneId != null) {
+            milestoneRepository.findByIdForUpdate(milestoneId);
+        }
+
+        if (!"INR".equalsIgnoreCase(instruction.getCurrency())) {
+            throw new BadRequestException("Unsupported instruction currency: " + instruction.getCurrency() + ". FinX currently supports INR only.");
+        }
+
+        // 1. Post double-entry journal entry with bank source reference
+        PostJournalEntryRequest journalReq = new PostJournalEntryRequest(
+                LedgerTransactionType.ESCROW_DEPOSIT,
+                instruction.getId(),
+                dealId,
+                milestoneId,
+                instruction.getCurrency(),
+                "Bank deposit via UTR " + utr + " for instruction " + instruction.getInstructionReference(),
+                actorId != null ? actorId : instruction.getInitiatedBy(),
+                List.of(
+                        new JournalLineItem(LedgerService.ACC_ESCROW_POOL, EntryType.DEBIT, instruction.getAmount(), "Escrow pool bank nodal deposit"),
+                        new JournalLineItem(LedgerService.ACC_ESCROW_LIABILITY, EntryType.CREDIT, instruction.getAmount(), "Deal escrow liability created")
+                )
+        );
+        ledgerService.postJournalEntry(journalReq);
+
+        // 2. Project into escrow ledger using bank source FK (fundEscrowForInstruction)
+        escrowService.fundEscrowForInstruction(
+                dealId,
+                milestoneId,
+                instruction.getId(),
+                instruction.getAmount(),
+                instruction.getCurrency(),
+                actorId != null ? actorId : instruction.getInitiatedBy()
+        );
+
+        // 3. Record PaymentTransaction with provider identity
+        PaymentTransaction tx = new PaymentTransaction(
+                "TXN-" + instruction.getInstructionReference(),
+                instruction.getId(),
+                instruction.getProvider() != null ? instruction.getProvider() : "BANK",
+                instruction.getProviderInstructionId(),
+                instruction.getAmount(),
+                instruction.getCurrency(),
+                "SUCCESS",
+                utr,
+                "{\"status\": \"SUCCESS\", \"finalized\": true}"
+        );
+        transactionRepository.save(tx);
+
+        // 4. Update instruction status to SUCCESS
+        instruction.setStatus(InstructionStatus.SUCCESS);
+        instruction.setConfirmedAt(java.time.Instant.now());
+        PaymentInstruction savedInstruction = instructionRepository.save(instruction);
+
+        // 5. Update deal status if fully funded
+        deal.setStatus(DealStatus.FUNDED);
+        dealRepository.save(deal);
+
+        auditService.logEvent(
+                actorId,
+                "BANK_FUNDING_FINALIZED",
+                "PAYMENT_INSTRUCTION",
+                instruction.getId().toString(),
+                "Bank funding finalized: ref=" + instruction.getInstructionReference() + " utr=" + utr
+        );
+
+        log.info("Bank funding finalized: instructionId={} ref={} utr={} dealId={}",
+                instruction.getId(), instruction.getInstructionReference(), utr, dealId);
+
+        return savedInstruction;
     }
 
     /**

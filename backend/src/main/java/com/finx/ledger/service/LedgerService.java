@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -61,18 +62,36 @@ public class LedgerService {
         ensureAccount(ACC_FEE_REVENUE, "FinX Platform Fee Revenue", AccountType.REVENUE, "INR");
     }
 
+    public static final String SUPPORTED_CURRENCY = "INR";
+
     @Transactional
     public LedgerAccount ensureAccount(String accountNumber, String name, AccountType type, String currency) {
+        String normalizedAccCurrency = (currency != null && !currency.isBlank()) ? currency.trim().toUpperCase(java.util.Locale.ROOT) : SUPPORTED_CURRENCY;
+        if (!SUPPORTED_CURRENCY.equals(normalizedAccCurrency)) {
+            throw new BadRequestException("Unsupported account currency: '" + currency + "'. FinX currently supports " + SUPPORTED_CURRENCY + " only.");
+        }
         return accountRepository.findByAccountNumber(accountNumber).orElseGet(() -> {
-            LedgerAccount acc = new LedgerAccount(accountNumber, name, type, currency);
+            LedgerAccount acc = new LedgerAccount(accountNumber, name, type, normalizedAccCurrency);
             return accountRepository.save(acc);
         });
     }
 
     @Transactional
     public JournalEntry postJournalEntry(PostJournalEntryRequest request) {
+        if (request == null) {
+            throw new BadRequestException("Journal entry request cannot be null");
+        }
         if (request.lines() == null || request.lines().size() < 2) {
             throw new BadRequestException("Journal entry must have at least 2 balanced lines");
+        }
+
+        // B06: Currency consistency - FinX currently supports INR only
+        if (request.currency() == null || request.currency().isBlank()) {
+            throw new BadRequestException("Journal entry currency is required");
+        }
+        String normalizedCurrency = request.currency().trim().toUpperCase(java.util.Locale.ROOT);
+        if (!SUPPORTED_CURRENCY.equals(normalizedCurrency)) {
+            throw new BadRequestException("Unsupported currency: '" + request.currency() + "'. FinX currently supports " + SUPPORTED_CURRENCY + " only.");
         }
 
         BigDecimal totalDebit = BigDecimal.ZERO;
@@ -82,6 +101,12 @@ public class LedgerService {
             if (line.amount() == null || line.amount().compareTo(BigDecimal.ZERO) <= 0) {
                 throw new BadRequestException("Journal line amount must be greater than zero");
             }
+            if (line.entryType() == null) {
+                throw new BadRequestException("Journal line entry type is required");
+            }
+            if (line.accountNumber() == null || line.accountNumber().isBlank()) {
+                throw new BadRequestException("Journal line account number is required");
+            }
             if (line.entryType() == EntryType.DEBIT) {
                 totalDebit = totalDebit.add(line.amount());
             } else if (line.entryType() == EntryType.CREDIT) {
@@ -89,17 +114,25 @@ public class LedgerService {
             }
         }
 
-        totalDebit = totalDebit.setScale(4);
-        totalCredit = totalCredit.setScale(4);
+        totalDebit = totalDebit.setScale(4, java.math.RoundingMode.HALF_UP);
+        totalCredit = totalCredit.setScale(4, java.math.RoundingMode.HALF_UP);
 
         if (totalDebit.compareTo(totalCredit) != 0) {
             throw new BadRequestException("Double-entry violation: Total DEBIT (" + totalDebit + ") must equal Total CREDIT (" + totalCredit + ")");
         }
 
-        String entryReference = String.format("FINX-JRN-%d-%06d",
-                java.time.Year.now().getValue(), ENTRY_SEQ.incrementAndGet());
+        // B06: Journal source effect uniqueness check-before-write (backed by DB partial unique index)
+        if (request.referenceId() != null) {
+            Optional<JournalEntry> existing = entryRepository.findByTransactionTypeAndReferenceId(request.transactionType(), request.referenceId());
+            if (existing.isPresent()) {
+                throw new BadRequestException("Duplicate journal entry: Entry already exists for transaction type " +
+                        request.transactionType() + " and reference " + request.referenceId());
+            }
+        }
 
-        String currency = (request.currency() != null && !request.currency().isBlank()) ? request.currency() : "INR";
+        String entryReference = String.format("FINX-JRN-%d-%s",
+                java.time.Year.now().getValue(),
+                UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase());
 
         JournalEntry entry = new JournalEntry(
                 entryReference,
@@ -108,7 +141,7 @@ public class LedgerService {
                 request.dealId(),
                 request.milestoneId(),
                 totalDebit,
-                currency,
+                normalizedCurrency,
                 request.narration(),
                 request.postedBy()
         );
@@ -127,6 +160,15 @@ public class LedgerService {
         for (String accNum : sortedAccountNumbers) {
             LedgerAccount account = accountRepository.findByAccountNumberForUpdate(accNum)
                     .orElseThrow(() -> new ResourceNotFoundException("LedgerAccount", "accountNumber", accNum));
+
+            // B06: Account currency validation
+            if (!SUPPORTED_CURRENCY.equalsIgnoreCase(account.getCurrency())) {
+                throw new BadRequestException("Currency mismatch: Account " + accNum + " has unsupported currency '" + account.getCurrency() + "'");
+            }
+            if (!normalizedCurrency.equalsIgnoreCase(account.getCurrency())) {
+                throw new BadRequestException("Currency mismatch: Account " + accNum + " currency '" + account.getCurrency() + "' does not match journal currency '" + normalizedCurrency + "'");
+            }
+
             lockedAccounts.put(accNum, account);
         }
 
@@ -174,12 +216,12 @@ public class LedgerService {
                     "JOURNAL_ENTRY_POSTED",
                     "LEDGER",
                     savedEntry.getId().toString(),
-                    "Posted balanced journal entry " + entryReference + " (" + totalDebit + " " + currency + ") for " + request.transactionType()
+                    "Posted balanced journal entry " + entryReference + " (" + totalDebit + " " + normalizedCurrency + ") for " + request.transactionType()
             );
         }
 
         log.info("Posted balanced journal entry: ref={} type={} amount={} currency={}",
-                entryReference, request.transactionType(), totalDebit, currency);
+                entryReference, request.transactionType(), totalDebit, normalizedCurrency);
 
         return savedEntry;
     }

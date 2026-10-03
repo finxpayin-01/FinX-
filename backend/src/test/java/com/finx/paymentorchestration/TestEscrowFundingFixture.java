@@ -59,6 +59,7 @@ public class TestEscrowFundingFixture {
         PaymentTransaction tx = new PaymentTransaction(
                 "TXN-" + savedInstruction.getInstructionReference(),
                 savedInstruction.getId(),
+                savedInstruction.getProvider() != null ? savedInstruction.getProvider() : "BANK",
                 savedInstruction.getProviderInstructionId(),
                 savedInstruction.getAmount(),
                 savedInstruction.getCurrency(),
@@ -83,7 +84,7 @@ public class TestEscrowFundingFixture {
         );
         ledgerService.postJournalEntry(journalReq);
 
-        escrowService.fundEscrow(
+        escrowService.fundEscrowForInstruction(
                 savedInstruction.getDealId(),
                 savedInstruction.getMilestoneId(),
                 savedInstruction.getId(),

@@ -66,12 +66,22 @@ public class EscrowService {
         this.notificationService = notificationService;
     }
 
+    private void validateSupportedCurrency(String currency) {
+        if (currency == null || currency.isBlank()) {
+            throw new BadRequestException("Currency is required");
+        }
+        if (!"INR".equalsIgnoreCase(currency.trim())) {
+            throw new BadRequestException("Unsupported currency: '" + currency + "'. FinX currently supports INR only.");
+        }
+    }
+
     @Transactional
     public EscrowAccount ensureEscrowAccount(UUID dealId, String currency) {
         if (dealId == null) {
             throw new BadRequestException("Deal ID is required to ensure escrow account");
         }
         String curr = (currency != null && !currency.isBlank()) ? currency.toUpperCase() : "INR";
+        validateSupportedCurrency(curr);
 
         // Fast check before lock
         Optional<EscrowAccount> existing = escrowAccountRepository.findByDealId(dealId);
@@ -138,13 +148,46 @@ public class EscrowService {
 
     @Transactional
     public void fundEscrow(UUID dealId, UUID milestoneId, UUID paymentId, BigDecimal amount, String currency, UUID actorId) {
+        if (paymentId == null) {
+            throw new BadRequestException("Legacy payment ID is required for legacy escrow funding");
+        }
+        validateSupportedCurrency(currency);
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BadRequestException("Funding amount must be greater than zero");
+        }
+
         // B11: Canonical lock order: Deal -> Milestone -> EscrowAccount
         Deal deal = dealRepository.findByIdForUpdate(dealId)
                 .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", dealId));
-        if (milestoneId != null) {
-            milestoneRepository.findByIdForUpdate(milestoneId);
+
+        validateSupportedCurrency(deal.getCurrency());
+        if (!deal.getCurrency().equalsIgnoreCase(currency)) {
+            throw new BadRequestException("Currency mismatch: Provided currency '" + currency + "' does not match deal currency '" + deal.getCurrency() + "'");
         }
+
+        if (milestoneId != null) {
+            Milestone milestone = milestoneRepository.findByIdForUpdate(milestoneId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Milestone", "id", milestoneId));
+
+            // B06: Explicit one-full-funding invariant
+            Optional<EscrowLedger> existingFund = escrowLedgerRepository.findByMilestoneIdAndTransactionType(milestoneId, TransactionType.FUND);
+            if (existingFund.isPresent()) {
+                throw new BadRequestException("Milestone " + milestoneId + " has already been funded. Partial or duplicate funding is not supported.");
+            }
+            if (milestone.getStatus() == MilestoneStatus.COMPLETED) {
+                throw new BadRequestException("Milestone " + milestoneId + " has already been completed.");
+            }
+        }
+
+        Optional<EscrowLedger> existingPayment = escrowLedgerRepository.findByPaymentId(paymentId);
+        if (existingPayment.isPresent()) {
+            throw new BadRequestException("Escrow has already been funded for payment " + paymentId);
+        }
+
         EscrowAccount account = getOrCreateEscrowAccount(dealId, currency);
+        if (!account.getCurrency().equalsIgnoreCase(currency)) {
+            throw new BadRequestException("Currency mismatch: Provided currency '" + currency + "' does not match escrow currency '" + account.getCurrency() + "'");
+        }
 
         BigDecimal newBalance = account.getBalance().add(amount);
         account.setBalance(newBalance);
@@ -154,6 +197,7 @@ public class EscrowService {
         EscrowLedger ledger = new EscrowLedger(
                 account.getId(),
                 paymentId,
+                null,
                 milestoneId,
                 TransactionType.FUND,
                 amount,
@@ -177,7 +221,90 @@ public class EscrowService {
                 "/vendor/projects/" + dealId
         );
 
-        log.info("Escrow funded: dealId={} amount={} newBalance={}", dealId, amount, newBalance);
+        log.info("Escrow funded (legacy): dealId={} paymentId={} amount={} newBalance={}", dealId, paymentId, amount, newBalance);
+    }
+
+    /**
+     * B06: Bank-specific escrow funding projection using explicit PaymentInstruction FK.
+     * Enforces source exclusivity, currency consistency, and one-full-funding policy.
+     */
+    @Transactional
+    public void fundEscrowForInstruction(UUID dealId, UUID milestoneId, UUID paymentInstructionId, BigDecimal amount, String currency, UUID actorId) {
+        if (paymentInstructionId == null) {
+            throw new BadRequestException("Bank payment instruction ID is required for bank escrow funding");
+        }
+        validateSupportedCurrency(currency);
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BadRequestException("Funding amount must be greater than zero");
+        }
+
+        // B11: Canonical lock order: Deal -> Milestone -> EscrowAccount
+        Deal deal = dealRepository.findByIdForUpdate(dealId)
+                .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", dealId));
+
+        validateSupportedCurrency(deal.getCurrency());
+        if (!deal.getCurrency().equalsIgnoreCase(currency)) {
+            throw new BadRequestException("Currency mismatch: Provided currency '" + currency + "' does not match deal currency '" + deal.getCurrency() + "'");
+        }
+
+        if (milestoneId != null) {
+            Milestone milestone = milestoneRepository.findByIdForUpdate(milestoneId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Milestone", "id", milestoneId));
+
+            // B06: Explicit one-full-funding invariant
+            Optional<EscrowLedger> existingFund = escrowLedgerRepository.findByMilestoneIdAndTransactionType(milestoneId, TransactionType.FUND);
+            if (existingFund.isPresent()) {
+                throw new BadRequestException("Milestone " + milestoneId + " has already been funded. Partial or duplicate funding is not supported.");
+            }
+            if (milestone.getStatus() == MilestoneStatus.COMPLETED) {
+                throw new BadRequestException("Milestone " + milestoneId + " has already been completed.");
+            }
+        }
+
+        Optional<EscrowLedger> existingInstruction = escrowLedgerRepository.findByPaymentInstructionId(paymentInstructionId);
+        if (existingInstruction.isPresent()) {
+            throw new BadRequestException("Escrow has already been funded for payment instruction " + paymentInstructionId);
+        }
+
+        EscrowAccount account = getOrCreateEscrowAccount(dealId, currency);
+        if (!account.getCurrency().equalsIgnoreCase(currency)) {
+            throw new BadRequestException("Currency mismatch: Provided currency '" + currency + "' does not match escrow currency '" + account.getCurrency() + "'");
+        }
+
+        BigDecimal newBalance = account.getBalance().add(amount);
+        account.setBalance(newBalance);
+        account.setTotalFunded(account.getTotalFunded().add(amount));
+        escrowAccountRepository.saveAndFlush(account);
+
+        EscrowLedger ledger = new EscrowLedger(
+                account.getId(),
+                null,
+                paymentInstructionId,
+                milestoneId,
+                TransactionType.FUND,
+                amount,
+                newBalance,
+                "Bank fiat escrow funded for milestone " + milestoneId
+        );
+        escrowLedgerRepository.saveAndFlush(ledger);
+
+        auditService.logEvent(
+                actorId,
+                "ESCROW_FUNDED_BANK",
+                "ESCROW",
+                account.getId().toString(),
+                "Funded " + amount + " " + currency + " into escrow account via bank instruction " + paymentInstructionId + " for deal " + dealId
+        );
+
+        notificationService.sendNotification(
+                deal.getSellerId(),
+                "Escrow Funded",
+                "Buyer deposited " + amount + " " + currency + " into escrow via bank transfer.",
+                "/vendor/projects/" + dealId
+        );
+
+        log.info("Escrow funded via bank instruction: dealId={} instructionId={} amount={} newBalance={}",
+                dealId, paymentInstructionId, amount, newBalance);
     }
 
     @Transactional

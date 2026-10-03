@@ -13,4 +13,5 @@ public interface JournalEntryRepository extends JpaRepository<JournalEntry, UUID
     Optional<JournalEntry> findByEntryReference(String entryReference);
     List<JournalEntry> findByDealIdOrderByPostedAtDesc(UUID dealId);
     List<JournalEntry> findByReferenceId(UUID referenceId);
+    Optional<JournalEntry> findByTransactionTypeAndReferenceId(com.finx.ledger.enums.LedgerEnums.LedgerTransactionType transactionType, UUID referenceId);
 }
