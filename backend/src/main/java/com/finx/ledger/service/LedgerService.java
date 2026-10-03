@@ -115,10 +115,24 @@ public class LedgerService {
 
         JournalEntry savedEntry = entryRepository.save(entry);
 
+        // B11: Deterministic account lock ordering to eliminate lock inversion deadlocks.
+        // Collect distinct account numbers and lock them in sorted order.
+        List<String> sortedAccountNumbers = request.lines().stream()
+                .map(JournalLineItem::accountNumber)
+                .distinct()
+                .sorted()
+                .toList();
+
+        java.util.Map<String, LedgerAccount> lockedAccounts = new java.util.HashMap<>();
+        for (String accNum : sortedAccountNumbers) {
+            LedgerAccount account = accountRepository.findByAccountNumberForUpdate(accNum)
+                    .orElseThrow(() -> new ResourceNotFoundException("LedgerAccount", "accountNumber", accNum));
+            lockedAccounts.put(accNum, account);
+        }
+
         int seq = 1;
         for (JournalLineItem item : request.lines()) {
-            LedgerAccount account = accountRepository.findByAccountNumberForUpdate(item.accountNumber())
-                    .orElseThrow(() -> new ResourceNotFoundException("LedgerAccount", "accountNumber", item.accountNumber()));
+            LedgerAccount account = lockedAccounts.get(item.accountNumber());
 
             // Update account balance:
             // For ASSET or EXPENSE: DEBIT increases balance, CREDIT decreases balance

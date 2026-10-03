@@ -252,9 +252,25 @@ public class ApprovalApplicabilityService {
             reasons.add(riskResult.reasonCode());
         }
 
-        // For financial authorization: must be bound and all components fresh.
+        // B11: Snapshot coherence verification across evaluation boundary.
+        // Re-verify deal and milestone state to ensure no concurrent material mutation occurred during evaluation.
+        Deal finalDeal = dealRepository.findById(dealId).orElse(null);
+        Milestone finalMilestone = milestoneRepository.findById(milestoneId).orElse(null);
+        boolean snapshotCoherent = finalDeal != null && finalMilestone != null
+                && Objects.equals(deal.getUpdatedAt(), finalDeal.getUpdatedAt())
+                && Objects.equals(milestone.getUpdatedAt(), finalMilestone.getUpdatedAt())
+                && Objects.equals(deal.getStatus(), finalDeal.getStatus())
+                && Objects.equals(milestone.getStatus(), finalMilestone.getStatus())
+                && Objects.equals(deal.getProjectManagerId(), finalDeal.getProjectManagerId());
+
+        if (!snapshotCoherent) {
+            reasons.add("SNAPSHOT_COHERENCE_VIOLATION: Concurrent modification detected during approval applicability evaluation");
+        }
+
+        // For financial authorization: must be bound and all components fresh and coherent.
         // Since milestoneUnbound is true in current schema (and payout is disabled under B04), overall applicable is false.
         boolean overallApplicable = milestoneApproved && !milestoneUnbound
+                && snapshotCoherent
                 && invoiceResult.applicable()
                 && agreementResult.applicable()
                 && beneficiaryResult.applicable()

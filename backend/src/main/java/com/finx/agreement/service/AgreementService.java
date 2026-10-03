@@ -63,7 +63,9 @@ public class AgreementService {
 
     @Transactional
     public AgreementResponse createOrUpdateDraft(UUID dealId, CreateAgreementDraftRequest request, UserPrincipal currentUser) {
-        Deal deal = dealRepository.findById(dealId)
+        // B11: Lock parent Deal to serialize draft creation/updates and prevent state overwrite races
+        Deal deal = dealRepository.findByIdForUpdate(dealId)
+                .or(() -> dealRepository.findById(dealId))
                 .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", dealId));
 
         validateDealParty(deal, currentUser);
@@ -115,7 +117,9 @@ public class AgreementService {
 
     @Transactional
     public AgreementResponse signAgreement(UUID dealId, int version, UserPrincipal currentUser, String ipAddress, String userAgent) {
-        Deal deal = dealRepository.findById(dealId)
+        // B11: Lock parent Deal to serialize concurrent agreement signing operations
+        Deal deal = dealRepository.findByIdForUpdate(dealId)
+                .or(() -> dealRepository.findById(dealId))
                 .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", dealId));
 
         DealAgreement agreement = agreementRepository.findByDealIdAndVersion(dealId, version)

@@ -317,11 +317,19 @@ public class MilestoneService {
 
     @Transactional
     public MilestoneResponse approveMilestone(UUID milestoneId, UserPrincipal currentUser) {
-        Milestone milestone = milestoneRepository.findById(milestoneId)
+        // B11: Canonical lock order: Deal -> Milestone.
+        // Acquire locks in deterministic order to prevent races and silent overwrites.
+        Milestone initial = milestoneRepository.findByIdForUpdate(milestoneId)
+                .or(() -> milestoneRepository.findById(milestoneId))
                 .orElseThrow(() -> new ResourceNotFoundException("Milestone", "id", milestoneId));
 
-        Deal deal = dealRepository.findById(milestone.getDealId())
-                .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", milestone.getDealId()));
+        Deal deal = dealRepository.findByIdForUpdate(initial.getDealId())
+                .or(() -> dealRepository.findById(initial.getDealId()))
+                .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", initial.getDealId()));
+
+        Milestone milestone = milestoneRepository.findByIdForUpdate(milestoneId)
+                .or(() -> milestoneRepository.findById(milestoneId))
+                .orElseThrow(() -> new ResourceNotFoundException("Milestone", "id", milestoneId));
 
         boolean isBuyer = deal.getBuyerId().equals(currentUser.getId());
         boolean isAdmin = currentUser.getRole() == Role.ADMIN;
@@ -371,11 +379,18 @@ public class MilestoneService {
 
     @Transactional
     public MilestoneResponse rejectMilestone(UUID milestoneId, String reason, UserPrincipal currentUser) {
-        Milestone milestone = milestoneRepository.findById(milestoneId)
+        // B11: Canonical lock order: Deal -> Milestone.
+        Milestone initial = milestoneRepository.findByIdForUpdate(milestoneId)
+                .or(() -> milestoneRepository.findById(milestoneId))
                 .orElseThrow(() -> new ResourceNotFoundException("Milestone", "id", milestoneId));
 
-        Deal deal = dealRepository.findById(milestone.getDealId())
-                .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", milestone.getDealId()));
+        Deal deal = dealRepository.findByIdForUpdate(initial.getDealId())
+                .or(() -> dealRepository.findById(initial.getDealId()))
+                .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", initial.getDealId()));
+
+        Milestone milestone = milestoneRepository.findByIdForUpdate(milestoneId)
+                .or(() -> milestoneRepository.findById(milestoneId))
+                .orElseThrow(() -> new ResourceNotFoundException("Milestone", "id", milestoneId));
 
         boolean isBuyer = deal.getBuyerId().equals(currentUser.getId());
         boolean isAdmin = currentUser.getRole() == Role.ADMIN;

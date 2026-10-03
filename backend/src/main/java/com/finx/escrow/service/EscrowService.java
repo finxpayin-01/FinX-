@@ -68,19 +68,29 @@ public class EscrowService {
 
     @Transactional
     public EscrowAccount ensureEscrowAccount(UUID dealId, String currency) {
+        if (dealId == null) {
+            throw new BadRequestException("Deal ID is required to ensure escrow account");
+        }
         String curr = (currency != null && !currency.isBlank()) ? currency.toUpperCase() : "INR";
+
+        // Fast check before lock
         Optional<EscrowAccount> existing = escrowAccountRepository.findByDealId(dealId);
         if (existing.isPresent()) {
             return existing.get();
         }
-        try {
-            EscrowAccount newAccount = new EscrowAccount(dealId, BigDecimal.ZERO, curr);
-            return escrowAccountRepository.saveAndFlush(newAccount);
-        } catch (DataIntegrityViolationException e) {
-            // Concurrent creation race condition safe fallback
-            return escrowAccountRepository.findByDealId(dealId)
-                    .orElseThrow(() -> new BadRequestException("Could not initialize escrow account for deal"));
+
+        // B11: Serialize escrow account creation using parent Deal pessimistic lock.
+        // This eliminates duplicate insertion races without continuing DB work inside an aborted transaction.
+        if (dealRepository != null) {
+            dealRepository.findByIdForUpdate(dealId);
+            existing = escrowAccountRepository.findByDealId(dealId);
+            if (existing.isPresent()) {
+                return existing.get();
+            }
         }
+
+        EscrowAccount newAccount = new EscrowAccount(dealId, BigDecimal.ZERO, curr);
+        return escrowAccountRepository.saveAndFlush(newAccount);
     }
 
     @Transactional
@@ -128,8 +138,12 @@ public class EscrowService {
 
     @Transactional
     public void fundEscrow(UUID dealId, UUID milestoneId, UUID paymentId, BigDecimal amount, String currency, UUID actorId) {
+        // B11: Canonical lock order: Deal -> Milestone -> EscrowAccount
         Deal deal = dealRepository.findByIdForUpdate(dealId)
                 .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", dealId));
+        if (milestoneId != null) {
+            milestoneRepository.findByIdForUpdate(milestoneId);
+        }
         EscrowAccount account = getOrCreateEscrowAccount(dealId, currency);
 
         BigDecimal newBalance = account.getBalance().add(amount);
@@ -192,11 +206,17 @@ public class EscrowService {
         }
 
         UUID milestoneId = settlement.getMilestoneId();
-        Milestone milestone = milestoneRepository.findByIdForUpdate(milestoneId)
-                .orElseThrow(() -> new ResourceNotFoundException("Milestone", "id", milestoneId));
+        UUID dealId = settlement.getDealId();
 
-        Deal deal = dealRepository.findByIdForUpdate(milestone.getDealId())
-                .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", milestone.getDealId()));
+        // B11: Canonical lock order: Deal -> Milestone -> EscrowAccount.
+        // Lock parent Deal first using settlement dealId, then lock Milestone.
+        Deal deal = dealRepository.findByIdForUpdate(dealId)
+                .or(() -> dealRepository.findById(dealId))
+                .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", dealId));
+
+        Milestone milestone = milestoneRepository.findByIdForUpdate(milestoneId)
+                .or(() -> milestoneRepository.findById(milestoneId))
+                .orElseThrow(() -> new ResourceNotFoundException("Milestone", "id", milestoneId));
 
         if (deal.getStatus() == DealStatus.DISPUTED ||
                 disputeRepository.existsByDealIdAndStatus(deal.getId(), DisputeStatus.OPEN) ||
