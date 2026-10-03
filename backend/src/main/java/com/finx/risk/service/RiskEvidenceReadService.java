@@ -78,6 +78,13 @@ public class RiskEvidenceReadService {
         return inspectDeal(deal);
     }
 
+    /**
+     * Internal read-only evidence retrieval for a specific subject (user and/or organization) and counterparty type.
+     */
+    public SubjectRiskEvidence getSubjectRiskEvidence(UUID userId, UUID organizationId, UserType type) {
+        return resolveSubjectEvidence(userId, organizationId, type);
+    }
+
     private DealRiskEvidenceSnapshot inspectDeal(Deal deal) {
         SubjectRiskEvidence buyerEvidence = resolveSubjectEvidence(
                 deal.getBuyerId(), deal.getBuyerOrganizationId(), UserType.BUYER);
