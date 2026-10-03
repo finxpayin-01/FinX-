@@ -30,6 +30,9 @@ public class PaymentTransaction {
     @Column(nullable = false)
     private String status;
 
+    @Column(nullable = false)
+    private String provider = "BANK";
+
     @Column(name = "utr_number")
     private String utrNumber;
 
@@ -42,14 +45,21 @@ public class PaymentTransaction {
     public PaymentTransaction() {
         this.id = UUID.randomUUID();
         this.currency = "INR";
+        this.provider = "BANK";
         this.createdAt = Instant.now();
     }
 
     public PaymentTransaction(String transactionReference, UUID paymentInstructionId, String providerReference,
                               BigDecimal amount, String currency, String status, String utrNumber, String rawProviderResponse) {
+        this(transactionReference, paymentInstructionId, "BANK", providerReference, amount, currency, status, utrNumber, rawProviderResponse);
+    }
+
+    public PaymentTransaction(String transactionReference, UUID paymentInstructionId, String provider, String providerReference,
+                              BigDecimal amount, String currency, String status, String utrNumber, String rawProviderResponse) {
         this();
         this.transactionReference = transactionReference;
         this.paymentInstructionId = paymentInstructionId;
+        this.provider = provider != null ? provider : "BANK";
         this.providerReference = providerReference;
         this.amount = amount != null ? amount.setScale(4) : BigDecimal.ZERO.setScale(4);
         if (currency != null) this.currency = currency;
@@ -71,6 +81,8 @@ public class PaymentTransaction {
     public void setAmount(BigDecimal amount) { this.amount = amount != null ? amount.setScale(4) : BigDecimal.ZERO.setScale(4); }
     public String getCurrency() { return currency; }
     public void setCurrency(String currency) { this.currency = currency; }
+    public String getProvider() { return provider; }
+    public void setProvider(String provider) { this.provider = provider; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
     public String getUtrNumber() { return utrNumber; }

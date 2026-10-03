@@ -12,5 +12,6 @@ import java.util.UUID;
 public interface PaymentTransactionRepository extends JpaRepository<PaymentTransaction, UUID> {
     Optional<PaymentTransaction> findByTransactionReference(String transactionReference);
     Optional<PaymentTransaction> findByUtrNumber(String utrNumber);
+    Optional<PaymentTransaction> findByProviderAndUtrNumber(String provider, String utrNumber);
     List<PaymentTransaction> findByPaymentInstructionId(UUID paymentInstructionId);
 }

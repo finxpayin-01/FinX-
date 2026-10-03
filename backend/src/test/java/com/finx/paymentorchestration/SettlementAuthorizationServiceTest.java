@@ -160,7 +160,7 @@ class SettlementAuthorizationServiceTest {
     @Test
     @DisplayName("B04 Containment: authorizeAndInitiateSettlement fails closed with AccessDeniedException for unauthorized user")
     void shouldBlockUnauthorizedUser() {
-        PayoutAuthorizationRequest req = new PayoutAuthorizationRequest(milestoneId, "Payout auth", null);
+        PayoutAuthorizationRequest req = new PayoutAuthorizationRequest(milestoneId, "Payout auth", "IDEMP-B04-UNAUTH");
 
         assertThatThrownBy(() -> authorizationService.authorizeAndInitiateSettlement(req, randomPrincipal))
                 .isInstanceOf(AccessDeniedException.class)
@@ -172,7 +172,7 @@ class SettlementAuthorizationServiceTest {
     @Test
     @DisplayName("B04 Containment: authorizeAndInitiateSettlement fails closed with AccessDeniedException for buyer")
     void shouldFailClosedForBuyer() {
-        PayoutAuthorizationRequest req = new PayoutAuthorizationRequest(milestoneId, "Payout auth", null);
+        PayoutAuthorizationRequest req = new PayoutAuthorizationRequest(milestoneId, "Payout auth", "IDEMP-B04-BUYER");
 
         assertThatThrownBy(() -> authorizationService.authorizeAndInitiateSettlement(req, buyerPrincipal))
                 .isInstanceOf(AccessDeniedException.class)
@@ -186,7 +186,7 @@ class SettlementAuthorizationServiceTest {
     void shouldFailClosedForAdmin() {
         UserPrincipal adminPrincipal = new UserPrincipal(UUID.randomUUID(), "Admin", "admin@finx.com", "pass", Role.ADMIN, UserStatus.ACTIVE,
                 List.of(new SimpleGrantedAuthority(Role.ADMIN.getAuthority())));
-        PayoutAuthorizationRequest req = new PayoutAuthorizationRequest(milestoneId, "Payout auth", null);
+        PayoutAuthorizationRequest req = new PayoutAuthorizationRequest(milestoneId, "Payout auth", "IDEMP-B04-ADMIN");
 
         assertThatThrownBy(() -> authorizationService.authorizeAndInitiateSettlement(req, adminPrincipal))
                 .isInstanceOf(AccessDeniedException.class)
@@ -198,7 +198,7 @@ class SettlementAuthorizationServiceTest {
     @Test
     @DisplayName("B04 Containment: authorizeAndInitiateSettlement fails closed with AccessDeniedException for null principal")
     void shouldFailClosedForNullPrincipal() {
-        PayoutAuthorizationRequest req = new PayoutAuthorizationRequest(milestoneId, "Payout auth", null);
+        PayoutAuthorizationRequest req = new PayoutAuthorizationRequest(milestoneId, "Payout auth", "IDEMP-B04-NULL");
 
         assertThatThrownBy(() -> authorizationService.authorizeAndInitiateSettlement(req, null))
                 .isInstanceOf(AccessDeniedException.class)

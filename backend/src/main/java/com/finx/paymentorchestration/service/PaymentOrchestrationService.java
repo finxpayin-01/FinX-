@@ -24,6 +24,7 @@ import com.finx.paymentorchestration.enums.PaymentOrchestrationEnums.Instruction
 import com.finx.paymentorchestration.repository.PaymentInstructionRepository;
 import com.finx.paymentorchestration.repository.PaymentTransactionRepository;
 import com.finx.security.service.UserPrincipal;
+import com.finx.exception.DuplicateResourceException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -31,10 +32,12 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import com.finx.deal.service.DealAccessService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,7 +46,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 public class PaymentOrchestrationService {
 
     private static final Logger log = LoggerFactory.getLogger(PaymentOrchestrationService.class);
-    private static final AtomicLong INSTRUCTION_SEQ = new AtomicLong(System.currentTimeMillis() % 1000000);
 
     private final PaymentInstructionRepository instructionRepository;
     private final PaymentTransactionRepository transactionRepository;
@@ -99,8 +101,25 @@ public class PaymentOrchestrationService {
 
     @Transactional
     public PaymentInstructionResponse createPaymentInstruction(CreateInstructionRequest request, UserPrincipal currentUser) {
+        if (request == null || request.idempotencyKey() == null || request.idempotencyKey().trim().isEmpty()) {
+            throw new BadRequestException("Mandatory idempotency key is missing or blank");
+        }
+        String idempotencyKey = request.idempotencyKey().trim();
+
+        if (request.dealId() == null) {
+            throw new BadRequestException("Deal ID is required");
+        }
+
         Deal deal = dealRepository.findByIdForUpdate(request.dealId())
                 .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", request.dealId()));
+
+        if (currentUser == null) {
+            throw new UnauthorizedException("Authentication required");
+        }
+
+        if (dealAccessService != null) {
+            dealAccessService.requireDealAccess(deal, currentUser);
+        }
 
         if (currentUser.getRole() != Role.ADMIN && !deal.getBuyerId().equals(currentUser.getId())) {
             throw new UnauthorizedException("Only the corporate buyer can initiate payment instructions");
@@ -150,20 +169,32 @@ public class PaymentOrchestrationService {
             instructionAmount = deal.getTotalAmount();
         }
 
-        // Idempotency check
-        if (request.idempotencyKey() != null && !request.idempotencyKey().isBlank()) {
-            Optional<PaymentInstruction> existing = instructionRepository.findByIdempotencyKey(request.idempotencyKey());
-            if (existing.isPresent()) {
-                PaymentInstruction existingInstruction = existing.get();
-                if (!existingInstruction.getDealId().equals(deal.getId())) {
-                    throw new BadRequestException("Idempotency key already exists for another deal");
-                }
-                return mapToResponse(existingInstruction);
+        // Compute deterministic request hash from canonical financial fields
+        String canonicalRequest = deal.getId() + ":" + (milestoneId != null ? milestoneId : "ALL") + ":" +
+                instructionAmount.setScale(4, java.math.RoundingMode.HALF_UP).toPlainString() + ":" + deal.getCurrency();
+        String requestHash = computeSha256(canonicalRequest);
+
+        // 1. Scoped idempotency check on same deal
+        Optional<PaymentInstruction> scopedExisting = instructionRepository.findByDealIdAndIdempotencyKey(deal.getId(), idempotencyKey);
+        if (scopedExisting.isPresent()) {
+            PaymentInstruction existingInstruction = scopedExisting.get();
+            if (existingInstruction.getRequestHash() != null && !existingInstruction.getRequestHash().equals(requestHash)) {
+                throw new DuplicateResourceException("Idempotency key collision with different payment instruction payload");
             }
+            log.info("Safe idempotent replay for payment instruction: ref={} dealId={}",
+                    existingInstruction.getInstructionReference(), deal.getId());
+            return mapToResponse(existingInstruction);
         }
 
-        String instructionRef = String.format("FINX-TXN-%d-%06d",
-                java.time.Year.now().getValue(), INSTRUCTION_SEQ.incrementAndGet());
+        // 2. Cross-deal / cross-tenant check: deny without revealing other deal/tenant data
+        Optional<PaymentInstruction> anyExisting = instructionRepository.findByIdempotencyKey(idempotencyKey);
+        if (anyExisting.isPresent() && !anyExisting.get().getDealId().equals(deal.getId())) {
+            throw new DuplicateResourceException("Idempotency key already exists for another financial context");
+        }
+
+        // Durable, stable reference generation
+        String instructionRef = String.format("FINX-TXN-%d-%s",
+                java.time.Year.now().getValue(), UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase());
 
         PaymentInstructionRequest bankReq = new PaymentInstructionRequest(
                 deal.getId(),
@@ -186,7 +217,7 @@ public class PaymentOrchestrationService {
                 instructionAmount,
                 deal.getCurrency(),
                 bankingProvider.getProviderName(),
-                request.idempotencyKey(),
+                idempotencyKey,
                 currentUser.getId()
         );
 
@@ -194,6 +225,7 @@ public class PaymentOrchestrationService {
         instruction.setVirtualAccountNumber(bankResult.virtualAccountNumber());
         instruction.setVirtualIfsc(bankResult.ifscCode());
         instruction.setStatus(InstructionStatus.SUBMITTED);
+        instruction.setRequestHash(requestHash);
 
         PaymentInstruction saved = instructionRepository.save(instruction);
 
@@ -255,5 +287,15 @@ public class PaymentOrchestrationService {
                 i.getConfirmedAt() != null ? i.getConfirmedAt().toString() : null,
                 i.getCreatedAt().toString()
         );
+    }
+
+    private String computeSha256(String input) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (Exception e) {
+            throw new RuntimeException("SHA-256 calculation failed", e);
+        }
     }
 }

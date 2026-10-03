@@ -13,6 +13,7 @@ import java.util.UUID;
 public interface PaymentInstructionRepository extends JpaRepository<PaymentInstruction, UUID> {
     Optional<PaymentInstruction> findByInstructionReference(String instructionReference);
     Optional<PaymentInstruction> findByIdempotencyKey(String idempotencyKey);
+    Optional<PaymentInstruction> findByDealIdAndIdempotencyKey(UUID dealId, String idempotencyKey);
     Optional<PaymentInstruction> findByProviderInstructionId(String providerInstructionId);
     List<PaymentInstruction> findByDealIdOrderByCreatedAtDesc(UUID dealId);
     List<PaymentInstruction> findByStatus(InstructionStatus status);

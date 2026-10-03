@@ -50,8 +50,11 @@ public class PaymentInstruction {
     @Column(name = "virtual_ifsc")
     private String virtualIfsc;
 
-    @Column(name = "idempotency_key", unique = true)
+    @Column(name = "idempotency_key")
     private String idempotencyKey;
+
+    @Column(name = "request_hash", length = 64)
+    private String requestHash;
 
     @Column(name = "initiated_by")
     private UUID initiatedBy;
@@ -126,6 +129,8 @@ public class PaymentInstruction {
     public void setVirtualIfsc(String virtualIfsc) { this.virtualIfsc = virtualIfsc; }
     public String getIdempotencyKey() { return idempotencyKey; }
     public void setIdempotencyKey(String idempotencyKey) { this.idempotencyKey = idempotencyKey; }
+    public String getRequestHash() { return requestHash; }
+    public void setRequestHash(String requestHash) { this.requestHash = requestHash; }
     public UUID getInitiatedBy() { return initiatedBy; }
     public void setInitiatedBy(UUID initiatedBy) { this.initiatedBy = initiatedBy; }
     public Instant getConfirmedAt() { return confirmedAt; }

@@ -37,6 +37,7 @@ import com.finx.paymentorchestration.repository.SettlementInstructionRepository;
 import com.finx.risk.enums.RiskEnums.RiskEntityType;
 import com.finx.risk.enums.RiskEnums.RiskLevel;
 import com.finx.risk.repository.RiskAssessmentRepository;
+import com.finx.exception.DuplicateResourceException;
 import com.finx.security.service.UserPrincipal;
 import com.finx.verification.enums.VerificationStatus;
 import com.finx.verification.repository.KybProfileRepository;
@@ -47,18 +48,19 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Instant;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 @Service
 public class SettlementAuthorizationService {
 
     private static final Logger log = LoggerFactory.getLogger(SettlementAuthorizationService.class);
-    private static final AtomicLong SETTLEMENT_SEQ = new AtomicLong(System.currentTimeMillis() % 1000000);
 
     private final SettlementInstructionRepository settlementRepository;
     private final DealRepository dealRepository;
@@ -206,6 +208,71 @@ public class SettlementAuthorizationService {
 
     @Transactional
     public SettlementResponse authorizeAndInitiateSettlement(PayoutAuthorizationRequest request, UserPrincipal currentUser) {
+        if (request == null || request.idempotencyKey() == null || request.idempotencyKey().trim().isEmpty()) {
+            throw new BadRequestException("Mandatory idempotency key is missing or blank");
+        }
+        String idempotencyKey = request.idempotencyKey().trim();
+
+        if (request.milestoneId() == null) {
+            throw new BadRequestException("Milestone ID is required");
+        }
+
+        if (currentUser == null) {
+            throw new AccessDeniedException("Settlement payout execution is disabled pending settlement orchestration redesign");
+        }
+
+        Milestone milestone = milestoneRepository.findById(request.milestoneId())
+                .orElseThrow(() -> new AccessDeniedException("Settlement payout execution is disabled pending settlement orchestration redesign"));
+
+        Deal deal = dealRepository.findByIdForUpdate(milestone.getDealId())
+                .orElseThrow(() -> new AccessDeniedException("Settlement payout execution is disabled pending settlement orchestration redesign"));
+
+        if (dealAccessService != null) {
+            try {
+                dealAccessService.requireDealAccess(deal, currentUser);
+            } catch (UnauthorizedException e) {
+                throw new AccessDeniedException("Settlement payout execution is disabled pending settlement orchestration redesign");
+            }
+        }
+
+        if (currentUser.getRole() != Role.ADMIN && currentUser.getRole() != Role.FINANCE) {
+            throw new AccessDeniedException("Settlement payout execution is disabled pending settlement orchestration redesign");
+        }
+
+        // Compute deterministic request hash from canonical settlement fields
+        String canonicalRequest = deal.getId() + ":" + milestone.getId() + ":" +
+                (milestone.getAmount() != null ? milestone.getAmount().setScale(4, java.math.RoundingMode.HALF_UP).toPlainString() : "0.0000") + ":" +
+                deal.getCurrency() + ":" + (request.comment() != null ? request.comment().trim() : "");
+        String requestHash = computeSha256(canonicalRequest);
+
+        // 1. Scoped idempotency check on same deal
+        Optional<SettlementInstruction> scopedExisting = settlementRepository.findByDealIdAndIdempotencyKey(deal.getId(), idempotencyKey);
+        if (scopedExisting.isPresent()) {
+            SettlementInstruction existing = scopedExisting.get();
+            if (existing.getRequestHash() != null && !existing.getRequestHash().equals(requestHash)) {
+                throw new DuplicateResourceException("Idempotency key collision with different settlement payload");
+            }
+            log.info("Safe idempotent replay for settlement instruction: ref={} dealId={}",
+                    existing.getSettlementReference(), deal.getId());
+            return mapToResponse(existing);
+        }
+
+        // 2. Cross-deal / cross-tenant check: deny without data disclosure
+        Optional<SettlementInstruction> anyExisting = settlementRepository.findByIdempotencyKey(idempotencyKey);
+        if (anyExisting.isPresent() && !anyExisting.get().getDealId().equals(deal.getId())) {
+            throw new DuplicateResourceException("Idempotency key already exists for another financial context");
+        }
+
+        // 3. Business effect uniqueness: active settlement check on milestone
+        Optional<SettlementInstruction> activeExisting = settlementRepository.findFirstByMilestoneIdAndStatusIn(
+                milestone.getId(),
+                List.of(SettlementStatus.PENDING, SettlementStatus.PROCESSING, SettlementStatus.SETTLED)
+        );
+        if (activeExisting.isPresent()) {
+            throw new DuplicateResourceException("An active or completed settlement effect already exists for milestone " + milestone.getId());
+        }
+
+        // 4. Fail closed before dispatch (B04 preserved, 0 banking calls)
         throw new AccessDeniedException("Settlement payout execution is disabled pending settlement orchestration redesign");
     }
 
@@ -288,5 +355,15 @@ public class SettlementAuthorizationService {
                 s.getSettledAt() != null ? s.getSettledAt().toString() : null,
                 s.getFailureReason()
         );
+    }
+
+    private String computeSha256(String input) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (Exception e) {
+            throw new RuntimeException("SHA-256 calculation failed", e);
+        }
     }
 }
