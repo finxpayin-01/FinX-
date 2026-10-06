@@ -63,6 +63,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -149,6 +150,9 @@ public class PostgresFinancialConsistencyTest {
     private PaymentRepository paymentRepository;
 
     @Autowired
+    private com.finx.paymentorchestration.repository.SettlementInstructionRepository settlementInstructionRepository;
+
+    @Autowired
     private DealRepository dealRepository;
 
     @Autowired
@@ -205,11 +209,8 @@ public class PostgresFinancialConsistencyTest {
             escrowAccountRepository.deleteAll();
             paymentTransactionRepository.deleteAll();
             paymentInstructionRepository.deleteAll();
+            settlementInstructionRepository.deleteAll();
             paymentRepository.deleteAll();
-            milestoneRepository.deleteAll();
-            dealRepository.deleteAll();
-            userRepository.deleteAll();
-            organizationRepository.deleteAll();
         });
     }
 

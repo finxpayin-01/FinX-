@@ -212,6 +212,9 @@ public class PaymentOrchestrationService {
         );
 
         PaymentInstructionResult bankResult = bankingProvider.createPaymentInstruction(bankReq);
+        if (bankResult == null || bankResult.providerAccountId() == null || bankResult.providerAccountId().isBlank() || bankResult.providerAccountId().length() > 128) {
+            throw new IllegalStateException("Banking provider returned missing or invalid providerAccountId for payment instruction");
+        }
 
         PaymentInstruction instruction = new PaymentInstruction(
                 instructionRef,
@@ -229,6 +232,7 @@ public class PaymentOrchestrationService {
         instruction.setProviderInstructionId(bankResult.providerInstructionId());
         instruction.setVirtualAccountNumber(bankResult.virtualAccountNumber());
         instruction.setVirtualIfsc(bankResult.ifscCode());
+        instruction.setProviderAccountId(bankResult.providerAccountId());
         instruction.setStatus(InstructionStatus.SUBMITTED);
         instruction.setRequestHash(requestHash);
 

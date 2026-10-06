@@ -209,7 +209,39 @@ public class FlywayCleanMigrationTest {
             assertTrue(reconItemsColumns.contains("bank_status"), "V26 column 'bank_status' on 'reconciliation_items' must exist, found: " + reconItemsColumns);
             assertTrue(reconItemsColumns.contains("resolution_notes"), "V26 column 'resolution_notes' on 'reconciliation_items' must exist, found: " + reconItemsColumns);
 
-            System.out.println("ALL V1 - V26 TABLES AND COLUMNS VERIFIED IN SEQUENTIAL CLEAN ORDER!\n");
+            // V27 internal effect provider account scope columns
+            List<String> paymentInstructionColumns = new ArrayList<>();
+            List<String> settlementInstructionColumns = new ArrayList<>();
+            try (ResultSet rs = conn.getMetaData().getColumns(null, null, "%", "%")) {
+                while (rs.next()) {
+                    String tableName = rs.getString("TABLE_NAME");
+                    if ("payment_instructions".equalsIgnoreCase(tableName)) {
+                        paymentInstructionColumns.add(rs.getString("COLUMN_NAME").toLowerCase());
+                    } else if ("settlement_instructions".equalsIgnoreCase(tableName)) {
+                        settlementInstructionColumns.add(rs.getString("COLUMN_NAME").toLowerCase());
+                    }
+                }
+            }
+            assertTrue(paymentInstructionColumns.contains("provider_account_id"),
+                    "V27 column 'provider_account_id' on 'payment_instructions' must exist, found: " + paymentInstructionColumns);
+            assertTrue(settlementInstructionColumns.contains("provider_account_id"),
+                    "V27 column 'provider_account_id' on 'settlement_instructions' must exist, found: " + settlementInstructionColumns);
+
+            // Verify highest migration is V27 and V28 is absent
+            boolean v27Found = false;
+            boolean v28Found = false;
+            for (MigrationInfo info : infoList) {
+                if ("27".equals(info.getVersion().getVersion())) {
+                    v27Found = true;
+                }
+                if ("28".equals(info.getVersion().getVersion())) {
+                    v28Found = true;
+                }
+            }
+            assertTrue(v27Found, "Migration V27 must be present and executed");
+            assertFalse(v28Found, "Migration V28 must NOT exist in R2.5 phase");
+
+            System.out.println("ALL V1 - V27 TABLES AND COLUMNS VERIFIED IN SEQUENTIAL CLEAN ORDER!\n");
         }
     }
 }

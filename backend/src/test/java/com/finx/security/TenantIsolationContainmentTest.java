@@ -484,7 +484,7 @@ public class TenantIsolationContainmentTest {
         when(milestoneRepository.findByDealIdOrderBySequenceAsc(dealId)).thenReturn(List.of(m18));
         when(bankingProvider.getProviderName()).thenReturn("MOCK");
         when(bankingProvider.createPaymentInstruction(any(PaymentInstructionRequest.class)))
-                .thenReturn(new PaymentInstructionResult("PROV-99", "VA123", "IFSC001", "CREATED", "https://pay.example.com", "{}"));
+                .thenReturn(new PaymentInstructionResult("PROV-99", "VA123", "IFSC001", "CREATED", "https://pay.example.com", "{}", "MOCK_ESCROW_ACCOUNT"));
         when(instructionRepository.save(any(PaymentInstruction.class))).thenAnswer(i -> i.getArgument(0));
 
         CreateInstructionRequest req = new CreateInstructionRequest(dealId, null, "IDEMP-TEST-18");
@@ -509,7 +509,7 @@ public class TenantIsolationContainmentTest {
         when(milestoneRepository.findByDealIdOrderBySequenceAsc(dealId)).thenReturn(List.of(m18));
         when(bankingProvider.getProviderName()).thenReturn("MOCK");
         when(bankingProvider.createPaymentInstruction(any(PaymentInstructionRequest.class)))
-                .thenReturn(new PaymentInstructionResult("PROV-99", "VA123", "IFSC001", "CREATED", "https://pay.example.com", "{}"));
+                .thenReturn(new PaymentInstructionResult("PROV-99", "VA123", "IFSC001", "CREATED", "https://pay.example.com", "{}", "MOCK_ESCROW_ACCOUNT"));
         when(instructionRepository.save(any(PaymentInstruction.class))).thenAnswer(i -> i.getArgument(0));
 
         CreateInstructionRequest req = new CreateInstructionRequest(dealId, null, "IDEMP-TEST-19");

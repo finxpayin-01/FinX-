@@ -23,8 +23,20 @@ public class BankingDtos {
             String ifscCode,
             String status,
             String paymentUrl,
-            String rawResponse
-    ) {}
+            String rawResponse,
+            String providerAccountId
+    ) {
+        public PaymentInstructionResult(
+                String providerInstructionId,
+                String virtualAccountNumber,
+                String ifscCode,
+                String status,
+                String paymentUrl,
+                String rawResponse
+        ) {
+            this(providerInstructionId, virtualAccountNumber, ifscCode, status, paymentUrl, rawResponse, null);
+        }
+    }
 
     public record PaymentStatusResult(
             String providerInstructionId,
@@ -76,8 +88,19 @@ public class BankingDtos {
             String status,
             String utrNumber,
             Instant initiatedAt,
-            String rawResponse
-    ) {}
+            String rawResponse,
+            String providerAccountId
+    ) {
+        public SettlementResult(
+                String providerSettlementId,
+                String status,
+                String utrNumber,
+                Instant initiatedAt,
+                String rawResponse
+        ) {
+            this(providerSettlementId, status, utrNumber, initiatedAt, rawResponse, null);
+        }
+    }
 
     public record SettlementStatusResult(
             String providerSettlementId,

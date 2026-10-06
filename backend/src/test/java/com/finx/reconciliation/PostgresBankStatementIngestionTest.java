@@ -97,7 +97,7 @@ public class PostgresBankStatementIngestionTest {
         flyway.clean();
         MigrateResult result = flyway.migrate();
         assertThat(result.success).isTrue();
-        assertThat(result.targetSchemaVersion).isEqualTo("26");
+        assertThat(Integer.parseInt(result.targetSchemaVersion)).isGreaterThanOrEqualTo(26);
     }
 
     @Autowired

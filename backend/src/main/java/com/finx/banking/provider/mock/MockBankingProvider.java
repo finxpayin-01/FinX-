@@ -54,7 +54,8 @@ public class MockBankingProvider implements BankingProvider {
                 ifscCode,
                 "CREATED",
                 "https://sandbox.finx.bank/pay/" + providerInstructionId,
-                "{\"provider\": \"MOCK\", \"status\": \"CREATED\", \"mode\": \"SANDBOX\"}"
+                "{\"provider\": \"MOCK\", \"status\": \"CREATED\", \"mode\": \"SANDBOX\"}",
+                MOCK_ESCROW_ACCOUNT
         );
 
         virtualAccounts.put(providerInstructionId, result);
@@ -123,7 +124,8 @@ public class MockBankingProvider implements BankingProvider {
                 "SETTLED",
                 utr,
                 Instant.now(),
-                "{\"provider\": \"MOCK\", \"status\": \"SETTLED\", \"utr\": \"" + utr + "\"}"
+                "{\"provider\": \"MOCK\", \"status\": \"SETTLED\", \"utr\": \"" + utr + "\"}",
+                MOCK_ESCROW_ACCOUNT
         );
 
         settlements.put(providerSettlementId, result);

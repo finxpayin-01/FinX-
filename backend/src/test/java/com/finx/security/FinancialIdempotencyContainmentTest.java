@@ -138,7 +138,7 @@ public class FinancialIdempotencyContainmentTest {
         when(agreementService.isAgreementFullySigned(dealId)).thenReturn(true);
         when(bankingProvider.getProviderName()).thenReturn("MOCK_BANK");
         when(bankingProvider.createPaymentInstruction(any())).thenReturn(
-                new PaymentInstructionResult("PROV-TXN-1", "VA123456", "FINX0001", "SUBMITTED", "http://pay.mock", "{}")
+                new PaymentInstructionResult("PROV-TXN-1", "VA123456", "FINX0001", "SUBMITTED", "http://pay.mock", "{}", "MOCK_ESCROW_ACCOUNT")
         );
 
         orchestrationService = new PaymentOrchestrationService(

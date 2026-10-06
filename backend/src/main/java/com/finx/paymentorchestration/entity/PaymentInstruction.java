@@ -56,6 +56,9 @@ public class PaymentInstruction {
     @Column(name = "request_hash", length = 64)
     private String requestHash;
 
+    @Column(name = "provider_account_id", length = 128)
+    private String providerAccountId;
+
     @Column(name = "initiated_by")
     private UUID initiatedBy;
 
@@ -131,6 +134,8 @@ public class PaymentInstruction {
     public void setIdempotencyKey(String idempotencyKey) { this.idempotencyKey = idempotencyKey; }
     public String getRequestHash() { return requestHash; }
     public void setRequestHash(String requestHash) { this.requestHash = requestHash; }
+    public String getProviderAccountId() { return providerAccountId; }
+    public void setProviderAccountId(String providerAccountId) { this.providerAccountId = providerAccountId; }
     public UUID getInitiatedBy() { return initiatedBy; }
     public void setInitiatedBy(UUID initiatedBy) { this.initiatedBy = initiatedBy; }
     public Instant getConfirmedAt() { return confirmedAt; }
