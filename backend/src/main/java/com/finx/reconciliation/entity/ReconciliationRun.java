@@ -2,6 +2,7 @@ package com.finx.reconciliation.entity;
 
 import com.finx.reconciliation.enums.ReconciliationEnums.ReconciliationRunStatus;
 import jakarta.persistence.*;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -49,6 +50,28 @@ public class ReconciliationRun {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    // V26 Additive Durable Reconciliation Fields (Nullable for backward compatibility)
+    @Column(name = "provider_account_id", length = 128)
+    private String providerAccountId;
+
+    @Column(name = "window_start")
+    private Instant windowStart;
+
+    @Column(name = "window_end")
+    private Instant windowEnd;
+
+    @Column(name = "bank_statement_import_id")
+    private UUID bankStatementImportId;
+
+    @Column(name = "opening_balance", precision = 19, scale = 4)
+    private BigDecimal openingBalance;
+
+    @Column(name = "closing_balance", precision = 19, scale = 4)
+    private BigDecimal closingBalance;
+
+    @Column(name = "currency", length = 3)
+    private String currency;
+
     public ReconciliationRun() {
         this.id = UUID.randomUUID();
         this.status = ReconciliationRunStatus.IN_PROGRESS;
@@ -90,4 +113,19 @@ public class ReconciliationRun {
     public void setSummaryNotes(String summaryNotes) { this.summaryNotes = summaryNotes; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
+
+    public String getProviderAccountId() { return providerAccountId; }
+    public void setProviderAccountId(String providerAccountId) { this.providerAccountId = providerAccountId; }
+    public Instant getWindowStart() { return windowStart; }
+    public void setWindowStart(Instant windowStart) { this.windowStart = windowStart; }
+    public Instant getWindowEnd() { return windowEnd; }
+    public void setWindowEnd(Instant windowEnd) { this.windowEnd = windowEnd; }
+    public UUID getBankStatementImportId() { return bankStatementImportId; }
+    public void setBankStatementImportId(UUID bankStatementImportId) { this.bankStatementImportId = bankStatementImportId; }
+    public BigDecimal getOpeningBalance() { return openingBalance; }
+    public void setOpeningBalance(BigDecimal openingBalance) { this.openingBalance = openingBalance; }
+    public BigDecimal getClosingBalance() { return closingBalance; }
+    public void setClosingBalance(BigDecimal closingBalance) { this.closingBalance = closingBalance; }
+    public String getCurrency() { return currency; }
+    public void setCurrency(String currency) { this.currency = currency; }
 }

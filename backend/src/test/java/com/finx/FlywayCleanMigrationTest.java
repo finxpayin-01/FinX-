@@ -177,7 +177,39 @@ public class FlywayCleanMigrationTest {
             assertTrue(tables.contains("engine_policy_versions"), "V25 table 'engine_policy_versions' must exist");
             assertTrue(tables.contains("engine_decisions"), "V25 table 'engine_decisions' must exist");
 
-            System.out.println("ALL V1 - V25 TABLES AND COLUMNS VERIFIED IN SEQUENTIAL CLEAN ORDER!\n");
+            // V26 durable bank statement reconciliation tables & columns
+            assertTrue(tables.contains("bank_statement_imports"), "V26 table 'bank_statement_imports' must exist");
+            assertTrue(tables.contains("bank_statement_lines"), "V26 table 'bank_statement_lines' must exist");
+
+            List<String> reconRunsColumns = new ArrayList<>();
+            List<String> reconItemsColumns = new ArrayList<>();
+            try (ResultSet rs = conn.getMetaData().getColumns(null, null, "%", "%")) {
+                while (rs.next()) {
+                    String tableName = rs.getString("TABLE_NAME");
+                    if ("reconciliation_runs".equalsIgnoreCase(tableName)) {
+                        reconRunsColumns.add(rs.getString("COLUMN_NAME").toLowerCase());
+                    } else if ("reconciliation_items".equalsIgnoreCase(tableName)) {
+                        reconItemsColumns.add(rs.getString("COLUMN_NAME").toLowerCase());
+                    }
+                }
+            }
+            assertTrue(reconRunsColumns.contains("provider_account_id"), "V26 column 'provider_account_id' on 'reconciliation_runs' must exist, found: " + reconRunsColumns);
+            assertTrue(reconRunsColumns.contains("window_start"), "V26 column 'window_start' on 'reconciliation_runs' must exist, found: " + reconRunsColumns);
+            assertTrue(reconRunsColumns.contains("window_end"), "V26 column 'window_end' on 'reconciliation_runs' must exist, found: " + reconRunsColumns);
+            assertTrue(reconRunsColumns.contains("bank_statement_import_id"), "V26 column 'bank_statement_import_id' on 'reconciliation_runs' must exist, found: " + reconRunsColumns);
+            assertTrue(reconRunsColumns.contains("opening_balance"), "V26 column 'opening_balance' on 'reconciliation_runs' must exist, found: " + reconRunsColumns);
+            assertTrue(reconRunsColumns.contains("closing_balance"), "V26 column 'closing_balance' on 'reconciliation_runs' must exist, found: " + reconRunsColumns);
+            assertTrue(reconRunsColumns.contains("currency"), "V26 column 'currency' on 'reconciliation_runs' must exist, found: " + reconRunsColumns);
+
+            assertTrue(reconItemsColumns.contains("bank_statement_line_id"), "V26 column 'bank_statement_line_id' on 'reconciliation_items' must exist, found: " + reconItemsColumns);
+            assertTrue(reconItemsColumns.contains("internal_effect_type"), "V26 column 'internal_effect_type' on 'reconciliation_items' must exist, found: " + reconItemsColumns);
+            assertTrue(reconItemsColumns.contains("internal_effect_id"), "V26 column 'internal_effect_id' on 'reconciliation_items' must exist, found: " + reconItemsColumns);
+            assertTrue(reconItemsColumns.contains("currency"), "V26 column 'currency' on 'reconciliation_items' must exist, found: " + reconItemsColumns);
+            assertTrue(reconItemsColumns.contains("direction"), "V26 column 'direction' on 'reconciliation_items' must exist, found: " + reconItemsColumns);
+            assertTrue(reconItemsColumns.contains("bank_status"), "V26 column 'bank_status' on 'reconciliation_items' must exist, found: " + reconItemsColumns);
+            assertTrue(reconItemsColumns.contains("resolution_notes"), "V26 column 'resolution_notes' on 'reconciliation_items' must exist, found: " + reconItemsColumns);
+
+            System.out.println("ALL V1 - V26 TABLES AND COLUMNS VERIFIED IN SEQUENTIAL CLEAN ORDER!\n");
         }
     }
 }

@@ -1,5 +1,7 @@
 package com.finx.reconciliation.entity;
 
+import com.finx.reconciliation.enums.FinancialDirection;
+import com.finx.reconciliation.enums.ReconciliationEffectType;
 import com.finx.reconciliation.enums.ReconciliationEnums.ReconciliationItemStatus;
 import com.finx.reconciliation.enums.ReconciliationEnums.ResolutionStatus;
 import jakarta.persistence.*;
@@ -49,6 +51,30 @@ public class ReconciliationItem {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    // V26 Additive Durable Reconciliation Fields (Nullable for backward compatibility)
+    @Column(name = "bank_statement_line_id")
+    private UUID bankStatementLineId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "internal_effect_type", length = 32)
+    private ReconciliationEffectType internalEffectType;
+
+    @Column(name = "internal_effect_id")
+    private UUID internalEffectId;
+
+    @Column(name = "currency", length = 3)
+    private String currency;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "direction", length = 16)
+    private FinancialDirection direction;
+
+    @Column(name = "bank_status", length = 32)
+    private String bankStatus;
+
+    @Column(name = "resolution_notes", columnDefinition = "TEXT")
+    private String resolutionNotes;
+
     public ReconciliationItem() {
         this.id = UUID.randomUUID();
         this.resolutionStatus = ResolutionStatus.UNRESOLVED;
@@ -92,4 +118,19 @@ public class ReconciliationItem {
     public void setResolvedAt(Instant resolvedAt) { this.resolvedAt = resolvedAt; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
+
+    public UUID getBankStatementLineId() { return bankStatementLineId; }
+    public void setBankStatementLineId(UUID bankStatementLineId) { this.bankStatementLineId = bankStatementLineId; }
+    public ReconciliationEffectType getInternalEffectType() { return internalEffectType; }
+    public void setInternalEffectType(ReconciliationEffectType internalEffectType) { this.internalEffectType = internalEffectType; }
+    public UUID getInternalEffectId() { return internalEffectId; }
+    public void setInternalEffectId(UUID internalEffectId) { this.internalEffectId = internalEffectId; }
+    public String getCurrency() { return currency; }
+    public void setCurrency(String currency) { this.currency = currency; }
+    public FinancialDirection getDirection() { return direction; }
+    public void setDirection(FinancialDirection direction) { this.direction = direction; }
+    public String getBankStatus() { return bankStatus; }
+    public void setBankStatus(String bankStatus) { this.bankStatus = bankStatus; }
+    public String getResolutionNotes() { return resolutionNotes; }
+    public void setResolutionNotes(String resolutionNotes) { this.resolutionNotes = resolutionNotes; }
 }
