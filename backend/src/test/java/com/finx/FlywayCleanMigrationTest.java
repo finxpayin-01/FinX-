@@ -3,6 +3,7 @@ package com.finx;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationInfo;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIf;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -13,9 +14,10 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@EnabledIf("isPostgresAvailable")
 public class FlywayCleanMigrationTest {
 
-    private static boolean isPostgresAvailable() {
+    static boolean isPostgresAvailable() {
         try (java.net.Socket socket = new java.net.Socket()) {
             socket.connect(new java.net.InetSocketAddress("127.0.0.1", 5432), 1000);
             return true;

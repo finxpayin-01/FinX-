@@ -29,6 +29,9 @@ public class ReadOnlyDecisionAdapterArchitectureTest {
             ReadOnlyDecisionAdapter.class,
             RiskDecisionAdapter.class,
             DocumentDecisionAdapter.class,
+            com.finx.engine.adapter.MilestoneRulesDecisionAdapter.class,
+            com.finx.engine.adapter.ApprovalDecisionAdapter.class,
+            com.finx.engine.adapter.MilestoneDecisionEvidenceReader.class,
             DomainEvaluationResult.class,
             ReadOnlyDomainDecisionCoordinator.class
     );
@@ -131,5 +134,7 @@ public class ReadOnlyDecisionAdapterArchitectureTest {
     void adaptersMustImplementContract() {
         assertThat(ReadOnlyDecisionAdapter.class.isAssignableFrom(RiskDecisionAdapter.class)).isTrue();
         assertThat(ReadOnlyDecisionAdapter.class.isAssignableFrom(DocumentDecisionAdapter.class)).isTrue();
+        assertThat(ReadOnlyDecisionAdapter.class.isAssignableFrom(com.finx.engine.adapter.MilestoneRulesDecisionAdapter.class)).isTrue();
+        assertThat(ReadOnlyDecisionAdapter.class.isAssignableFrom(com.finx.engine.adapter.ApprovalDecisionAdapter.class)).isTrue();
     }
 }
