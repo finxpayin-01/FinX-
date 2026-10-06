@@ -33,7 +33,9 @@ public class ReadOnlyDecisionAdapterArchitectureTest {
             com.finx.engine.adapter.ApprovalDecisionAdapter.class,
             com.finx.engine.adapter.TrustDecisionAdapter.class,
             com.finx.engine.adapter.DisputeDecisionAdapter.class,
+            com.finx.engine.adapter.FraudDecisionAdapter.class,
             com.finx.engine.adapter.MilestoneDecisionEvidenceReader.class,
+            com.finx.engine.adapter.FraudDecisionEvidenceReader.class,
             DomainEvaluationResult.class,
             ReadOnlyDomainDecisionCoordinator.class
     );

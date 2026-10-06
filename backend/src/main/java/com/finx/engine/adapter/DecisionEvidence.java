@@ -30,28 +30,36 @@ final class DecisionEvidence {
         references.add(new EvidenceReference(type, id, observedAt, hash, provenance, revision));
     }
 
-    RecordEngineDecisionCommand command(EvaluationContext context, EngineType type, DecisionStatus status,
-                                        List<String> reasons, String explanation) {
+    String computeFingerprint() {
         try {
-            String fingerprint = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
                     .digest(JSON.writeValueAsBytes(material)));
-            DecisionSubjectType subjectType;
-            try {
-                subjectType = DecisionSubjectType.valueOf(context.subjectType());
-            } catch (IllegalArgumentException | NullPointerException ignored) {
-                subjectType = DecisionSubjectType.MILESTONE;
-            }
-            return RecordEngineDecisionCommand.builder()
-                    .organizationId(context.organizationId()).engineType(type)
-                    .subjectType(subjectType).subjectId(context.subjectId())
-                    .evaluationId(context.evaluationId()).correlationId(context.correlationId())
-                    .evaluatedAt(context.evaluationTime()).decision(status).reasonCodes(reasons)
-                    .explanation(explanation).inputFingerprint(fingerprint).ruleVersion(type.name() + "_V1")
-                    .evidenceReferences(references.stream().distinct()
-                            .sorted(Comparator.comparing(EvidenceReference::sourceType)
-                                .thenComparing(EvidenceReference::sourceId)).toList()).build();
         } catch (java.security.NoSuchAlgorithmException | com.fasterxml.jackson.core.JsonProcessingException ex) {
             throw new IllegalStateException("Cannot fingerprint decision evidence", ex);
         }
+    }
+
+    List<EvidenceReference> getSortedReferences() {
+        return references.stream().distinct()
+                .sorted(Comparator.comparing(EvidenceReference::sourceType)
+                        .thenComparing(EvidenceReference::sourceId)).toList();
+    }
+
+    RecordEngineDecisionCommand command(EvaluationContext context, EngineType type, DecisionStatus status,
+                                        List<String> reasons, String explanation) {
+        String fingerprint = computeFingerprint();
+        DecisionSubjectType subjectType;
+        try {
+            subjectType = DecisionSubjectType.valueOf(context.subjectType());
+        } catch (IllegalArgumentException | NullPointerException ignored) {
+            subjectType = DecisionSubjectType.MILESTONE;
+        }
+        return RecordEngineDecisionCommand.builder()
+                .organizationId(context.organizationId()).engineType(type)
+                .subjectType(subjectType).subjectId(context.subjectId())
+                .evaluationId(context.evaluationId()).correlationId(context.correlationId())
+                .evaluatedAt(context.evaluationTime()).decision(status).reasonCodes(reasons)
+                .explanation(explanation).inputFingerprint(fingerprint).ruleVersion(type.name() + "_V1")
+                .evidenceReferences(getSortedReferences()).build();
     }
 }
