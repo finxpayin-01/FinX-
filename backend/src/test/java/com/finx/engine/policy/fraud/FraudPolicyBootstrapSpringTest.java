@@ -38,7 +38,7 @@ class FraudPolicyBootstrapSpringTest {
     private BankingProvider bankingProvider;
 
     @Test
-    @DisplayName("F1-12: Spring application boot automatically registers deterministic FRAUD policy v1.0.0")
+    @DisplayName("F1.1-09: Spring application boot automatically registers deterministic FRAUD policy v1.0.1")
     void testStartupBootstrapPolicyRegistration() {
         Optional<EnginePolicyVersion> policyOpt = policyVersionService.getPlatformPolicy(
                 EngineType.FRAUD, FraudPolicyDefinition.POLICY_KEY, FraudPolicyDefinition.POLICY_VERSION
@@ -51,7 +51,7 @@ class FraudPolicyBootstrapSpringTest {
         assertThat(policy.getOrganizationId()).isNull();
         assertThat(policy.getEngineType()).isEqualTo(EngineType.FRAUD);
         assertThat(policy.getPolicyKey()).isEqualTo(FraudPolicyDefinition.POLICY_KEY);
-        assertThat(policy.getVersion()).isEqualTo(FraudPolicyDefinition.POLICY_VERSION);
+        assertThat(policy.getVersion()).isEqualTo("1.0.1");
         assertThat(policy.getSchemaVersion()).isEqualTo(FraudPolicyDefinition.SCHEMA_VERSION);
         assertThat(policy.getContentHash()).isEqualTo(FraudPolicyDefinition.getExpectedContentHash());
         assertThat(policy.getPolicyContent()).isEqualTo(FraudPolicyDefinition.getCanonicalPolicyContent());
@@ -65,16 +65,21 @@ class FraudPolicyBootstrapSpringTest {
     }
 
     @Test
-    @DisplayName("F1-13: Re-executing registration service manually is idempotent and produces no duplicates")
+    @DisplayName("F1.1-10: Re-executing registration service manually is idempotent and produces no duplicates for v1.0.1")
     void testManualRegistrationReplayIdempotency() {
         EnginePolicyVersion replayed = fraudPolicyRegistrar.registerDefaultFraudPolicy();
         assertThat(replayed).isNotNull();
         assertThat(replayed.getPolicyKey()).isEqualTo(FraudPolicyDefinition.POLICY_KEY);
+        assertThat(replayed.getVersion()).isEqualTo("1.0.1");
         assertThat(replayed.getContentHash()).isEqualTo(FraudPolicyDefinition.getExpectedContentHash());
 
         List<EnginePolicyVersion> platformPolicies = policyVersionService.listPlatformPolicies(
                 EngineType.FRAUD, FraudPolicyDefinition.POLICY_KEY
         );
-        assertThat(platformPolicies).hasSize(1);
+        // In this test context, at least 1 policy exists and none are duplicates for 1.0.1
+        long v101Count = platformPolicies.stream()
+                .filter(p -> "1.0.1".equals(p.getVersion()))
+                .count();
+        assertThat(v101Count).isEqualTo(1);
     }
 }

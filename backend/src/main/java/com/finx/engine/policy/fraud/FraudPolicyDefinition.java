@@ -8,13 +8,14 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
 /**
- * Authoritative, immutable code definition for the FinX Deterministic Fraud Policy (v1.0.0).
- * Defines deterministic rule definitions, reason codes, disposition mappings, and boundary invariants.
+ * Authoritative, immutable code definition for the FinX Deterministic Fraud Policy (v1.0.1).
+ * Corrects S01 source to invoices.document_hash, specifies scoped provider identity for S05,
+ * and clarifies timestamp sources for S06 while preserving immutability and fail-closed security.
  */
 public final class FraudPolicyDefinition {
 
     public static final String POLICY_KEY = "FINX_FRAUD_DETERMINISTIC_BASE";
-    public static final String POLICY_VERSION = "1.0.0";
+    public static final String POLICY_VERSION = "1.0.1";
     public static final String SCHEMA_VERSION = "1.0";
     public static final EngineType ENGINE_TYPE = EngineType.FRAUD;
     public static final PolicyScope SCOPE = PolicyScope.PLATFORM;
@@ -38,7 +39,7 @@ public final class FraudPolicyDefinition {
 
     private static final String CANONICAL_POLICY_CONTENT = "{"
             + "\"policyKey\":\"FINX_FRAUD_DETERMINISTIC_BASE\","
-            + "\"version\":\"1.0.0\","
+            + "\"version\":\"1.0.1\","
             + "\"schemaVersion\":\"1.0\","
             + "\"engineType\":\"FRAUD\","
             + "\"scope\":\"PLATFORM\","
@@ -46,13 +47,13 @@ public final class FraudPolicyDefinition {
             + "\"owner\":\"BUYER_ORGANIZATION\","
             + "\"consumeDerivedRiskScore\":false,"
             + "\"rules\":["
-            + "{\"ruleId\":\"S01\",\"name\":\"EXACT_DOCUMENT_HASH_DUPLICATE\",\"reasonCode\":\"FRAUD_DUPLICATE_DOCUMENT_HASH\",\"disposition\":\"BLOCK\",\"thresholdRequired\":false,\"enabled\":true,\"source\":\"invoice_documents.content_hash\",\"description\":\"Cryptographic SHA-256 collision with a previously submitted invoice document\"},"
-            + "{\"ruleId\":\"S02\",\"name\":\"DUPLICATE_INVOICE_NUMBER\",\"reasonCode\":\"FRAUD_DUPLICATE_INVOICE_NUMBER\",\"disposition\":\"BLOCK\",\"thresholdRequired\":false,\"enabled\":true,\"source\":\"invoices.normalized_invoice_number\",\"description\":\"Normalized invoice number collision for the same vendor organization on non-revision invoices\"},"
-            + "{\"ruleId\":\"S03\",\"name\":\"VENDOR_TAX_IDENTITY_MISMATCH\",\"reasonCode\":\"FRAUD_TAX_IDENTITY_MISMATCH\",\"disposition\":\"BLOCK\",\"thresholdRequired\":false,\"enabled\":true,\"source\":\"invoice_checks.status\",\"description\":\"Tax identifier PAN or GSTIN mismatch between billed entity and verified KYB registration\"},"
+            + "{\"ruleId\":\"S01\",\"name\":\"EXACT_DOCUMENT_HASH_DUPLICATE\",\"reasonCode\":\"FRAUD_DUPLICATE_DOCUMENT_HASH\",\"disposition\":\"BLOCK\",\"thresholdRequired\":false,\"enabled\":true,\"source\":\"invoices.document_hash\",\"description\":\"Cryptographic SHA-256 document hash collision with a previously submitted invoice in invoices table\"},"
+            + "{\"ruleId\":\"S02\",\"name\":\"DUPLICATE_INVOICE_NUMBER\",\"reasonCode\":\"FRAUD_DUPLICATE_INVOICE_NUMBER\",\"disposition\":\"BLOCK\",\"thresholdRequired\":false,\"enabled\":true,\"source\":\"invoices.vendor_organization_id,invoices.normalized_invoice_number\",\"description\":\"Normalized invoice number collision for the same vendor organization on non-revision invoices\"},"
+            + "{\"ruleId\":\"S03\",\"name\":\"VENDOR_TAX_IDENTITY_MISMATCH\",\"reasonCode\":\"FRAUD_TAX_IDENTITY_MISMATCH\",\"disposition\":\"BLOCK\",\"thresholdRequired\":false,\"enabled\":true,\"source\":\"invoice_checks.status\",\"description\":\"Tax identifier PAN or GSTIN mismatch between billed entity and verified KYB registration from persisted invoice checks\"},"
             + "{\"ruleId\":\"S04\",\"name\":\"BENEFICIARY_NAME_MISMATCH\",\"reasonCode\":\"FRAUD_BENEFICIARY_NAME_MISMATCH\",\"disposition\":\"BLOCK\",\"thresholdRequired\":false,\"enabled\":true,\"source\":\"organization_bank_accounts.name_match_status\",\"description\":\"Payout destination bank account verification reported explicit name mismatch\"},"
-            + "{\"ruleId\":\"S05\",\"name\":\"PROVIDER_CREDIT_IDENTITY_REUSE\",\"reasonCode\":\"FRAUD_PROVIDER_REFERENCE_REUSE\",\"disposition\":\"BLOCK\",\"thresholdRequired\":false,\"enabled\":true,\"evaluableFromCurrentReadModel\":false,\"enforcedAtPersistenceBoundary\":true,\"source\":\"payment_transactions.utr_number\",\"description\":\"External provider UTR or transaction reference collision; enforced by B05 database unique constraints uk_payment_tx_provider_utr and uk_settlement_provider_utr\"},"
-            + "{\"ruleId\":\"S06\",\"name\":\"BENEFICIARY_ACCOUNT_RECENTLY_MODIFIED\",\"reasonCode\":\"FRAUD_BENEFICIARY_ACCOUNT_RECENTLY_MODIFIED\",\"disposition\":\"REVIEW\",\"thresholdRequired\":true,\"currentThreshold\":\"UNDEFINED\",\"policyState\":\"PRODUCT_POLICY_REQUIRED\",\"enabled\":false,\"source\":\"organization_bank_accounts.created_at\",\"description\":\"Payout bank account was registered or modified within policy observation window; disabled pending product policy threshold definition\"},"
-            + "{\"ruleId\":\"S07\",\"name\":\"INVOICE_DATE_ANOMALY\",\"reasonCode\":\"FRAUD_INVOICE_DATE_ANOMALY\",\"disposition\":\"REVIEW\",\"thresholdRequired\":false,\"enabled\":true,\"source\":\"invoice_checks.status\",\"description\":\"Invoice date anomalies detected by canonical invoice matching checks\"}"
+            + "{\"ruleId\":\"S05\",\"name\":\"PROVIDER_CREDIT_IDENTITY_REUSE\",\"reasonCode\":\"FRAUD_PROVIDER_REFERENCE_REUSE\",\"disposition\":\"BLOCK\",\"thresholdRequired\":false,\"enabled\":true,\"evaluableFromCurrentReadModel\":false,\"enforcedAtPersistenceBoundary\":true,\"source\":\"payment_transactions(provider,utr_number),settlement_instructions(provider,utr_number)\",\"description\":\"External provider UTR or transaction reference collision; enforced by B05 database unique constraints uk_payment_tx_provider_utr and uk_settlement_provider_utr across payment and settlement namespaces\"},"
+            + "{\"ruleId\":\"S06\",\"name\":\"BENEFICIARY_ACCOUNT_RECENTLY_MODIFIED\",\"reasonCode\":\"FRAUD_BENEFICIARY_ACCOUNT_RECENTLY_MODIFIED\",\"disposition\":\"REVIEW\",\"thresholdRequired\":true,\"currentThreshold\":\"UNDEFINED\",\"policyState\":\"PRODUCT_POLICY_REQUIRED\",\"enabled\":false,\"source\":\"organization_bank_accounts.created_at,organization_bank_accounts.updated_at\",\"description\":\"Payout bank account was registered or modified within policy observation window; disabled pending product policy threshold definition\"},"
+            + "{\"ruleId\":\"S07\",\"name\":\"INVOICE_DATE_ANOMALY\",\"reasonCode\":\"FRAUD_INVOICE_DATE_ANOMALY\",\"disposition\":\"REVIEW\",\"thresholdRequired\":false,\"enabled\":true,\"source\":\"invoice_checks.status\",\"description\":\"Invoice date anomalies detected by canonical invoice matching checks of type INVOICE_DATE_VALID\"}"
             + "],"
             + "\"missingEvidencePolicies\":{"
             + "\"missingInvoice\":{\"reasonCode\":\"FRAUD_MISSING_INVOICE_EVIDENCE\",\"disposition\":\"REVIEW\"},"
