@@ -35,15 +35,21 @@ final class DecisionEvidence {
         try {
             String fingerprint = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
                     .digest(JSON.writeValueAsBytes(material)));
+            DecisionSubjectType subjectType;
+            try {
+                subjectType = DecisionSubjectType.valueOf(context.subjectType());
+            } catch (IllegalArgumentException | NullPointerException ignored) {
+                subjectType = DecisionSubjectType.MILESTONE;
+            }
             return RecordEngineDecisionCommand.builder()
                     .organizationId(context.organizationId()).engineType(type)
-                    .subjectType(DecisionSubjectType.MILESTONE).subjectId(context.subjectId())
+                    .subjectType(subjectType).subjectId(context.subjectId())
                     .evaluationId(context.evaluationId()).correlationId(context.correlationId())
                     .evaluatedAt(context.evaluationTime()).decision(status).reasonCodes(reasons)
                     .explanation(explanation).inputFingerprint(fingerprint).ruleVersion(type.name() + "_V1")
                     .evidenceReferences(references.stream().distinct()
                             .sorted(Comparator.comparing(EvidenceReference::sourceType)
-                                    .thenComparing(EvidenceReference::sourceId)).toList()).build();
+                                .thenComparing(EvidenceReference::sourceId)).toList()).build();
         } catch (java.security.NoSuchAlgorithmException | com.fasterxml.jackson.core.JsonProcessingException ex) {
             throw new IllegalStateException("Cannot fingerprint decision evidence", ex);
         }

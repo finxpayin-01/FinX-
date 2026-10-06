@@ -31,6 +31,8 @@ public class ReadOnlyDecisionAdapterArchitectureTest {
             DocumentDecisionAdapter.class,
             com.finx.engine.adapter.MilestoneRulesDecisionAdapter.class,
             com.finx.engine.adapter.ApprovalDecisionAdapter.class,
+            com.finx.engine.adapter.TrustDecisionAdapter.class,
+            com.finx.engine.adapter.DisputeDecisionAdapter.class,
             com.finx.engine.adapter.MilestoneDecisionEvidenceReader.class,
             DomainEvaluationResult.class,
             ReadOnlyDomainDecisionCoordinator.class
@@ -130,11 +132,30 @@ public class ReadOnlyDecisionAdapterArchitectureTest {
     }
 
     @Test
-    @DisplayName("4. Risk and Document adapters must implement ReadOnlyDecisionAdapter")
+    @DisplayName("4. All domain adapters must implement ReadOnlyDecisionAdapter")
     void adaptersMustImplementContract() {
         assertThat(ReadOnlyDecisionAdapter.class.isAssignableFrom(RiskDecisionAdapter.class)).isTrue();
         assertThat(ReadOnlyDecisionAdapter.class.isAssignableFrom(DocumentDecisionAdapter.class)).isTrue();
         assertThat(ReadOnlyDecisionAdapter.class.isAssignableFrom(com.finx.engine.adapter.MilestoneRulesDecisionAdapter.class)).isTrue();
         assertThat(ReadOnlyDecisionAdapter.class.isAssignableFrom(com.finx.engine.adapter.ApprovalDecisionAdapter.class)).isTrue();
+        assertThat(ReadOnlyDecisionAdapter.class.isAssignableFrom(com.finx.engine.adapter.TrustDecisionAdapter.class)).isTrue();
+        assertThat(ReadOnlyDecisionAdapter.class.isAssignableFrom(com.finx.engine.adapter.DisputeDecisionAdapter.class)).isTrue();
+    }
+
+    @Test
+    @DisplayName("5. TrustDecisionAdapter must not depend on OrganizationService or broken D06 metrics")
+    void trustAdapterMustNotDependOnD06OrganizationService() {
+        for (Field field : com.finx.engine.adapter.TrustDecisionAdapter.class.getDeclaredFields()) {
+            assertThat(field.getType().getName())
+                    .withFailMessage("TrustDecisionAdapter must not depend on OrganizationService or D06 metrics")
+                    .doesNotContain("OrganizationService");
+        }
+        for (Constructor<?> constructor : com.finx.engine.adapter.TrustDecisionAdapter.class.getDeclaredConstructors()) {
+            for (Parameter param : constructor.getParameters()) {
+                assertThat(param.getType().getName())
+                        .withFailMessage("TrustDecisionAdapter constructor must not accept OrganizationService")
+                        .doesNotContain("OrganizationService");
+            }
+        }
     }
 }
