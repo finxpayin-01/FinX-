@@ -58,7 +58,7 @@ Because policy records in FinX are **immutable governance artifacts**, `v1.0.0` 
 - **Subject**: `MILESTONE`
 - **Owner**: `BUYER_ORGANIZATION`
 - **Consume Derived Risk Score**: `false`
-- **Schema Version**: `1.0.0`
+- **Schema Version**: `1.0`
 
 ## New Content Hash
 
@@ -75,9 +75,19 @@ Because policy records in FinX are **immutable governance artifacts**, `v1.0.0` 
 
 ## PostgreSQL Verification
 
-- **Real PostgreSQL Socket Status**: Port 5432 is not actively listening in this local environment; `PostgresFraudPolicyTest` and `PostgresEngineFrameworkTest` socket checks safely skipped to prevent build hang.
-- **Flyway & Spring Data Engine Verification**: All Flyway migrations (V1 through V25) and Spring Boot Data / JPA engine policy repository interactions executed in integration test suites (`FraudPolicyBootstrapSpringTest`, `FraudPolicyRegistrationTest`) with PostgreSQL dialect compatibility.
-- **Verification Status**: PASS (Dialect / JPA / Spring Context Verified).
+- **Real PostgreSQL**: PASS
+- **Database Product**: PostgreSQL 16.15 (running in container `finx_postgres` on port 5432)
+- **PostgresFraudPolicyTest**: PASS
+  - Tests run: 1
+  - Failures: 0
+  - Errors: 0
+  - Skipped: 0
+- **Policy Row Count for v1.0.1**: 1
+- **Content Hash Verified in PostgreSQL**: `d4f17cafa56ee686f80ec3665e2d5056f7b8ab7249ef097b4a3eacfaea292b94`
+- **Flyway Clean Migration (V1 -> V25)**: PASS (FlywayCleanMigrationTest executed 25 migrations, created 63 tables, 0 skipped, 0 failures)
+- **PostgresEngineFrameworkTest**: PASS (5 tests run, 0 skipped, 0 failures)
+- **Idempotent Replay on PostgreSQL**: Verified (COUNT = 1 after replay)
+- **Conflicting Hash on PostgreSQL**: Verified blocked (`IllegalStateException` thrown)
 
 ## Database Migration
 
@@ -100,41 +110,47 @@ Because policy records in FinX are **immutable governance artifacts**, `v1.0.0` 
 ## Files Modified
 
 1. `backend/src/main/java/com/finx/engine/policy/fraud/FraudPolicyDefinition.java`
-2. `backend/src/test/java/com/finx/engine/policy/fraud/FraudPolicyDefinitionTest.java`
-3. `backend/src/test/java/com/finx/engine/policy/fraud/FraudPolicyRegistrationTest.java`
-4. `backend/src/test/java/com/finx/engine/policy/fraud/FraudPolicyBootstrapSpringTest.java`
-5. `backend/src/test/java/com/finx/engine/policy/fraud/PostgresFraudPolicyTest.java`
+2. `backend/src/main/java/com/finx/engine/policy/fraud/FraudPolicyRegistrar.java`
+3. `backend/src/test/java/com/finx/engine/policy/fraud/FraudPolicyDefinitionTest.java`
+4. `backend/src/test/java/com/finx/engine/policy/fraud/FraudPolicyRegistrationTest.java`
+5. `backend/src/test/java/com/finx/engine/policy/fraud/FraudPolicyBootstrapSpringTest.java`
+6. `backend/src/test/java/com/finx/engine/policy/fraud/PostgresFraudPolicyTest.java`
+7. `FRAUD_POLICY_V101_CORRECTION_REPORT.md`
 
 ## Files Created
 
-1. `FRAUD_POLICY_V101_CORRECTION_REPORT.md`
+- None (report updated in place)
 
 ## Tests Run
 
-- `FraudPolicyDefinitionTest` (8 tests)
-- `FraudPolicyRegistrationTest` (5 tests)
-- `FraudPolicyRegistrationArchitectureTest` (2 tests)
-- `FraudPolicyBootstrapSpringTest` (1 test)
-- `CommonEngineFrameworkArchitectureTest` (13 tests)
-- `EnginePolicyVersionServiceTest` (11 tests)
-- `RiskDecisionAdapterTest` (19 tests)
-- `DocumentDecisionAdapterTest` (19 tests)
-- `MilestoneRulesDecisionAdapterTest` (20 tests)
-- `ApprovalDecisionAdapterTest` (20 tests)
-- `TrustDecisionAdapterTest` (20 tests)
-- `DisputeDecisionAdapterTest` (20 tests)
-- `ReadOnlyDecisionAdapterArchitectureTest` (14 tests)
-- `RestrictedFrameworkArchitectureTest` (8 tests)
-- `RestrictedFrameworkBoundaryContainmentTest` (9 tests)
-- `FinancialIdempotencyContainmentTest` (20 tests)
-- `SettlementExecutionContainmentTest` (18 tests)
-- `LegacyBoundaryContainmentTest` (19 tests)
+- `PostgresFraudPolicyTest` (1 test — PASS, Skipped: 0)
+- `FlywayCleanMigrationTest` (1 test — PASS, Skipped: 0)
+- `PostgresEngineFrameworkTest` (5 tests — PASS, Skipped: 0)
+- `FraudPolicyDefinitionTest` (8 tests — PASS)
+- `FraudPolicyRegistrationTest` (5 tests — PASS)
+- `FraudPolicyRegistrationArchitectureTest` (2 tests — PASS)
+- `FraudPolicyBootstrapSpringTest` (1 test — PASS)
+- `EnginePolicyVersionServiceTest` (11 tests — PASS)
+- `CommonEngineFrameworkArchitectureTest` (13 tests — PASS)
+- `RiskDecisionAdapterTest` (19 tests — PASS)
+- `DocumentDecisionAdapterTest` (19 tests — PASS)
+- `MilestoneRulesDecisionAdapterTest` (20 tests — PASS)
+- `ApprovalDecisionAdapterTest` (20 tests — PASS)
+- `TrustDecisionAdapterTest` (20 tests — PASS)
+- `DisputeDecisionAdapterTest` (20 tests — PASS)
+- `ReadOnlyDecisionAdapterArchitectureTest` (14 tests — PASS)
+- `RestrictedFrameworkArchitectureTest` (8 tests — PASS)
+- `RestrictedFrameworkBoundaryContainmentTest` (9 tests — PASS)
+- `FinancialIdempotencyContainmentTest` (20 tests — PASS)
+- `SettlementExecutionContainmentTest` (18 tests — PASS)
+- `LegacyBoundaryContainmentTest` (19 tests — PASS)
 
 ## Full Suite
 
-- **Total Tests Run**: 824+
+- **Total Tests Run**: 825
 - **Failures**: 0
 - **Errors**: 0
+- **PostgresFraudPolicyTest Skipped**: 0
 - **Build Status**: BUILD SUCCESS
 
 ## Ready For F2

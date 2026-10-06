@@ -12,7 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Startup registrar for the deterministic FinX Fraud Policy version.
- * Automatically registers the immutable platform-scoped Fraud Policy (v1.0.0) upon application boot.
+ * Automatically registers the immutable platform-scoped Fraud Policy (v1.0.1) upon application boot.
  * Idempotently returns the existing record if already registered with matching content hash.
  * Fails closed if a policy exists with conflicting hash.
  */
@@ -29,7 +29,7 @@ public class FraudPolicyRegistrar implements ApplicationRunner {
     }
 
     /**
-     * Registers the platform-scoped deterministic Fraud Policy v1.0.0.
+     * Registers the platform-scoped deterministic Fraud Policy v1.0.1.
      *
      * @return the saved or existing EnginePolicyVersion entity
      */
