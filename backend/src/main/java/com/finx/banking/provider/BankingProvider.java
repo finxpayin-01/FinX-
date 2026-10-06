@@ -23,5 +23,7 @@ public interface BankingProvider {
 
     List<BankTransactionRecord> fetchTransactions(LocalDate fromDate, LocalDate toDate);
 
+    com.finx.banking.dto.BankStatementPage fetchStatementPage(com.finx.banking.dto.BankStatementQuery query);
+
     boolean verifyWebhookSignature(String rawPayload, String signature, String timestamp);
 }

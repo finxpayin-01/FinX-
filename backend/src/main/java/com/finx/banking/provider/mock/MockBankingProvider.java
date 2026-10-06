@@ -2,6 +2,11 @@ package com.finx.banking.provider.mock;
 
 import com.finx.banking.dto.BankingDtos.*;
 import com.finx.banking.provider.BankingProvider;
+import com.finx.banking.dto.BankStatementDirection;
+import com.finx.banking.dto.BankStatementEntry;
+import com.finx.banking.dto.BankStatementFinality;
+import com.finx.banking.dto.BankStatementPage;
+import com.finx.banking.dto.BankStatementQuery;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,12 +23,15 @@ import java.util.concurrent.ConcurrentHashMap;
 @ConditionalOnProperty(name = "finx.banking.provider", havingValue = "mock", matchIfMissing = true)
 public class MockBankingProvider implements BankingProvider {
 
+    public static final String MOCK_ESCROW_ACCOUNT = "MOCK_ESCROW_ACCOUNT";
+
     private static final Logger log = LoggerFactory.getLogger(MockBankingProvider.class);
 
     private final String webhookSecret;
     private final Map<String, PaymentInstructionResult> virtualAccounts = new ConcurrentHashMap<>();
     private final Map<String, SettlementResult> settlements = new ConcurrentHashMap<>();
     private final List<BankTransactionRecord> simulatedBankFeed = Collections.synchronizedList(new ArrayList<>());
+    private final List<BankStatementEntry> durableStatementEntries = Collections.synchronizedList(new ArrayList<>());
 
     public MockBankingProvider(@Value("${finx.banking.webhook-secret:mock-banking-webhook-secret-key-32chars}") String webhookSecret) {
         this.webhookSecret = webhookSecret;
@@ -202,5 +210,93 @@ public class MockBankingProvider implements BankingProvider {
         } catch (Exception ignored) {
             return false;
         }
+    }
+
+    @Override
+    public BankStatementPage fetchStatementPage(BankStatementQuery query) {
+        if (query == null) {
+            throw new IllegalArgumentException("BankStatementQuery cannot be null");
+        }
+        if (query.getProviderAccountId() == null || query.getProviderAccountId().isBlank()) {
+            throw new IllegalArgumentException("providerAccountId must not be blank");
+        }
+        if (query.getProviderAccountId().length() > 128) {
+            throw new IllegalArgumentException("providerAccountId length cannot exceed 128 chars");
+        }
+        if (query.getWindowStart() == null || query.getWindowEnd() == null) {
+            throw new IllegalArgumentException("windowStart and windowEnd must not be null");
+        }
+        if (query.getWindowEnd().isBefore(query.getWindowStart())) {
+            throw new IllegalArgumentException("windowEnd cannot be before windowStart");
+        }
+        if (query.getPageSize() <= 0) {
+            throw new IllegalArgumentException("pageSize must be positive");
+        }
+
+        // Filter simulated durable evidence
+        List<BankStatementEntry> filtered = new ArrayList<>();
+        synchronized (durableStatementEntries) {
+            for (BankStatementEntry entry : durableStatementEntries) {
+                if (entry.getTransactionTime() != null
+                        && !entry.getTransactionTime().isBefore(query.getWindowStart())
+                        && !entry.getTransactionTime().isAfter(query.getWindowEnd())) {
+                    filtered.add(entry);
+                }
+            }
+        }
+
+        // Deterministic sorting: transactionTime asc, then providerLineId asc
+        filtered.sort(Comparator.comparing(BankStatementEntry::getTransactionTime, Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparing(BankStatementEntry::getProviderLineId, Comparator.nullsLast(Comparator.naturalOrder())));
+
+        int offset = 0;
+        if (query.getCursor() != null && !query.getCursor().isBlank()) {
+            try {
+                offset = Integer.parseInt(query.getCursor().trim());
+                if (offset < 0) {
+                    throw new IllegalArgumentException("Cursor offset cannot be negative: " + query.getCursor());
+                }
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("Invalid cursor format: " + query.getCursor(), e);
+            }
+        }
+
+        int fromIndex = Math.min(offset, filtered.size());
+        int toIndex = Math.min(offset + query.getPageSize(), filtered.size());
+        List<BankStatementEntry> pageEntries = new ArrayList<>(filtered.subList(fromIndex, toIndex));
+
+        String nextCursor = null;
+        if (toIndex < filtered.size()) {
+            nextCursor = String.valueOf(toIndex);
+        }
+
+        String currency = "INR";
+        if (!pageEntries.isEmpty() && pageEntries.get(0).getCurrency() != null) {
+            currency = pageEntries.get(0).getCurrency();
+        }
+
+        return BankStatementPage.builder()
+                .providerAccountId(query.getProviderAccountId())
+                .providerImportReference("MOCK-IMP-REF-" + query.getProviderAccountId())
+                .currency(currency)
+                .openingBalance(BigDecimal.valueOf(50000000))
+                .closingBalance(BigDecimal.valueOf(50000000))
+                .entries(pageEntries)
+                .nextCursor(nextCursor)
+                .build();
+    }
+
+    public void addDurableStatementEntry(BankStatementEntry entry) {
+        if (entry != null) {
+            durableStatementEntries.add(entry);
+        }
+    }
+
+    public void clearDurableStatementEntries() {
+        durableStatementEntries.clear();
+    }
+
+    public List<BankStatementEntry> getDurableStatementEntries() {
+        return new ArrayList<>(durableStatementEntries);
     }
 }
