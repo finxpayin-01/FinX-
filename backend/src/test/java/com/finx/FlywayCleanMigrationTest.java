@@ -232,10 +232,15 @@ public class FlywayCleanMigrationTest {
             assertTrue(settlementInstructionColumns.contains("provider_account_id"),
                     "V27 column 'provider_account_id' on 'settlement_instructions' must exist, found: " + settlementInstructionColumns);
 
-            // Verify highest migration is V28 and V29 is absent
+            // V29 post-engine release execution tables
+            assertTrue(tables.contains("release_instructions"), "V29 table 'release_instructions' must exist");
+            assertTrue(tables.contains("release_reservations"), "V29 table 'release_reservations' must exist");
+
+            // Verify highest migration is V29 and V30 is absent
             boolean v27Found = false;
             boolean v28Found = false;
             boolean v29Found = false;
+            boolean v30Found = false;
             for (MigrationInfo info : infoList) {
                 if ("27".equals(info.getVersion().getVersion())) {
                     v27Found = true;
@@ -246,12 +251,16 @@ public class FlywayCleanMigrationTest {
                 if ("29".equals(info.getVersion().getVersion())) {
                     v29Found = true;
                 }
+                if ("30".equals(info.getVersion().getVersion())) {
+                    v30Found = true;
+                }
             }
             assertTrue(v27Found, "Migration V27 must be present and executed");
             assertTrue(v28Found, "Migration V28 must be present and executed");
-            assertFalse(v29Found, "Migration V29 must NOT exist in R3 phase");
+            assertTrue(v29Found, "Migration V29 must be present and executed");
+            assertFalse(v30Found, "Migration V30 must NOT exist in E1 phase");
 
-            System.out.println("ALL V1 - V28 TABLES AND COLUMNS VERIFIED IN SEQUENTIAL CLEAN ORDER!\n");
+            System.out.println("ALL V1 - V29 TABLES AND COLUMNS VERIFIED IN SEQUENTIAL CLEAN ORDER!\n");
         }
     }
 }
