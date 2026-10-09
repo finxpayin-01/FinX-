@@ -13,6 +13,9 @@ import java.util.UUID;
 public interface ReconciliationItemRepository extends JpaRepository<ReconciliationItem, UUID> {
     List<ReconciliationItem> findByReconciliationRunId(UUID reconciliationRunId);
 
+    List<ReconciliationItem> findByReconciliationRunIdAndResolutionStatus(
+            UUID reconciliationRunId, com.finx.reconciliation.enums.ReconciliationEnums.ResolutionStatus resolutionStatus);
+
     List<ReconciliationItem> findByBankStatementLineId(UUID bankStatementLineId);
 
     Optional<ReconciliationItem> findByReconciliationRunIdAndBankStatementLineId(
