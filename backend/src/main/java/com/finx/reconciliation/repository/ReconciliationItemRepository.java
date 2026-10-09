@@ -23,4 +23,7 @@ public interface ReconciliationItemRepository extends JpaRepository<Reconciliati
 
     Optional<ReconciliationItem> findByReconciliationRunIdAndInternalEffectTypeAndInternalEffectId(
             UUID reconciliationRunId, ReconciliationEffectType internalEffectType, UUID internalEffectId);
+
+    List<ReconciliationItem> findByInternalEffectTypeAndInternalEffectId(
+            ReconciliationEffectType internalEffectType, UUID internalEffectId);
 }

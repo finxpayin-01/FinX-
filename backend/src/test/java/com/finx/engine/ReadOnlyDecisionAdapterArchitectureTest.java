@@ -34,8 +34,10 @@ public class ReadOnlyDecisionAdapterArchitectureTest {
             com.finx.engine.adapter.TrustDecisionAdapter.class,
             com.finx.engine.adapter.DisputeDecisionAdapter.class,
             com.finx.engine.adapter.FraudDecisionAdapter.class,
+            com.finx.engine.adapter.ReconciliationDecisionAdapter.class,
             com.finx.engine.adapter.MilestoneDecisionEvidenceReader.class,
             com.finx.engine.adapter.FraudDecisionEvidenceReader.class,
+            com.finx.engine.adapter.ReconciliationDecisionEvidenceReader.class,
             DomainEvaluationResult.class,
             ReadOnlyDomainDecisionCoordinator.class
     );
@@ -142,6 +144,8 @@ public class ReadOnlyDecisionAdapterArchitectureTest {
         assertThat(ReadOnlyDecisionAdapter.class.isAssignableFrom(com.finx.engine.adapter.ApprovalDecisionAdapter.class)).isTrue();
         assertThat(ReadOnlyDecisionAdapter.class.isAssignableFrom(com.finx.engine.adapter.TrustDecisionAdapter.class)).isTrue();
         assertThat(ReadOnlyDecisionAdapter.class.isAssignableFrom(com.finx.engine.adapter.DisputeDecisionAdapter.class)).isTrue();
+        assertThat(ReadOnlyDecisionAdapter.class.isAssignableFrom(com.finx.engine.adapter.FraudDecisionAdapter.class)).isTrue();
+        assertThat(ReadOnlyDecisionAdapter.class.isAssignableFrom(com.finx.engine.adapter.ReconciliationDecisionAdapter.class)).isTrue();
     }
 
     @Test

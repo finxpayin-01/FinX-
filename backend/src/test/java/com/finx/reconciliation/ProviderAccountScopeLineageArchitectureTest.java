@@ -62,18 +62,17 @@ public class ProviderAccountScopeLineageArchitectureTest {
     }
 
     @Test
-    @DisplayName("4. Verify forbidden components (Matcher, ReconciliationDecisionAdapter, ReleaseDecisionEngine) are NOT present")
+    @DisplayName("4. Verify forbidden legacy execution components are NOT present in engine adapters")
     void testForbiddenComponentsAbsent() {
         List<String> forbiddenClasses = List.of(
-                "com.finx.reconciliation.engine.DeterministicReconciliationMatcher",
                 "com.finx.reconciliation.engine.ReconciliationMatcher",
-                "com.finx.engine.adapter.ReconciliationDecisionAdapter",
-                "com.finx.engine.service.ReleaseDecisionEngine"
+                "com.finx.payment.service.RazorpayExecutionService",
+                "com.finx.blockchain.service.BlockchainExecutionService"
         );
 
         for (String fqcn : forbiddenClasses) {
             assertThat(isClassPresent(fqcn))
-                    .as("Forbidden class must NOT exist in R2.5: " + fqcn)
+                    .as("Forbidden class must NOT exist: " + fqcn)
                     .isFalse();
         }
     }
