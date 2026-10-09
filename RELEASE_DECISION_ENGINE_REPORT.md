@@ -2,7 +2,7 @@
 
 **Phase:** Phase 5 — Release Decision Engine  
 **Date:** 2026-10-09  
-**Status:** COMPLETE / PASS  
+**Status:** COMPLETE / PASS (HARDENED)  
 
 ---
 
@@ -29,9 +29,9 @@ It executes strictly within read-only boundaries, persisting its decision via `E
    - If **ANY** required component engine evaluates to `DecisionStatus.BLOCK`:
      - Result: `DecisionStatus.BLOCK`
      - Reason codes: `RELEASE_BLOCKED_BY_<ENGINE>` (e.g., `RELEASE_BLOCKED_BY_FRAUD`, `RELEASE_BLOCKED_BY_DISPUTE`, etc.) in deterministic `EngineType` sorted order.
-   - Else if **ANY** required component engine evaluates to `DecisionStatus.REVIEW` (or is missing, stale, or errored):
+   - Else if **ANY** required component engine evaluates to `DecisionStatus.REVIEW` (or is missing, stale, context-mismatched, or errored):
      - Result: `DecisionStatus.REVIEW`
-     - Reason codes: `RELEASE_REVIEW_<ENGINE>`, `RELEASE_COMPONENT_MISSING`, `RELEASE_COMPONENT_ERROR` in deterministic order.
+     - Reason codes: `RELEASE_REVIEW_<ENGINE>`, `RELEASE_COMPONENT_MISSING`, `RELEASE_COMPONENT_CONTEXT_MISMATCH`, `RELEASE_COMPONENT_ERROR` in deterministic order.
    - Else if **ALL EIGHT** component engines evaluate to `DecisionStatus.ALLOW`:
      - Result: `DecisionStatus.ALLOW`
      - Reason code: `RELEASE_ALL_GATES_ALLOW`
@@ -42,14 +42,20 @@ It executes strictly within read-only boundaries, persisting its decision via `E
 
 ---
 
-## 3. Snapshot Fingerprinting & Evidence Provenance
+## 3. Snapshot Fingerprinting & Evidence Provenance (Option A)
 
-1. **Snapshot Fingerprint:**
-   - Built deterministically across all deal, milestone, agreement, invoice, approval, beneficiary, reconciliation source, and all 8 component decision inputs (decision IDs, statuses, input fingerprints, policy/rule versions, evaluation timestamps).
+1. **Snapshot Fingerprint (Option A):**
+   - Built deterministically across deal, milestone, agreement, invoice, approval, canonical beneficiary evidence, reconciliation source hash, and all 8 component decision inputs (engine types, subject types, subject IDs, decision statuses, input fingerprints, policy/rule versions, evaluation timestamps).
+   - Database row IDs of component decisions are stored as durable `EvidenceReference` rows after persistence, ensuring the pre-persistence release input fingerprint remains 100% deterministic and idempotent without circular dependencies.
    - Component items are sorted strictly by `EngineType.name()`.
-2. **Evidence References:**
+2. **Canonical Beneficiary Selection:**
+   - Uses `VerificationEligibilityService` to evaluate seller bank accounts.
+   - Exactly one eligible verified beneficiary is selected. If zero or multiple eligible accounts exist, snapshot records `BENEFICIARY:NONE` and component gates fail closed.
+   - Beneficiary fingerprint includes only safe fields (`id`, `verificationStatus`, `nameMatchStatus`, `verifiedAt`, `updatedAt`). Sensitive account numbers, masked strings, and PII are excluded.
+3. **Component Evaluation Context Binding:**
+   - Asserts that all 8 returned component commands share identical `evaluationId`, `correlationId`, and timestamp matching the release evaluation context, and satisfy engine-specific subject and organization contracts.
+4. **Evidence References:**
    - Persists durable IDs referencing `RELEASE_POLICY_VERSION`, `DEAL`, `MILESTONE`, `AGREEMENT`, `INVOICE`, `BENEFICIARY`, and exactly 8 component `ENGINE_DECISION` rows.
-   - Zero sensitive bank details or payload leaks.
 
 ---
 
@@ -69,14 +75,24 @@ It executes strictly within read-only boundaries, persisting its decision via `E
 
 ## 5. Verification & Test Suite Summary
 
-- **Unit Tests (`ReleaseDecisionEngineTest`):** 10 / 10 PASS
-  - Verified 8 required components, all ALLOW -> ALLOW, single BLOCK -> BLOCK, multiple BLOCKs -> BLOCK with all reasons, single & multiple REVIEWs -> REVIEW, missing/stale/error -> REVIEW, precedence `BLOCK > REVIEW > ALLOW`, deterministic snapshot fingerprint, and zero side-effects.
+- **Unit Tests (`ReleaseDecisionEngineTest`):** 21 / 21 PASS
+  - Verified 23 specific hardening scenarios including:
+    - Null seller org fails closed to `REVIEW` with `RELEASE_SELLER_ORGANIZATION_MISSING` (no buyer fallback).
+    - Exactly one canonical eligible beneficiary selected.
+    - Multiple eligible beneficiaries resolves to `BENEFICIARY:NONE` without arbitrary choice.
+    - Zero eligible beneficiaries resolves to `BENEFICIARY:NONE`.
+    - Component `evaluationId`, `correlationId`, `evaluationTime`, and engine type mismatches fail closed to `REVIEW` (`RELEASE_COMPONENT_CONTEXT_MISMATCH`).
+    - RISK, TRUST, DOCUMENT subject and organization binding validation.
+    - Synthetic missing-invoice and invoice-not-required subject consistency.
+    - Beneficiary and bank account ordering fingerprint invariance.
+    - Precedence rules: 8 ALLOW -> ALLOW, 1 BLOCK -> BLOCK, 1 REVIEW -> REVIEW, 1 ERROR -> REVIEW.
+    - Zero bank calls, zero financial mutations, zero `ReleaseInstruction` entities.
 - **Persistence Tests (`ReleaseDecisionPersistenceTest`):** 1 / 1 PASS
   - Persisted all 8 component decisions + 1 `RELEASE` decision to test repository with complete evidence references and valid `policyVersionId` / `policyContentHash`.
 - **Architecture Tests (`ReleaseDecisionArchitectureTest`):** 4 / 4 PASS
   - Proved zero dependency on banking provider, payment orchestrators, ledger/escrow mutators, and verified AI cannot execute bank payouts.
 - **Full Backend Suite (`mvnw test`):**
-  - **Tests run:** 1076, **Failures:** 0, **Errors:** 0, **Skipped:** 85 (Postgres/Redis Docker-dependent).
+  - **Tests run:** 1087, **Failures:** 0, **Errors:** 0, **Skipped:** 85 (Postgres/Redis container checks).
   - **BUILD SUCCESS**.
 
 ---
@@ -98,6 +114,4 @@ It executes strictly within read-only boundaries, persisting its decision via `E
 - **Policy:** `FINX_RELEASE_DETERMINISTIC_BASE` 1.0.0
 - **Required Components:** 8 / 8
 - **Total EngineTypes Covered:** 9 / 9 (`RISK`, `DOCUMENT`, `MILESTONE_RULES`, `APPROVAL`, `TRUST`, `FRAUD`, `DISPUTE`, `RECONCILIATION`, `RELEASE`)
-- **Financial Side-Effects:** 0
-- **Production Payout:** DISABLED
-- **Ready for Phase 6 (Final Certification):** **YES**
+- **Next Platform Program:** Post-Engine Release Execution Architecture

@@ -1,8 +1,8 @@
 # FinX Decision Engine Platform Certification
 
-**Document Version:** 1.0.0  
+**Document Version:** 1.1.0  
 **Date:** 2026-10-09  
-**Status:** FULLY CERTIFIED & READY FOR POST-ENGINE EXECUTION ARCHITECTURE  
+**Status:** FULLY CERTIFIED & HARDENED FOR POST-ENGINE EXECUTION ARCHITECTURE  
 **Target Platform Branch:** `feature/finx-engine-platform`  
 **Working Tree State:** CLEAN  
 
@@ -10,21 +10,25 @@
 
 ## 1. Final Status
 
-The FinX Decision Engine Platform is **100% complete and verified**. All 9 required `EngineType` specifications are implemented, registered, and protected by strict read-only and architectural boundaries.
+The FinX Decision Engine Platform is **100% complete, hardened, and verified**. All 9 required `EngineType` specifications are implemented, registered, context-bound, and protected by strict read-only and architectural boundaries.
 
 - **Prerequisite Component Engines:** 8 / 8 (`RISK`, `DOCUMENT`, `MILESTONE_RULES`, `APPROVAL`, `TRUST`, `FRAUD`, `DISPUTE`, `RECONCILIATION`)
 - **Synthesis Engine:** 1 / 1 (`RELEASE`)
 - **Total Engine Coverage:** 9 / 9 (100%)
+- **Release Seller Fallback:** **REMOVED** (Fails closed on `deal.sellerOrganizationId == null` with `RELEASE_SELLER_ORGANIZATION_MISSING`)
+- **Canonical Beneficiary Selection:** **PASS** (Strictly via `VerificationEligibilityService`; zero or multiple eligible -> `BENEFICIARY:NONE`, safe fields only)
+- **Component Evaluation Context Binding:** **PASS** (Asserts `evaluationId`, `correlationId`, `evaluatedAt`, and engine-specific `subjectType`/`subjectId`/`organizationId`)
 - **Banking Provider Calls during Evaluation:** 0
 - **Financial Side-Effects during Evaluation:** 0
+- **ReleaseInstruction Entity Creation:** NOT IMPLEMENTED (0)
 - **Production Payout State:** **DISABLED**
-- **Full Test Suite:** **PASS** (1076 tests run, 0 failures, 0 errors, 85 skipped due to optional local Postgres/Redis containers)
+- **Full Test Suite:** **PASS** (1087 tests run, 0 failures, 0 errors, 85 skipped due to optional local Postgres/Redis containers)
 
 ---
 
 ## 2. Architecture
 
-FinX is constructed as a **modular monolith** in Spring Boot 3.4.3 / Java 25. The platform maintains strict layer separation:
+FinX is constructed as a **modular monolith** in Spring Boot 3.4.3 / Java 21. The platform maintains strict layer separation:
 - **Common Engine Framework:** Centralized `EngineDecisionService`, `DecisionEvaluator<C, T>` contract, immutable `EngineDecision` entity, durable `EvidenceReference`, and deterministic input fingerprinting.
 - **Engine Policy Management:** Versioned, immutable, content-hashed policies via `EnginePolicyVersion` (e.g. `FINX_FRAUD_DETERMINISTIC_BASE` v1.0.1 and `FINX_RELEASE_DETERMINISTIC_BASE` v1.0.0).
 - **Read-Only Domain Adapters:** All component engines operate exclusively as readers of domain truth, producing advisory recommendations (`ALLOW`, `REVIEW`, `BLOCK`).
@@ -57,62 +61,78 @@ FinX is constructed as a **modular monolith** in Spring Boot 3.4.3 / Java 25. Th
 
 | Engine | Subject | Owner / Tenant | Policy / Rule Ver | Score | Semantics (ALLOW / REVIEW / BLOCK) |
 |---|---|---|---|---|---|
-| **RISK** | `DEAL` | Buyer Org | `RISK_BASELINE` v1.0 | BigDecimal (0-100) | **ALLOW**: Low risk score, verified KYC/KYB.<br>**REVIEW**: Medium risk, pending verification.<br>**BLOCK**: Critical risk thresholds or sanctions. |
-| **TRUST** | `ORGANIZATION` | Buyer/Seller Org | `TRUST_BASELINE` v1.0 | BigDecimal (0-100) | **ALLOW**: High counterparty trust score.<br>**REVIEW**: Unseasoned counterparty or score dip.<br>**BLOCK**: Severe counterparty defaults/breaches. |
+| **RISK** | `ORGANIZATION` | Buyer Org | `RISK_BASELINE` v1.0 | `null` | **ALLOW**: Low risk score, verified KYC/KYB.<br>**REVIEW**: Medium risk, pending verification.<br>**BLOCK**: Critical risk thresholds or sanctions. |
+| **TRUST** | `ORGANIZATION` | Seller Org | `TRUST_BASELINE` v1.0 | `null` | **ALLOW**: Verified seller organization KYC/KYB & beneficiary.<br>**REVIEW**: Unverified counterparty or missing evidence.<br>**BLOCK**: Suspended/fraudulent counterparty status. (Numeric score: NONE, D06 excluded) |
 | **MILESTONE_RULES** | `MILESTONE` | Buyer Org | `MILESTONE_RULES_BASELINE` v1.0 | `null` | **ALLOW**: Milestone active/submitted within sequence.<br>**REVIEW**: Deadline warning / extension request.<br>**BLOCK**: Cancelled, rejected, or sequence violated. |
 | **APPROVAL** | `MILESTONE` | Buyer Org | `APPROVAL_BASELINE` v1.0 | `null` | **ALLOW**: Buyer approval fresh & valid.<br>**REVIEW**: Approval pending, stale, or revision changed.<br>**BLOCK**: Explicit milestone rejection. |
-| **FRAUD** | `DEAL` / `MILESTONE` | Buyer Org | `FINX_FRAUD_DETERMINISTIC_BASE` v1.0.1 | `null` | **ALLOW**: Signals S01-S04 clean.<br>**REVIEW**: High velocity / suspicious anomaly.<br>**BLOCK**: Hard fraud indicators / stolen instruments. |
-| **DOCUMENT** | `INVOICE` | Buyer Org | `DOCUMENT_BASELINE` v1.0 | BigDecimal (Match %) | **ALLOW**: Exact invoice match & verified artifacts.<br>**REVIEW**: Partial document match or manual review.<br>**BLOCK**: Corrupt, tampered, or mismatched document. |
+| **FRAUD** | `MILESTONE` | Buyer Org | `FINX_FRAUD_DETERMINISTIC_BASE` v1.0.1 | `null` | **ALLOW**: S01-S04 & S07 clean.<br>**REVIEW**: S07 date anomaly or unassigned beneficiary.<br>**BLOCK**: S01-S04 hard policy triggers (S05 not in read model; S06 disabled). |
+| **DOCUMENT** | `INVOICE` / `MILESTONE` | Buyer Org | `DOCUMENT_BASELINE` v1.0 | `null` | **ALLOW**: Exact invoice match & verified artifacts.<br>**REVIEW**: Partial document match or manual review.<br>**BLOCK**: Corrupt, tampered, or mismatched document. |
 | **RECONCILIATION** | `MILESTONE` | Buyer Org | `FINX_RECONCILIATION_MATCHER_V1` | `null` | **ALLOW**: Clean R3 run, zero mismatches, fresh final bank success.<br>**REVIEW**: Incomplete evidence, stale run, or legacy run.<br>**BLOCK**: Material currency/amount/direction mismatch or bank reversal. |
-| **DISPUTE** | `DEAL` | Buyer Org | `DISPUTE_BASELINE` v1.0 | `null` | **ALLOW**: No active disputes on deal/milestone.<br>**REVIEW**: Pending claim under human mediation.<br>**BLOCK**: Open dispute / escrow freeze in effect. |
+| **DISPUTE** | `MILESTONE` | Buyer Org | `DISPUTE_BASELINE` v1.0 | `null` | **ALLOW**: No active disputes on deal/milestone.<br>**REVIEW**: Pending claim under human mediation.<br>**BLOCK**: Open dispute / escrow freeze in effect. |
 | **RELEASE** | `MILESTONE` | Buyer Org | `FINX_RELEASE_DETERMINISTIC_BASE` v1.0.0 | `null` | **ALLOW**: All 8 component engines == ALLOW.<br>**REVIEW**: Any component REVIEW / missing / stale / error.<br>**BLOCK**: Any component == BLOCK. |
 
 ---
 
-## 4. Component Engine Summaries
+## 4. Component Engine Summaries & Hardened Semantics
 
 ### 4.1 Risk Decision Adapter
-- **Role:** Evaluates counterparty risk profiles, business longevity, and KYC/KYB verification integrity.
-- **Freshness & Tenant Boundary:** Binds strictly to the buyer organization context and checks latest risk assessments.
+- **Role:** Evaluates buyer risk profiles and organizational verification integrity.
+- **Subject & Scope:** Subject type `ORGANIZATION`, ID `deal.buyerOrganizationId`, owned by `deal.buyerOrganizationId`.
 - **Side Effects:** 0. Read-only inspection of persisted risk metrics.
 
 ### 4.2 Trust Decision Adapter
-- **Role:** Assesses historical trade performance, transaction track records, and operational trust reliability.
-- **Freshness & Tenant Boundary:** Evaluates verified counterparty organization IDs.
+- **Role:** Evaluates verified counterparty organization and beneficiary evidence.
+- **Hardened Semantics:** Numeric trust score: **NONE** (`null`). Global performance metrics D06: **EXCLUDED**. Evaluation is strictly based on verified seller organization KYC/KYB and bank account verification status.
+- **Subject & Scope:** Subject type `ORGANIZATION`, ID `deal.sellerOrganizationId`, owned by `deal.sellerOrganizationId`.
 - **Side Effects:** 0.
 
 ### 4.3 Milestone Rules Decision Adapter
-- **Role:** Enforces sequence constraints, lifecycle statuses, timeline adherence, and milestone integrity.
-- **Freshness & Tenant Boundary:** Binds to `milestone.id` and verifies parent deal ownership.
+- **Role:** Enforces milestone lifecycle constraints, sequence progression, and deliverable completion.
+- **Subject & Scope:** Subject type `MILESTONE`, ID `milestone.id`, owned by `deal.buyerOrganizationId`.
 - **Side Effects:** 0.
 
 ### 4.4 Approval Decision Adapter
-- **Role:** Evaluates human authorization workflows, cryptographic signature validity, and freshness of buyer approvals.
-- **Freshness & Tenant Boundary:** Rejects historical approvals if underlying milestone or deal revisions changed after the approval timestamp.
+- **Role:** Evaluates buyer milestone authorization, approval freshness, and cryptographic signature consistency.
+- **Subject & Scope:** Subject type `MILESTONE`, ID `milestone.id`, owned by `deal.buyerOrganizationId`.
 - **Side Effects:** 0.
 
 ### 4.5 Fraud Decision Adapter
-- **Role:** Executes deterministic fraud detection policy `FINX_FRAUD_DETERMINISTIC_BASE` (v1.0.1) across signals S01–S04.
-- **Signal Boundary:** S05 is not fabricated; S06 remains disabled.
+- **Role:** Evaluates deterministic fraud detection policy `FINX_FRAUD_DETERMINISTIC_BASE` (v1.0.1).
+- **Hardened Signal Semantics:**
+  - `S01`: Enabled (Single transaction amount threshold)
+  - `S02`: Enabled (Cumulative deal exposure threshold)
+  - `S03`: Enabled (Vendor bank account verification state)
+  - `S04`: Enabled (Round number threshold anomaly)
+  - `S05`: NOT evaluated from current read model
+  - `S06`: DISABLED / threshold undefined
+  - `S07`: Enabled using persisted invoice date check
+  - Excluded claims: High velocity detection, stolen instruments, and automated recent beneficiary window are not supported.
+- **Subject & Scope:** Subject type `MILESTONE`, ID `milestone.id`, owned by `deal.buyerOrganizationId`.
 - **Side Effects:** 0.
 
 ### 4.6 Document Decision Adapter
-- **Role:** Validates invoice matching, document artifact integrity, and structural line item alignment.
-- **AI/OCR Boundary:** Explicitly audited; manual extraction and deterministic matching rules are not misrepresented as automated OCR/AI.
+- **Role:** Validates invoice matching and document artifact integrity.
+- **Synthetic Document Subject Binding:**
+  - When invoice is required and present: Subject type `INVOICE`, ID `invoice.id`.
+  - When invoice is required but missing: Synthetic command uses Subject type `MILESTONE`, ID `milestone.id` (Reason: `DOCUMENT_ASSESSMENT_MISSING`).
+  - When invoice is not required: Synthetic command uses Subject type `MILESTONE`, ID `milestone.id` (Reason: `DOCUMENT_INVOICE_NOT_REQUIRED`).
+- **Owner Scope:** Owned by `deal.buyerOrganizationId`.
 - **Side Effects:** 0.
 
 ### 4.7 Reconciliation Decision Adapter
 - **Role:** Evaluates bank-confirmed funding evidence supporting milestone release.
 - **Authoritative Pipeline (R1-R5):**
-  - Considers only `FINX_RECONCILIATION_MATCHER_V1` completed runs with valid statement source hashes.
+  - Evaluates `FINX_RECONCILIATION_MATCHER_V1` completed runs with valid statement source hashes.
   - Requires clean runs (`mismatchCount == 0`, all items `MATCHED`).
   - Evaluates fresh bank finality (`FINAL_SUCCESS`).
-  - Treats human-resolved exceptions as audit notes without converting deterministic matcher facts.
-- **Side Effects:** 0. Zero bank calls, zero matcher triggers, zero ledger mutations.
+  - Treats human-resolved exceptions as audit notes without mutating deterministic matcher facts.
+- **Subject & Scope:** Subject type `MILESTONE`, ID `milestone.id`, owned by `deal.buyerOrganizationId`.
+- **Side Effects:** 0.
 
 ### 4.8 Dispute Decision Adapter
-- **Role:** Monitors dispute lifecycles, active claims, and tribunal/arbitration holds.
-- **Human Authority Boundary:** Disputes can only be raised, managed, and resolved by human participants; AI has zero authority to resolve or close disputes.
+- **Role:** Monitors dispute lifecycles and open escrow freeze holds.
+- **Human Authority Boundary:** Disputes are managed solely by human arbitrators; AI has zero authority to resolve disputes.
+- **Subject & Scope:** Subject type `MILESTONE`, ID `milestone.id`, owned by `deal.buyerOrganizationId`.
 - **Side Effects:** 0.
 
 ---
@@ -121,9 +141,12 @@ FinX is constructed as a **modular monolith** in Spring Boot 3.4.3 / Java 25. Th
 
 `ReleaseDecisionEngine` provides the final recommendation gate before post-engine execution:
 - **Policy:** `FINX_RELEASE_DETERMINISTIC_BASE` v1.0.0 (hash: `7b30065a46044cf0f41a5835541d48859d4c4a230fb81692aed70b84404366c7`).
-- **Required Inputs:** Exactly 8 prerequisite component decisions under shared `evaluationId` and `correlationId`.
-- **Precedence:** `BLOCK > REVIEW > ALLOW`.
-- **Snapshot Fingerprinting:** Deterministic SHA-256 over deal, milestone, agreement, invoice, approval, beneficiary, reconciliation hash, and all 8 component decision inputs.
+- **Owner:** Strictly `deal.buyerOrganizationId`.
+- **Seller Organization Missing:** Fails closed (`DecisionStatus.REVIEW`, `RELEASE_SELLER_ORGANIZATION_MISSING`). Fallback to buyer organization is completely removed.
+- **Canonical Beneficiary Selection:** Uses `VerificationEligibilityService.evaluateBeneficiaryEligibility(sellerOrgId)`. Exactly one verified eligible account is selected. Multiple or zero eligible accounts resolve to `BENEFICIARY:NONE` without arbitrary choice.
+- **Beneficiary Fingerprint Safety:** Contains only safe metadata (`id`, `verificationStatus`, `nameMatchStatus`, `verifiedAt`, `updatedAt`). Account numbers, masked strings, and IFSC are strictly excluded.
+- **Component Evaluation Context Binding:** Validates that each returned command strictly matches `evaluationId`, `correlationId`, `evaluatedAt`, and expected engine-specific subject contracts. Any mismatch fails closed to `REVIEW` (`RELEASE_COMPONENT_CONTEXT_MISMATCH`).
+- **Snapshot Fingerprinting (Option A):** The release input fingerprint is computed from canonical component command inputs and domain evidence before persistence. Component `EngineDecision` database IDs are stored as durable `EvidenceReference` records upon persistence.
 - **Recommendation Only:** An `ALLOW` status represents complete gate clearance. It does **not** move money or initiate bank payouts.
 
 ---
@@ -197,12 +220,15 @@ Raw bank payloads and sensitive cryptographic material are strictly excluded fro
 
 ## 12. Release Decision Pipeline
 
-1. Target Context: Milestone ID & Deal ID.
-2. Tenant Verification: Verify buyer organization ownership.
-3. Component Evaluation: Evaluate all 8 prerequisite domain adapters under shared correlation context.
-4. Deterministic Precedence: Combine outcomes via `FINX_RELEASE_DETERMINISTIC_BASE` rules.
-5. Snapshot & Persistence: Persist `RELEASE` decision record with deterministic snapshot fingerprint and 8 component decision references.
-6. Execution Hand-off: Return advisory `ReleaseEvaluationResult` to calling workflow.
+1. **Target Context:** Milestone ID & Deal ID.
+2. **Tenant Verification:** Verify buyer organization ownership.
+3. **Seller Organization Verification:** Require `deal.sellerOrganizationId != null` (fails closed without fallback).
+4. **Canonical Beneficiary Selection:** Select exactly one verified eligible account via `VerificationEligibilityService`.
+5. **Component Evaluation:** Evaluate all 8 prerequisite domain adapters under shared `evaluationId`, `correlationId`, and timestamp.
+6. **Component Context Validation:** Verify that all returned commands adhere to shared context and expected subject contracts.
+7. **Deterministic Precedence:** Combine outcomes via `FINX_RELEASE_DETERMINISTIC_BASE` rules (`BLOCK > REVIEW > ALLOW`).
+8. **Snapshot & Persistence:** Persist `RELEASE` decision record with deterministic snapshot fingerprint and 8 component decision references.
+9. **Execution Hand-off:** Return advisory `ReleaseEvaluationResult` to calling workflow.
 
 ---
 
@@ -224,13 +250,13 @@ The following components are **explicitly outside the decision engine platform**
 - **Full Maven Test Suite:**
   ```
   [INFO] Results:
-  [INFO] Tests run: 1076, Failures: 0, Errors: 0, Skipped: 85
+  [INFO] Tests run: 1087, Failures: 0, Errors: 0, Skipped: 85
   [INFO] BUILD SUCCESS
-  [INFO] Total time: 06:38 min
   ```
-- **Skipped Test Audit:**
-  - Exactly 85 tests were skipped.
-  - All 85 skips belong exclusively to `@ConditionalOnProperty` or Testcontainers checks requiring live external Docker/PostgreSQL/Redis instances.
+- **Skipped Test Category Breakdown:**
+  - Exactly 85 tests skipped:
+    - 84 PostgreSQL integration tests (`PostgresDurableBankStatementSchemaTest` [26], `PostgresProviderAccountScopeLineageTest` [12], `PostgresFinancialConsistencyTest` [11], `PostgresBankStatementIngestionTest` [7], `PostgresFinancialIdentityTest` [7], `PostgresLockingConcurrencyTest` [7], `PostgresEngineFrameworkTest` [5], `DurableBankStatementEntityMappingTest` [4], `PostgresDeterministicReconciliationMatcherTest` [3], `PostgresFraudPolicyTest` [1], `FlywayCleanMigrationTest` [1]) guarded by `@EnabledIf("isPostgresAvailable")` when local Docker daemon is offline.
+    - 1 Browser UI test (`InvoiceBrowserTest` [1]) guarded by browser environment check.
   - **Zero** engine, adapter, model, or unit tests were skipped.
 
 ---
@@ -238,9 +264,12 @@ The following components are **explicitly outside the decision engine platform**
 ## 15. Migration History
 
 All migrations from `V1` through `V28` are verified and intact. No migration edits were performed:
-- `V1` - `V26`: Core schema, transactions, invoices, ledger, escrow, KYC/KYB, milestone deadlines.
-- `V27`: Common Engine Framework & `engine_decisions` schema.
-- `V28`: Bank statement evidence & reconciliation schema.
+- `V1` - `V24`: Core schema, transactions, invoices, ledger, escrow, KYC/KYB, milestone deadlines.
+- `V25`: Common engine policy/decision framework (`engine_policy_versions`, `engine_decisions`, `engine_decision_evidence_refs`).
+- `V26`: Durable bank statement reconciliation schema (`bank_statement_imports`, `bank_statement_lines`).
+- `V27`: Internal financial provider account scope (`organization_provider_accounts`, provider scope isolation).
+- `V28`: Deterministic reconciliation matcher provenance/reason fields (`reconciliation_runs`, `reconciliation_items`, `reconciliation_exceptions`).
+- `V29`: **ABSENT** (Zero schema changes required).
 
 ---
 

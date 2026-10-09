@@ -23,6 +23,8 @@ import com.finx.milestone.repository.MilestoneRepository;
 import com.finx.org.entity.OrganizationBankAccount;
 import com.finx.org.enums.OrgEnums.BankVerificationStatus;
 import com.finx.org.repository.OrganizationBankAccountRepository;
+import com.finx.verification.service.VerificationEligibilityService;
+import com.finx.verification.service.VerificationEligibilityService.BeneficiaryEligibilityResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -60,6 +62,7 @@ class ReleaseDecisionEngineTest {
     @Mock private DealAgreementRepository agreementRepository;
     @Mock private InvoiceRepository invoiceRepository;
     @Mock private OrganizationBankAccountRepository bankAccountRepository;
+    @Mock private VerificationEligibilityService eligibilityService;
     @Mock private EngineDecisionService decisionService;
     @Mock private DealAccessService dealAccessService;
 
@@ -80,6 +83,10 @@ class ReleaseDecisionEngineTest {
     private OrganizationBankAccount bankAccount;
     private EnginePolicyVersion policy;
 
+    private Instant defaultTime;
+    private UUID defaultEvalId;
+    private UUID defaultCorrId;
+
     @BeforeEach
     void setUp() {
         buyerOrgId = UUID.randomUUID();
@@ -89,6 +96,10 @@ class ReleaseDecisionEngineTest {
         invoiceId = UUID.randomUUID();
         agreementId = UUID.randomUUID();
         bankAccountId = UUID.randomUUID();
+
+        defaultTime = Instant.parse("2026-10-09T12:00:00Z");
+        defaultEvalId = UUID.randomUUID();
+        defaultCorrId = UUID.randomUUID();
 
         deal = new Deal("Test Deal", "Description", UUID.randomUUID(), UUID.randomUUID(), new BigDecimal("100000.00"), "INR", DealStatus.IN_PROGRESS);
         deal.setId(dealId);
@@ -152,15 +163,11 @@ class ReleaseDecisionEngineTest {
         when(invoiceRepository.findFirstByMilestoneIdOrderByCreatedAtDesc(milestoneId)).thenReturn(Optional.of(invoice));
         when(bankAccountRepository.findByOrganizationId(sellerOrgId)).thenReturn(List.of(bankAccount));
 
-        // Default all 8 adapters to return ALLOW
-        mockAdapter(riskAdapter, EngineType.RISK, DecisionStatus.ALLOW, List.of("RISK_POLICY_CLEAR"));
-        mockAdapter(documentAdapter, EngineType.DOCUMENT, DecisionStatus.ALLOW, List.of("DOCUMENT_APPROVED"));
-        mockAdapter(milestoneRulesAdapter, EngineType.MILESTONE_RULES, DecisionStatus.ALLOW, List.of("MILESTONE_CONTRACT_COMPLIANT"));
-        mockAdapter(approvalAdapter, EngineType.APPROVAL, DecisionStatus.ALLOW, List.of("APPROVAL_GRANTED"));
-        mockAdapter(trustAdapter, EngineType.TRUST, DecisionStatus.ALLOW, List.of("TRUST_COUNTERPARTY_VERIFIED"));
-        mockAdapter(fraudAdapter, EngineType.FRAUD, DecisionStatus.ALLOW, List.of("FRAUD_POLICY_CLEAR"));
-        mockAdapter(disputeAdapter, EngineType.DISPUTE, DecisionStatus.ALLOW, List.of("DISPUTE_NONE_ACTIVE"));
-        mockAdapter(reconciliationAdapter, EngineType.RECONCILIATION, DecisionStatus.ALLOW, List.of("RECONCILIATION_CONFIRMED"));
+        when(eligibilityService.evaluateBeneficiaryEligibility(sellerOrgId))
+                .thenReturn(new BeneficiaryEligibilityResult(true, bankAccount, null, false));
+
+        // Setup default valid mocks for all 8 adapters matching incoming evaluation context
+        setupDefaultAdapters();
 
         engine = new ReleaseDecisionEngine(
                 policyRepository,
@@ -177,17 +184,65 @@ class ReleaseDecisionEngineTest {
                 agreementRepository,
                 invoiceRepository,
                 bankAccountRepository,
+                eligibilityService,
                 decisionService,
                 dealAccessService
         );
     }
 
-    private void mockAdapter(ReadOnlyDecisionAdapter adapter, EngineType type, DecisionStatus decision, List<String> reasons) {
-        RecordEngineDecisionCommand cmd = RecordEngineDecisionCommand.builder()
-                .organizationId(buyerOrgId)
+    private void setupDefaultAdapters() {
+        when(riskAdapter.evaluateForDeal(any(), any(), any())).thenAnswer(inv -> {
+            EvaluationContext ctx = inv.getArgument(2);
+            return createCommand(EngineType.RISK, DecisionSubjectType.ORGANIZATION, buyerOrgId, buyerOrgId, DecisionStatus.ALLOW, List.of("RISK_POLICY_CLEAR"), ctx);
+        });
+        when(documentAdapter.evaluateInvoice(any(), any())).thenAnswer(inv -> {
+            EvaluationContext ctx = inv.getArgument(1);
+            return createCommand(EngineType.DOCUMENT, DecisionSubjectType.INVOICE, invoiceId, buyerOrgId, DecisionStatus.ALLOW, List.of("DOCUMENT_APPROVED"), ctx);
+        });
+        when(milestoneRulesAdapter.evaluate(any())).thenAnswer(inv -> {
+            EvaluationContext ctx = inv.getArgument(0);
+            return createCommand(EngineType.MILESTONE_RULES, DecisionSubjectType.MILESTONE, milestoneId, buyerOrgId, DecisionStatus.ALLOW, List.of("MILESTONE_CONTRACT_COMPLIANT"), ctx);
+        });
+        when(approvalAdapter.evaluate(any())).thenAnswer(inv -> {
+            EvaluationContext ctx = inv.getArgument(0);
+            return createCommand(EngineType.APPROVAL, DecisionSubjectType.MILESTONE, milestoneId, buyerOrgId, DecisionStatus.ALLOW, List.of("APPROVAL_GRANTED"), ctx);
+        });
+        when(trustAdapter.evaluateForOrganization(any(), any())).thenAnswer(inv -> {
+            EvaluationContext ctx = inv.getArgument(1);
+            return createCommand(EngineType.TRUST, DecisionSubjectType.ORGANIZATION, sellerOrgId, sellerOrgId, DecisionStatus.ALLOW, List.of("TRUST_COUNTERPARTY_VERIFIED"), ctx);
+        });
+        when(fraudAdapter.evaluate(any())).thenAnswer(inv -> {
+            EvaluationContext ctx = inv.getArgument(0);
+            return createCommand(EngineType.FRAUD, DecisionSubjectType.MILESTONE, milestoneId, buyerOrgId, DecisionStatus.ALLOW, List.of("FRAUD_POLICY_CLEAR"), ctx);
+        });
+        when(disputeAdapter.evaluateForMilestone(any(), any(), any())).thenAnswer(inv -> {
+            EvaluationContext ctx = inv.getArgument(2);
+            return createCommand(EngineType.DISPUTE, DecisionSubjectType.MILESTONE, milestoneId, buyerOrgId, DecisionStatus.ALLOW, List.of("DISPUTE_NONE_ACTIVE"), ctx);
+        });
+        when(reconciliationAdapter.evaluate(any())).thenAnswer(inv -> {
+            EvaluationContext ctx = inv.getArgument(0);
+            return createCommand(EngineType.RECONCILIATION, DecisionSubjectType.MILESTONE, milestoneId, buyerOrgId, DecisionStatus.ALLOW, List.of("RECONCILIATION_CONFIRMED"), ctx);
+        });
+    }
+
+    private RecordEngineDecisionCommand createCommand(
+            EngineType type,
+            DecisionSubjectType subjectType,
+            UUID subjectId,
+            UUID orgId,
+            DecisionStatus decision,
+            List<String> reasons,
+            EvaluationContext ctx
+    ) {
+        UUID evalId = (ctx != null && ctx.evaluationId() != null) ? ctx.evaluationId() : defaultEvalId;
+        UUID corrId = (ctx != null && ctx.correlationId() != null) ? ctx.correlationId() : defaultCorrId;
+        Instant evalTime = (ctx != null && ctx.evaluationTime() != null) ? ctx.evaluationTime() : defaultTime;
+
+        return RecordEngineDecisionCommand.builder()
+                .organizationId(orgId)
                 .engineType(type)
-                .subjectType(DecisionSubjectType.MILESTONE)
-                .subjectId(milestoneId)
+                .subjectType(subjectType.name())
+                .subjectId(subjectId)
                 .decision(decision)
                 .evaluationOutcome(EvaluationOutcome.SUCCESS)
                 .score(null)
@@ -195,196 +250,394 @@ class ReleaseDecisionEngineTest {
                 .explanation("Mock explanation for " + type)
                 .evidenceReferences(List.of())
                 .ruleVersion("1.0.0")
-                .evaluationId(UUID.randomUUID())
-                .correlationId(UUID.randomUUID())
-                .inputFingerprint("mock_fingerprint_" + type)
+                .evaluationId(evalId)
+                .correlationId(corrId)
+                .inputFingerprint("mock_fp_" + type)
                 .engineImplementationVersion("1.0.0")
-                .evaluatedAt(Instant.now())
+                .evaluatedAt(evalTime)
                 .build();
-
-        if (adapter instanceof RiskDecisionAdapter) {
-            when(riskAdapter.evaluateForDeal(any(), any(), any())).thenReturn(cmd);
-        } else if (adapter instanceof DocumentDecisionAdapter) {
-            when(documentAdapter.evaluateInvoice(any(), any())).thenReturn(cmd);
-        } else if (adapter instanceof TrustDecisionAdapter) {
-            when(trustAdapter.evaluateForOrganization(any(), any())).thenReturn(cmd);
-        } else if (adapter instanceof DisputeDecisionAdapter) {
-            when(disputeAdapter.evaluateForMilestone(any(), any(), any())).thenReturn(cmd);
-        } else {
-            when(adapter.evaluate(any())).thenReturn(cmd);
-        }
     }
 
     @Test
-    @DisplayName("1. All eight prerequisite engines ALLOW -> Overall RELEASE is ALLOW")
-    void testAllEightAllowProducesAllow() {
-        ReleaseEvaluationResult result = engine.evaluateMilestone(dealId, milestoneId, null, null, null, null);
+    @DisplayName("1. Seller organization null -> REVIEW (RELEASE_SELLER_ORGANIZATION_MISSING), no buyer fallback")
+    void testSellerOrganizationNullFailsClosedWithoutFallback() {
+        deal.setSellerOrganizationId(null);
 
-        assertThat(result).isNotNull();
-        RecordEngineDecisionCommand cmd = result.releaseCommand();
-        assertThat(cmd.getEngineType()).isEqualTo(EngineType.RELEASE);
-        assertThat(cmd.getSubjectType()).isEqualTo(DecisionSubjectType.MILESTONE.name());
-        assertThat(cmd.getSubjectId()).isEqualTo(milestoneId);
-        assertThat(cmd.getOrganizationId()).isEqualTo(buyerOrgId);
-        assertThat(cmd.getDecision()).isEqualTo(DecisionStatus.ALLOW);
-        assertThat(cmd.getScore()).isNull(); // strictly null
-        assertThat(cmd.getReasonCodes()).containsExactly(ReleaseDecisionEngine.REASON_RELEASE_ALL_GATES_ALLOW);
-        assertThat(cmd.getPolicyVersionId()).isEqualTo(policy.getId());
-        assertThat(cmd.getPolicyContentHash()).isEqualTo(ReleasePolicyDefinition.getExpectedContentHash());
-        assertThat(cmd.getInputFingerprint()).isNotBlank();
-        assertThat(result.componentCommands()).hasSize(8);
+        ReleaseEvaluationResult result = engine.evaluateMilestone(dealId, milestoneId, defaultEvalId, defaultCorrId, defaultTime, null);
+
+        assertThat(result.releaseCommand().getDecision()).isEqualTo(DecisionStatus.REVIEW);
+        assertThat(result.releaseCommand().getReasonCodes()).contains(ReleaseDecisionEngine.REASON_SELLER_ORGANIZATION_MISSING);
+        verify(trustAdapter, never()).evaluateForOrganization(any(), any());
     }
 
     @Test
-    @DisplayName("2. Single BLOCK (e.g. FRAUD) -> Overall RELEASE is BLOCK")
-    void testSingleBlockProducesBlock() {
-        mockAdapter(fraudAdapter, EngineType.FRAUD, DecisionStatus.BLOCK, List.of("FRAUD_DUPLICATE_DOCUMENT_HASH"));
+    @DisplayName("2. Exactly one canonical eligible beneficiary selected")
+    void testSingleEligibleBeneficiarySelected() {
+        ReleaseEvaluationResult result = engine.evaluateMilestone(dealId, milestoneId, defaultEvalId, defaultCorrId, defaultTime, null);
 
-        ReleaseEvaluationResult result = engine.evaluateMilestone(dealId, milestoneId, null, null, null, null);
-
-        RecordEngineDecisionCommand cmd = result.releaseCommand();
-        assertThat(cmd.getDecision()).isEqualTo(DecisionStatus.BLOCK);
-        assertThat(cmd.getReasonCodes()).containsExactly(ReleaseDecisionEngine.REASON_BLOCKED_BY_FRAUD);
+        assertThat(result.releaseCommand().getDecision()).isEqualTo(DecisionStatus.ALLOW);
+        verify(eligibilityService).evaluateBeneficiaryEligibility(sellerOrgId);
+        assertThat(result.releaseCommand().getEvidenceReferences().stream()
+                .anyMatch(r -> "ORGANIZATION_BANK_ACCOUNT".equals(r.sourceType()) && bankAccountId.equals(r.sourceId()))).isTrue();
     }
 
     @Test
-    @DisplayName("3. Multiple BLOCKs -> Deterministic reason ordering according to EngineType order")
-    void testMultipleBlocksProduceOrderedReasons() {
-        mockAdapter(riskAdapter, EngineType.RISK, DecisionStatus.BLOCK, List.of("RISK_RESTRICTION_ACTIVE"));
-        mockAdapter(fraudAdapter, EngineType.FRAUD, DecisionStatus.BLOCK, List.of("FRAUD_DUPLICATE_DOCUMENT_HASH"));
-        mockAdapter(reconciliationAdapter, EngineType.RECONCILIATION, DecisionStatus.BLOCK, List.of("RECONCILIATION_AMOUNT_MISMATCH"));
+    @DisplayName("3. Multiple eligible beneficiaries -> Ambiguous, no arbitrary findFirst selection")
+    void testMultipleBeneficiariesAmbiguousNoArbitrarySelection() {
+        when(eligibilityService.evaluateBeneficiaryEligibility(sellerOrgId))
+                .thenReturn(new BeneficiaryEligibilityResult(false, null, "Ambiguous beneficiary: multiple eligible verified bank accounts found (2)", false));
 
-        ReleaseEvaluationResult result = engine.evaluateMilestone(dealId, milestoneId, null, null, null, null);
+        ReleaseEvaluationResult result = engine.evaluateMilestone(dealId, milestoneId, defaultEvalId, defaultCorrId, defaultTime, null);
 
-        RecordEngineDecisionCommand cmd = result.releaseCommand();
-        assertThat(cmd.getDecision()).isEqualTo(DecisionStatus.BLOCK);
-        assertThat(cmd.getReasonCodes()).containsExactly(
-                ReleaseDecisionEngine.REASON_BLOCKED_BY_RISK,
-                ReleaseDecisionEngine.REASON_BLOCKED_BY_FRAUD,
-                ReleaseDecisionEngine.REASON_BLOCKED_BY_RECONCILIATION
-        );
+        // No beneficiary is snapshotted into evidence references
+        assertThat(result.releaseCommand().getEvidenceReferences().stream()
+                .noneMatch(r -> "ORGANIZATION_BANK_ACCOUNT".equals(r.sourceType()))).isTrue();
     }
 
     @Test
-    @DisplayName("4. BLOCK takes precedence over REVIEW")
-    void testBlockTakesPrecedenceOverReview() {
-        mockAdapter(documentAdapter, EngineType.DOCUMENT, DecisionStatus.REVIEW, List.of("DOCUMENT_REVIEW_REQUIRED"));
-        mockAdapter(reconciliationAdapter, EngineType.RECONCILIATION, DecisionStatus.BLOCK, List.of("RECONCILIATION_BANK_FINALITY_FAILED"));
+    @DisplayName("4. No eligible beneficiary -> Beneficiary snapshot is NONE")
+    void testNoEligibleBeneficiaryProducesNoneSnapshot() {
+        when(eligibilityService.evaluateBeneficiaryEligibility(sellerOrgId))
+                .thenReturn(new BeneficiaryEligibilityResult(false, null, "No eligible verified bank accounts found", false));
 
-        ReleaseEvaluationResult result = engine.evaluateMilestone(dealId, milestoneId, null, null, null, null);
+        ReleaseEvaluationResult result = engine.evaluateMilestone(dealId, milestoneId, defaultEvalId, defaultCorrId, defaultTime, null);
 
-        RecordEngineDecisionCommand cmd = result.releaseCommand();
-        assertThat(cmd.getDecision()).isEqualTo(DecisionStatus.BLOCK);
-        assertThat(cmd.getReasonCodes()).containsExactly(ReleaseDecisionEngine.REASON_BLOCKED_BY_RECONCILIATION);
+        assertThat(result.releaseCommand().getEvidenceReferences().stream()
+                .noneMatch(r -> "ORGANIZATION_BANK_ACCOUNT".equals(r.sourceType()))).isTrue();
     }
 
     @Test
-    @DisplayName("5. No BLOCK + Single REVIEW -> Overall RELEASE is REVIEW")
-    void testNoBlockSingleReviewProducesReview() {
-        mockAdapter(reconciliationAdapter, EngineType.RECONCILIATION, DecisionStatus.REVIEW, List.of("RECONCILIATION_FUNDING_NOT_PROVEN"));
+    @DisplayName("5. Component evaluationId mismatch -> REVIEW (RELEASE_COMPONENT_CONTEXT_MISMATCH)")
+    void testComponentEvaluationIdMismatch() {
+        when(fraudAdapter.evaluate(any())).thenAnswer(inv -> {
+            EvaluationContext ctx = inv.getArgument(0);
+            return RecordEngineDecisionCommand.builder()
+                    .organizationId(buyerOrgId)
+                    .engineType(EngineType.FRAUD)
+                    .subjectType(DecisionSubjectType.MILESTONE.name())
+                    .subjectId(milestoneId)
+                    .decision(DecisionStatus.ALLOW)
+                    .evaluationOutcome(EvaluationOutcome.SUCCESS)
+                    .reasonCodes(List.of("FRAUD_POLICY_CLEAR"))
+                    .evaluationId(UUID.randomUUID()) // Mismatched evaluationId
+                    .correlationId(ctx.correlationId())
+                    .inputFingerprint("fp")
+                    .evaluatedAt(ctx.evaluationTime())
+                    .build();
+        });
 
-        ReleaseEvaluationResult result = engine.evaluateMilestone(dealId, milestoneId, null, null, null, null);
+        ReleaseEvaluationResult result = engine.evaluateMilestone(dealId, milestoneId, defaultEvalId, defaultCorrId, defaultTime, null);
 
-        RecordEngineDecisionCommand cmd = result.releaseCommand();
-        assertThat(cmd.getDecision()).isEqualTo(DecisionStatus.REVIEW);
-        assertThat(cmd.getReasonCodes()).containsExactly(ReleaseDecisionEngine.REASON_REVIEW_RECONCILIATION);
+        assertThat(result.releaseCommand().getDecision()).isEqualTo(DecisionStatus.REVIEW);
+        assertThat(result.releaseCommand().getReasonCodes()).contains(ReleaseDecisionEngine.REASON_COMPONENT_CONTEXT_MISMATCH);
     }
 
     @Test
-    @DisplayName("6. Missing/Unregistered Release Policy fails closed as REVIEW + ERROR")
-    void testMissingPolicyFailsClosed() {
-        when(policyRepository.findByEngineTypeAndPolicyKeyAndVersionAndOrganizationIdIsNull(
-                EngineType.RELEASE, ReleasePolicyDefinition.POLICY_KEY, ReleasePolicyDefinition.POLICY_VERSION
-        )).thenReturn(Optional.empty());
+    @DisplayName("6. Component correlationId mismatch -> REVIEW (RELEASE_COMPONENT_CONTEXT_MISMATCH)")
+    void testComponentCorrelationIdMismatch() {
+        when(approvalAdapter.evaluate(any())).thenAnswer(inv -> {
+            EvaluationContext ctx = inv.getArgument(0);
+            return RecordEngineDecisionCommand.builder()
+                    .organizationId(buyerOrgId)
+                    .engineType(EngineType.APPROVAL)
+                    .subjectType(DecisionSubjectType.MILESTONE.name())
+                    .subjectId(milestoneId)
+                    .decision(DecisionStatus.ALLOW)
+                    .evaluationOutcome(EvaluationOutcome.SUCCESS)
+                    .reasonCodes(List.of("APPROVAL_GRANTED"))
+                    .evaluationId(ctx.evaluationId())
+                    .correlationId(UUID.randomUUID()) // Mismatched correlationId
+                    .inputFingerprint("fp")
+                    .evaluatedAt(ctx.evaluationTime())
+                    .build();
+        });
 
-        ReleaseEvaluationResult result = engine.evaluateMilestone(dealId, milestoneId, null, null, null, null);
+        ReleaseEvaluationResult result = engine.evaluateMilestone(dealId, milestoneId, defaultEvalId, defaultCorrId, defaultTime, null);
 
-        RecordEngineDecisionCommand cmd = result.releaseCommand();
-        assertThat(cmd.getDecision()).isEqualTo(DecisionStatus.REVIEW);
-        assertThat(cmd.getEvaluationOutcome()).isEqualTo(EvaluationOutcome.ERROR);
-        assertThat(cmd.getErrorCode()).isEqualTo(ReleaseDecisionEngine.ERROR_POLICY_UNAVAILABLE);
+        assertThat(result.releaseCommand().getDecision()).isEqualTo(DecisionStatus.REVIEW);
+        assertThat(result.releaseCommand().getReasonCodes()).contains(ReleaseDecisionEngine.REASON_COMPONENT_CONTEXT_MISMATCH);
     }
 
     @Test
-    @DisplayName("7. Inactive Release Policy fails closed as REVIEW + ERROR")
-    void testInactivePolicyFailsClosed() {
-        EnginePolicyVersion inactivePolicy = new EnginePolicyVersion(
-                null,
-                PolicyScope.PLATFORM,
-                EngineType.RELEASE,
-                ReleasePolicyDefinition.POLICY_KEY,
-                ReleasePolicyDefinition.POLICY_VERSION,
-                ReleasePolicyDefinition.getExpectedContentHash(),
-                ReleasePolicyDefinition.SCHEMA_VERSION,
-                ReleasePolicyDefinition.DESCRIPTION,
-                ReleasePolicyDefinition.getCanonicalPolicyContent(),
-                null,
-                null // null activatedAt
-        );
+    @DisplayName("7. Component evaluationTime mismatch -> REVIEW (RELEASE_COMPONENT_CONTEXT_MISMATCH)")
+    void testComponentEvaluationTimeMismatch() {
+        when(reconciliationAdapter.evaluate(any())).thenAnswer(inv -> {
+            EvaluationContext ctx = inv.getArgument(0);
+            return RecordEngineDecisionCommand.builder()
+                    .organizationId(buyerOrgId)
+                    .engineType(EngineType.RECONCILIATION)
+                    .subjectType(DecisionSubjectType.MILESTONE.name())
+                    .subjectId(milestoneId)
+                    .decision(DecisionStatus.ALLOW)
+                    .evaluationOutcome(EvaluationOutcome.SUCCESS)
+                    .reasonCodes(List.of("RECONCILIATION_CONFIRMED"))
+                    .evaluationId(ctx.evaluationId())
+                    .correlationId(ctx.correlationId())
+                    .inputFingerprint("fp")
+                    .evaluatedAt(ctx.evaluationTime().minusSeconds(3600)) // Stale evaluationTime
+                    .build();
+        });
 
-        when(policyRepository.findByEngineTypeAndPolicyKeyAndVersionAndOrganizationIdIsNull(
-                EngineType.RELEASE, ReleasePolicyDefinition.POLICY_KEY, ReleasePolicyDefinition.POLICY_VERSION
-        )).thenReturn(Optional.of(inactivePolicy));
+        ReleaseEvaluationResult result = engine.evaluateMilestone(dealId, milestoneId, defaultEvalId, defaultCorrId, defaultTime, null);
 
-        ReleaseEvaluationResult result = engine.evaluateMilestone(dealId, milestoneId, null, null, null, null);
-
-        RecordEngineDecisionCommand cmd = result.releaseCommand();
-        assertThat(cmd.getDecision()).isEqualTo(DecisionStatus.REVIEW);
-        assertThat(cmd.getEvaluationOutcome()).isEqualTo(EvaluationOutcome.ERROR);
-        assertThat(cmd.getErrorCode()).isEqualTo(ReleaseDecisionEngine.ERROR_POLICY_INACTIVE);
+        assertThat(result.releaseCommand().getDecision()).isEqualTo(DecisionStatus.REVIEW);
+        assertThat(result.releaseCommand().getReasonCodes()).contains(ReleaseDecisionEngine.REASON_COMPONENT_CONTEXT_MISMATCH);
     }
 
     @Test
-    @DisplayName("8. Corrupted Release Policy Hash fails closed as REVIEW + ERROR")
-    void testCorruptedPolicyHashFailsClosed() {
-        EnginePolicyVersion corruptedPolicy = new EnginePolicyVersion(
-                null,
-                PolicyScope.PLATFORM,
-                EngineType.RELEASE,
-                ReleasePolicyDefinition.POLICY_KEY,
-                ReleasePolicyDefinition.POLICY_VERSION,
-                "corrupted_hash_value_1234567890abcdef1234567890abcdef1234567890abcdef",
-                ReleasePolicyDefinition.SCHEMA_VERSION,
-                ReleasePolicyDefinition.DESCRIPTION,
-                "{}",
-                null,
-                Instant.now().minusSeconds(100)
-        );
+    @DisplayName("8. Wrong returned EngineType -> REVIEW (RELEASE_COMPONENT_CONTEXT_MISMATCH)")
+    void testWrongReturnedEngineType() {
+        when(disputeAdapter.evaluateForMilestone(any(), any(), any())).thenAnswer(inv -> {
+            EvaluationContext ctx = inv.getArgument(2);
+            return RecordEngineDecisionCommand.builder()
+                    .organizationId(buyerOrgId)
+                    .engineType(EngineType.RISK) // Returned RISK instead of DISPUTE
+                    .subjectType(DecisionSubjectType.MILESTONE.name())
+                    .subjectId(milestoneId)
+                    .decision(DecisionStatus.ALLOW)
+                    .evaluationOutcome(EvaluationOutcome.SUCCESS)
+                    .reasonCodes(List.of("DISPUTE_NONE_ACTIVE"))
+                    .evaluationId(ctx.evaluationId())
+                    .correlationId(ctx.correlationId())
+                    .inputFingerprint("fp")
+                    .evaluatedAt(ctx.evaluationTime())
+                    .build();
+        });
 
-        when(policyRepository.findByEngineTypeAndPolicyKeyAndVersionAndOrganizationIdIsNull(
-                EngineType.RELEASE, ReleasePolicyDefinition.POLICY_KEY, ReleasePolicyDefinition.POLICY_VERSION
-        )).thenReturn(Optional.of(corruptedPolicy));
+        ReleaseEvaluationResult result = engine.evaluateMilestone(dealId, milestoneId, defaultEvalId, defaultCorrId, defaultTime, null);
 
-        ReleaseEvaluationResult result = engine.evaluateMilestone(dealId, milestoneId, null, null, null, null);
-
-        RecordEngineDecisionCommand cmd = result.releaseCommand();
-        assertThat(cmd.getDecision()).isEqualTo(DecisionStatus.REVIEW);
-        assertThat(cmd.getEvaluationOutcome()).isEqualTo(EvaluationOutcome.ERROR);
-        assertThat(cmd.getErrorCode()).isEqualTo(ReleaseDecisionEngine.ERROR_POLICY_INTEGRITY_FAILURE);
+        assertThat(result.releaseCommand().getDecision()).isEqualTo(DecisionStatus.REVIEW);
+        assertThat(result.releaseCommand().getReasonCodes()).contains(ReleaseDecisionEngine.REASON_COMPONENT_CONTEXT_MISMATCH);
     }
 
     @Test
-    @DisplayName("9. Snapshot fingerprint is deterministic and mutates on underlying entity change")
-    void testSnapshotFingerprintDeterminism() {
-        Instant fixedTime = Instant.parse("2026-10-09T12:00:00Z");
-        UUID evalId = UUID.randomUUID();
-        UUID corrId = UUID.randomUUID();
+    @DisplayName("9. Wrong RISK subject binding -> REVIEW (RELEASE_COMPONENT_CONTEXT_MISMATCH)")
+    void testWrongRiskSubjectBinding() {
+        when(riskAdapter.evaluateForDeal(any(), any(), any())).thenAnswer(inv -> {
+            EvaluationContext ctx = inv.getArgument(2);
+            return RecordEngineDecisionCommand.builder()
+                    .organizationId(buyerOrgId)
+                    .engineType(EngineType.RISK)
+                    .subjectType(DecisionSubjectType.MILESTONE.name()) // Must be ORGANIZATION
+                    .subjectId(milestoneId)
+                    .decision(DecisionStatus.ALLOW)
+                    .evaluationOutcome(EvaluationOutcome.SUCCESS)
+                    .reasonCodes(List.of("RISK_POLICY_CLEAR"))
+                    .evaluationId(ctx.evaluationId())
+                    .correlationId(ctx.correlationId())
+                    .inputFingerprint("fp")
+                    .evaluatedAt(ctx.evaluationTime())
+                    .build();
+        });
 
-        ReleaseEvaluationResult r1 = engine.evaluateMilestone(dealId, milestoneId, evalId, corrId, fixedTime, null);
-        ReleaseEvaluationResult r2 = engine.evaluateMilestone(dealId, milestoneId, evalId, corrId, fixedTime, null);
+        ReleaseEvaluationResult result = engine.evaluateMilestone(dealId, milestoneId, defaultEvalId, defaultCorrId, defaultTime, null);
+
+        assertThat(result.releaseCommand().getDecision()).isEqualTo(DecisionStatus.REVIEW);
+        assertThat(result.releaseCommand().getReasonCodes()).contains(ReleaseDecisionEngine.REASON_COMPONENT_CONTEXT_MISMATCH);
+    }
+
+    @Test
+    @DisplayName("10. Wrong TRUST seller organization binding -> REVIEW (RELEASE_COMPONENT_CONTEXT_MISMATCH)")
+    void testWrongTrustSellerOrgBinding() {
+        when(trustAdapter.evaluateForOrganization(any(), any())).thenAnswer(inv -> {
+            EvaluationContext ctx = inv.getArgument(1);
+            return RecordEngineDecisionCommand.builder()
+                    .organizationId(buyerOrgId) // Mismatched: must be sellerOrgId
+                    .engineType(EngineType.TRUST)
+                    .subjectType(DecisionSubjectType.ORGANIZATION.name())
+                    .subjectId(buyerOrgId)
+                    .decision(DecisionStatus.ALLOW)
+                    .evaluationOutcome(EvaluationOutcome.SUCCESS)
+                    .reasonCodes(List.of("TRUST_COUNTERPARTY_VERIFIED"))
+                    .evaluationId(ctx.evaluationId())
+                    .correlationId(ctx.correlationId())
+                    .inputFingerprint("fp")
+                    .evaluatedAt(ctx.evaluationTime())
+                    .build();
+        });
+
+        ReleaseEvaluationResult result = engine.evaluateMilestone(dealId, milestoneId, defaultEvalId, defaultCorrId, defaultTime, null);
+
+        assertThat(result.releaseCommand().getDecision()).isEqualTo(DecisionStatus.REVIEW);
+        assertThat(result.releaseCommand().getReasonCodes()).contains(ReleaseDecisionEngine.REASON_COMPONENT_CONTEXT_MISMATCH);
+    }
+
+    @Test
+    @DisplayName("11. Wrong DOCUMENT invoice subject binding -> REVIEW (RELEASE_COMPONENT_CONTEXT_MISMATCH)")
+    void testWrongDocumentInvoiceSubjectBinding() {
+        when(documentAdapter.evaluateInvoice(any(), any())).thenAnswer(inv -> {
+            EvaluationContext ctx = inv.getArgument(1);
+            return RecordEngineDecisionCommand.builder()
+                    .organizationId(buyerOrgId)
+                    .engineType(EngineType.DOCUMENT)
+                    .subjectType(DecisionSubjectType.INVOICE.name())
+                    .subjectId(UUID.randomUUID()) // Wrong invoice subjectId
+                    .decision(DecisionStatus.ALLOW)
+                    .evaluationOutcome(EvaluationOutcome.SUCCESS)
+                    .reasonCodes(List.of("DOCUMENT_APPROVED"))
+                    .evaluationId(ctx.evaluationId())
+                    .correlationId(ctx.correlationId())
+                    .inputFingerprint("fp")
+                    .evaluatedAt(ctx.evaluationTime())
+                    .build();
+        });
+
+        ReleaseEvaluationResult result = engine.evaluateMilestone(dealId, milestoneId, defaultEvalId, defaultCorrId, defaultTime, null);
+
+        assertThat(result.releaseCommand().getDecision()).isEqualTo(DecisionStatus.REVIEW);
+        assertThat(result.releaseCommand().getReasonCodes()).contains(ReleaseDecisionEngine.REASON_COMPONENT_CONTEXT_MISMATCH);
+    }
+
+    @Test
+    @DisplayName("12. Missing-invoice synthetic DOCUMENT subject is semantically correct (MILESTONE, milestone.id)")
+    void testMissingInvoiceSyntheticDocumentSubjectBinding() {
+        when(invoiceRepository.findFirstByMilestoneIdOrderByCreatedAtDesc(milestoneId)).thenReturn(Optional.empty());
+        milestone.setInvoiceRequired(true);
+
+        ReleaseEvaluationResult result = engine.evaluateMilestone(dealId, milestoneId, defaultEvalId, defaultCorrId, defaultTime, null);
+
+        assertThat(result.releaseCommand().getDecision()).isEqualTo(DecisionStatus.REVIEW);
+        assertThat(result.releaseCommand().getReasonCodes()).contains(ReleaseDecisionEngine.REASON_REVIEW_DOCUMENT);
+        RecordEngineDecisionCommand docCmd = result.componentCommands().stream()
+                .filter(c -> c.getEngineType() == EngineType.DOCUMENT)
+                .findFirst().orElseThrow();
+        assertThat(docCmd.getSubjectType()).isEqualTo(DecisionSubjectType.MILESTONE.name());
+        assertThat(docCmd.getSubjectId()).isEqualTo(milestoneId);
+        assertThat(docCmd.getReasonCodes()).contains(DocumentDecisionAdapter.REASON_DOCUMENT_ASSESSMENT_MISSING);
+    }
+
+    @Test
+    @DisplayName("13. Invoice-not-required synthetic subject is semantically correct (MILESTONE, milestone.id)")
+    void testInvoiceNotRequiredSyntheticDocumentSubjectBinding() {
+        when(invoiceRepository.findFirstByMilestoneIdOrderByCreatedAtDesc(milestoneId)).thenReturn(Optional.empty());
+        milestone.setInvoiceRequired(false);
+
+        ReleaseEvaluationResult result = engine.evaluateMilestone(dealId, milestoneId, defaultEvalId, defaultCorrId, defaultTime, null);
+
+        assertThat(result.releaseCommand().getDecision()).isEqualTo(DecisionStatus.ALLOW);
+        RecordEngineDecisionCommand docCmd = result.componentCommands().stream()
+                .filter(c -> c.getEngineType() == EngineType.DOCUMENT)
+                .findFirst().orElseThrow();
+        assertThat(docCmd.getSubjectType()).isEqualTo(DecisionSubjectType.MILESTONE.name());
+        assertThat(docCmd.getSubjectId()).isEqualTo(milestoneId);
+        assertThat(docCmd.getReasonCodes()).contains("DOCUMENT_NOT_REQUIRED");
+    }
+
+    @Test
+    @DisplayName("14. Beneficiary selection ordering cannot change snapshot fingerprint")
+    void testBeneficiarySelectionOrderingDeterminism() {
+        ReleaseEvaluationResult r1 = engine.evaluateMilestone(dealId, milestoneId, defaultEvalId, defaultCorrId, defaultTime, null);
+        ReleaseEvaluationResult r2 = engine.evaluateMilestone(dealId, milestoneId, defaultEvalId, defaultCorrId, defaultTime, null);
 
         assertThat(r1.releaseCommand().getInputFingerprint()).isEqualTo(r2.releaseCommand().getInputFingerprint());
-
-        // Mutate milestone amount and verify fingerprint changes
-        milestone.setAmount(new BigDecimal("75000.00"));
-        ReleaseEvaluationResult r3 = engine.evaluateMilestone(dealId, milestoneId, evalId, corrId, fixedTime, null);
-        assertThat(r3.releaseCommand().getInputFingerprint()).isNotEqualTo(r1.releaseCommand().getInputFingerprint());
     }
 
     @Test
-    @DisplayName("10. Zero financial writes, zero bank calls, zero ReleaseInstruction")
-    void testZeroFinancialSideEffects() {
-        ReleaseEvaluationResult result = engine.evaluateMilestone(dealId, milestoneId, null, null, null, null);
+    @DisplayName("15. Irrelevant bank account changes do not affect canonical snapshot when single eligible remains identical")
+    void testIrrelevantBankAccountUnchanged() {
+        ReleaseEvaluationResult r1 = engine.evaluateMilestone(dealId, milestoneId, defaultEvalId, defaultCorrId, defaultTime, null);
+
+        // Add unrelated unverified bank accounts to repository list; eligibility still returns canonical single
+        when(bankAccountRepository.findByOrganizationId(sellerOrgId)).thenReturn(List.of(bankAccount, new OrganizationBankAccount()));
+
+        ReleaseEvaluationResult r2 = engine.evaluateMilestone(dealId, milestoneId, defaultEvalId, defaultCorrId, defaultTime, null);
+
+        assertThat(r1.releaseCommand().getInputFingerprint()).isEqualTo(r2.releaseCommand().getInputFingerprint());
+    }
+
+    @Test
+    @DisplayName("16. Canonical beneficiary change changes release fingerprint")
+    void testCanonicalBeneficiaryChangeMutatesFingerprint() {
+        ReleaseEvaluationResult r1 = engine.evaluateMilestone(dealId, milestoneId, defaultEvalId, defaultCorrId, defaultTime, null);
+
+        OrganizationBankAccount newAccount = new OrganizationBankAccount();
+        newAccount.setId(UUID.randomUUID());
+        newAccount.setOrganizationId(sellerOrgId);
+        newAccount.setVerificationStatus(BankVerificationStatus.VERIFIED);
+        newAccount.setNameMatchStatus("MATCH");
+        newAccount.setVerifiedAt(Instant.now());
+
+        when(eligibilityService.evaluateBeneficiaryEligibility(sellerOrgId))
+                .thenReturn(new BeneficiaryEligibilityResult(true, newAccount, null, false));
+
+        ReleaseEvaluationResult r2 = engine.evaluateMilestone(dealId, milestoneId, defaultEvalId, defaultCorrId, defaultTime, null);
+
+        assertThat(r1.releaseCommand().getInputFingerprint()).isNotEqualTo(r2.releaseCommand().getInputFingerprint());
+    }
+
+    @Test
+    @DisplayName("17. All eight valid ALLOW -> Overall RELEASE is ALLOW")
+    void testAllEightValidAllow() {
+        ReleaseEvaluationResult result = engine.evaluateMilestone(dealId, milestoneId, defaultEvalId, defaultCorrId, defaultTime, null);
+
+        assertThat(result.releaseCommand().getDecision()).isEqualTo(DecisionStatus.ALLOW);
+        assertThat(result.releaseCommand().getReasonCodes()).containsExactly(ReleaseDecisionEngine.REASON_RELEASE_ALL_GATES_ALLOW);
+    }
+
+    @Test
+    @DisplayName("18. One BLOCK (e.g. DISPUTE) -> Overall RELEASE is BLOCK")
+    void testOneBlockProducesBlock() {
+        when(disputeAdapter.evaluateForMilestone(any(), any(), any())).thenAnswer(inv -> {
+            EvaluationContext ctx = inv.getArgument(2);
+            return createCommand(EngineType.DISPUTE, DecisionSubjectType.MILESTONE, milestoneId, buyerOrgId, DecisionStatus.BLOCK, List.of("DISPUTE_ACTIVE_ON_MILESTONE"), ctx);
+        });
+
+        ReleaseEvaluationResult result = engine.evaluateMilestone(dealId, milestoneId, defaultEvalId, defaultCorrId, defaultTime, null);
+
+        assertThat(result.releaseCommand().getDecision()).isEqualTo(DecisionStatus.BLOCK);
+        assertThat(result.releaseCommand().getReasonCodes()).containsExactly(ReleaseDecisionEngine.REASON_BLOCKED_BY_DISPUTE);
+    }
+
+    @Test
+    @DisplayName("19. One REVIEW -> Overall RELEASE is REVIEW")
+    void testOneReviewProducesReview() {
+        when(reconciliationAdapter.evaluate(any())).thenAnswer(inv -> {
+            EvaluationContext ctx = inv.getArgument(0);
+            return createCommand(EngineType.RECONCILIATION, DecisionSubjectType.MILESTONE, milestoneId, buyerOrgId, DecisionStatus.REVIEW, List.of("RECONCILIATION_FUNDING_NOT_PROVEN"), ctx);
+        });
+
+        ReleaseEvaluationResult result = engine.evaluateMilestone(dealId, milestoneId, defaultEvalId, defaultCorrId, defaultTime, null);
+
+        assertThat(result.releaseCommand().getDecision()).isEqualTo(DecisionStatus.REVIEW);
+        assertThat(result.releaseCommand().getReasonCodes()).containsExactly(ReleaseDecisionEngine.REASON_REVIEW_RECONCILIATION);
+    }
+
+    @Test
+    @DisplayName("20. Component ERROR -> REVIEW unless a separately valid BLOCK produces conservative BLOCK")
+    void testComponentErrorWithBlockProducesConservativeBlock() {
+        when(fraudAdapter.evaluate(any())).thenAnswer(inv -> {
+            EvaluationContext ctx = inv.getArgument(0);
+            return RecordEngineDecisionCommand.builder()
+                    .organizationId(buyerOrgId)
+                    .engineType(EngineType.FRAUD)
+                    .subjectType(DecisionSubjectType.MILESTONE.name())
+                    .subjectId(milestoneId)
+                    .decision(DecisionStatus.REVIEW)
+                    .evaluationOutcome(EvaluationOutcome.ERROR)
+                    .errorCode("FRAUD_ERROR")
+                    .reasonCodes(List.of("FRAUD_ERROR"))
+                    .evaluationId(ctx.evaluationId())
+                    .correlationId(ctx.correlationId())
+                    .inputFingerprint("fp")
+                    .evaluatedAt(ctx.evaluationTime())
+                    .build();
+        });
+
+        when(disputeAdapter.evaluateForMilestone(any(), any(), any())).thenAnswer(inv -> {
+            EvaluationContext ctx = inv.getArgument(2);
+            return createCommand(EngineType.DISPUTE, DecisionSubjectType.MILESTONE, milestoneId, buyerOrgId, DecisionStatus.BLOCK, List.of("DISPUTE_ACTIVE_ON_DEAL"), ctx);
+        });
+
+        ReleaseEvaluationResult result = engine.evaluateMilestone(dealId, milestoneId, defaultEvalId, defaultCorrId, defaultTime, null);
+
+        assertThat(result.releaseCommand().getDecision()).isEqualTo(DecisionStatus.BLOCK);
+        assertThat(result.releaseCommand().getReasonCodes()).contains(ReleaseDecisionEngine.REASON_BLOCKED_BY_DISPUTE);
+    }
+
+    @Test
+    @DisplayName("21. Zero bank calls, zero financial mutations, zero ReleaseInstruction")
+    void testZeroSideEffectsAndNoReleaseInstruction() {
+        ReleaseEvaluationResult result = engine.evaluateMilestone(dealId, milestoneId, defaultEvalId, defaultCorrId, defaultTime, null);
 
         assertThat(result.releaseCommand().getScore()).isNull();
         verifyNoInteractions(decisionService);

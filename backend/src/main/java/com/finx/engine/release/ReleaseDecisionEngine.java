@@ -23,6 +23,7 @@ import com.finx.org.entity.OrganizationBankAccount;
 import com.finx.org.repository.OrganizationBankAccountRepository;
 import com.finx.risk.dto.RiskDtos.UserType;
 import com.finx.security.service.UserPrincipal;
+import com.finx.verification.service.VerificationEligibilityService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
@@ -81,9 +82,11 @@ public class ReleaseDecisionEngine implements DecisionEvaluator {
     public static final String REASON_REVIEW_RECONCILIATION = "RELEASE_REVIEW_RECONCILIATION";
 
     // General anomaly review codes
+    public static final String REASON_SELLER_ORGANIZATION_MISSING = "RELEASE_SELLER_ORGANIZATION_MISSING";
     public static final String REASON_COMPONENT_MISSING = "RELEASE_COMPONENT_MISSING";
     public static final String REASON_COMPONENT_STALE = "RELEASE_COMPONENT_STALE";
     public static final String REASON_COMPONENT_ERROR = "RELEASE_COMPONENT_ERROR";
+    public static final String REASON_COMPONENT_CONTEXT_MISMATCH = "RELEASE_COMPONENT_CONTEXT_MISMATCH";
 
     // Policy error codes
     public static final String ERROR_POLICY_UNAVAILABLE = "RELEASE_POLICY_UNAVAILABLE";
@@ -104,6 +107,7 @@ public class ReleaseDecisionEngine implements DecisionEvaluator {
     private final DealAgreementRepository agreementRepository;
     private final InvoiceRepository invoiceRepository;
     private final OrganizationBankAccountRepository bankAccountRepository;
+    private final VerificationEligibilityService eligibilityService;
     private final EngineDecisionService decisionService;
     private final DealAccessService dealAccessService;
 
@@ -122,6 +126,7 @@ public class ReleaseDecisionEngine implements DecisionEvaluator {
             DealAgreementRepository agreementRepository,
             InvoiceRepository invoiceRepository,
             OrganizationBankAccountRepository bankAccountRepository,
+            VerificationEligibilityService eligibilityService,
             EngineDecisionService decisionService,
             DealAccessService dealAccessService
     ) {
@@ -139,6 +144,7 @@ public class ReleaseDecisionEngine implements DecisionEvaluator {
         this.agreementRepository = Objects.requireNonNull(agreementRepository, "agreementRepository must not be null");
         this.invoiceRepository = Objects.requireNonNull(invoiceRepository, "invoiceRepository must not be null");
         this.bankAccountRepository = Objects.requireNonNull(bankAccountRepository, "bankAccountRepository must not be null");
+        this.eligibilityService = Objects.requireNonNull(eligibilityService, "eligibilityService must not be null");
         this.decisionService = Objects.requireNonNull(decisionService, "decisionService must not be null");
         this.dealAccessService = Objects.requireNonNull(dealAccessService, "dealAccessService must not be null");
     }
@@ -266,9 +272,15 @@ public class ReleaseDecisionEngine implements DecisionEvaluator {
         // 2. Fetch Supporting Contractual Entities
         DealAgreement agreement = agreementRepository.findTopByDealIdOrderByVersionDesc(deal.getId()).orElse(null);
         Invoice invoice = invoiceRepository.findFirstByMilestoneIdOrderByCreatedAtDesc(milestone.getId()).orElse(null);
-        OrganizationBankAccount beneficiary = deal.getSellerOrganizationId() != null
-                ? bankAccountRepository.findByOrganizationId(deal.getSellerOrganizationId()).stream().findFirst().orElse(null)
-                : null;
+        
+        // Canonical beneficiary selection via VerificationEligibilityService
+        OrganizationBankAccount beneficiary = null;
+        if (deal.getSellerOrganizationId() != null) {
+            var beneficiaryResult = eligibilityService.evaluateBeneficiaryEligibility(deal.getSellerOrganizationId());
+            if (beneficiaryResult.eligible()) {
+                beneficiary = beneficiaryResult.bankAccount();
+            }
+        }
 
         // 3. Evaluate Exactly 8 Prerequisite Components
         Map<EngineType, RecordEngineDecisionCommand> componentMap = new EnumMap<>(EngineType.class);
@@ -303,12 +315,16 @@ public class ReleaseDecisionEngine implements DecisionEvaluator {
         );
         componentMap.put(EngineType.APPROVAL, approvalAdapter.evaluate(approvalContext));
 
-        // Component 5: TRUST (Counterparty / Seller Trust)
-        UUID sellerOrgId = deal.getSellerOrganizationId() != null ? deal.getSellerOrganizationId() : deal.getBuyerOrganizationId();
-        EvaluationContext trustContext = new EvaluationContext(
-                evalId, sellerOrgId, corrId, DecisionSubjectType.ORGANIZATION.name(), sellerOrgId, now
-        );
-        componentMap.put(EngineType.TRUST, trustAdapter.evaluateForOrganization(sellerOrgId, trustContext));
+        // Component 5: TRUST (Counterparty / Seller Trust — Fail closed if seller organization is missing)
+        if (deal.getSellerOrganizationId() == null) {
+            componentMap.put(EngineType.TRUST, null); // Will trigger REASON_SELLER_ORGANIZATION_MISSING
+        } else {
+            UUID sellerOrgId = deal.getSellerOrganizationId();
+            EvaluationContext trustContext = new EvaluationContext(
+                    evalId, sellerOrgId, corrId, DecisionSubjectType.ORGANIZATION.name(), sellerOrgId, now
+            );
+            componentMap.put(EngineType.TRUST, trustAdapter.evaluateForOrganization(sellerOrgId, trustContext));
+        }
 
         // Component 6: FRAUD
         EvaluationContext fraudContext = new EvaluationContext(
@@ -348,9 +364,20 @@ public class ReleaseDecisionEngine implements DecisionEvaluator {
         for (EngineType reqType : requiredOrder) {
             RecordEngineDecisionCommand cmd = componentMap.get(reqType);
             if (cmd == null) {
-                reviewReasons.add(REASON_COMPONENT_MISSING);
+                if (reqType == EngineType.TRUST && deal.getSellerOrganizationId() == null) {
+                    reviewReasons.add(REASON_SELLER_ORGANIZATION_MISSING);
+                } else {
+                    reviewReasons.add(REASON_COMPONENT_MISSING);
+                }
                 continue;
             }
+
+            // Explicit context and subject binding validation
+            boolean bindingValid = validateComponentBinding(cmd, reqType, deal, milestone, invoice, evalId, corrId, now);
+            if (!bindingValid) {
+                reviewReasons.add(REASON_COMPONENT_CONTEXT_MISMATCH);
+            }
+
             orderedComponentCommands.add(cmd);
 
             if (cmd.evaluationOutcome() == EvaluationOutcome.ERROR) {
@@ -459,12 +486,12 @@ public class ReleaseDecisionEngine implements DecisionEvaluator {
             UserPrincipal caller
     ) {
         ReleaseEvaluationResult evaluated = evaluateMilestone(
-                dealId,
-                milestoneId,
-                evaluationId,
-                correlationId,
-                evaluationTime,
-                caller
+            dealId,
+            milestoneId,
+            evaluationId,
+            correlationId,
+            evaluationTime,
+            caller
         );
 
         List<EngineDecision> recordedComponents = new ArrayList<>();
@@ -520,6 +547,63 @@ public class ReleaseDecisionEngine implements DecisionEvaluator {
                 finalReleaseCmd,
                 evaluated.componentCommands()
         );
+    }
+
+    private static boolean validateComponentBinding(
+            RecordEngineDecisionCommand cmd,
+            EngineType expectedType,
+            Deal deal,
+            Milestone milestone,
+            Invoice invoice,
+            UUID evalId,
+            UUID corrId,
+            Instant now
+    ) {
+        if (cmd == null) return false;
+        if (cmd.engineType() != expectedType) return false;
+        if (!Objects.equals(cmd.evaluationId(), evalId)) return false;
+        if (!Objects.equals(cmd.correlationId(), corrId)) return false;
+        if (!Objects.equals(cmd.evaluatedAt(), now)) return false;
+
+        String subjectTypeStr = cmd.subjectType();
+        UUID subjectId = cmd.subjectId();
+        UUID orgId = cmd.organizationId();
+
+        return switch (expectedType) {
+            case RISK -> ("ORGANIZATION".equals(subjectTypeStr) || DecisionSubjectType.ORGANIZATION.name().equals(subjectTypeStr))
+                    && Objects.equals(subjectId, deal.getBuyerOrganizationId())
+                    && Objects.equals(orgId, deal.getBuyerOrganizationId());
+            case DOCUMENT -> {
+                if (invoice != null) {
+                    yield ("INVOICE".equals(subjectTypeStr) || DecisionSubjectType.INVOICE.name().equals(subjectTypeStr))
+                            && Objects.equals(subjectId, invoice.getId())
+                            && Objects.equals(orgId, deal.getBuyerOrganizationId());
+                } else {
+                    yield ("MILESTONE".equals(subjectTypeStr) || DecisionSubjectType.MILESTONE.name().equals(subjectTypeStr))
+                            && Objects.equals(subjectId, milestone.getId())
+                            && Objects.equals(orgId, deal.getBuyerOrganizationId());
+                }
+            }
+            case MILESTONE_RULES -> ("MILESTONE".equals(subjectTypeStr) || DecisionSubjectType.MILESTONE.name().equals(subjectTypeStr))
+                    && Objects.equals(subjectId, milestone.getId())
+                    && Objects.equals(orgId, deal.getBuyerOrganizationId());
+            case APPROVAL -> ("MILESTONE".equals(subjectTypeStr) || DecisionSubjectType.MILESTONE.name().equals(subjectTypeStr))
+                    && Objects.equals(subjectId, milestone.getId())
+                    && Objects.equals(orgId, deal.getBuyerOrganizationId());
+            case TRUST -> ("ORGANIZATION".equals(subjectTypeStr) || DecisionSubjectType.ORGANIZATION.name().equals(subjectTypeStr))
+                    && Objects.equals(subjectId, deal.getSellerOrganizationId())
+                    && Objects.equals(orgId, deal.getSellerOrganizationId());
+            case FRAUD -> ("MILESTONE".equals(subjectTypeStr) || DecisionSubjectType.MILESTONE.name().equals(subjectTypeStr))
+                    && Objects.equals(subjectId, milestone.getId())
+                    && Objects.equals(orgId, deal.getBuyerOrganizationId());
+            case DISPUTE -> ("MILESTONE".equals(subjectTypeStr) || DecisionSubjectType.MILESTONE.name().equals(subjectTypeStr))
+                    && Objects.equals(subjectId, milestone.getId())
+                    && Objects.equals(orgId, deal.getBuyerOrganizationId());
+            case RECONCILIATION -> ("MILESTONE".equals(subjectTypeStr) || DecisionSubjectType.MILESTONE.name().equals(subjectTypeStr))
+                    && Objects.equals(subjectId, milestone.getId())
+                    && Objects.equals(orgId, deal.getBuyerOrganizationId());
+            default -> false;
+        };
     }
 
     private static String mapBlockReason(EngineType type) {
@@ -609,12 +693,13 @@ public class ReleaseDecisionEngine implements DecisionEvaluator {
                 sb.append("INVOICE:NONE\n");
             }
 
-            // Beneficiary
+            // Beneficiary (safe fields only — no account numbers, masked accounts, or IFSC)
             if (beneficiary != null) {
                 sb.append("BENEFICIARY:").append(beneficiary.getId()).append("|")
                         .append(beneficiary.getVerificationStatus()).append("|")
                         .append(beneficiary.getNameMatchStatus()).append("|")
-                        .append(beneficiary.getVerifiedAt()).append("\n");
+                        .append(beneficiary.getVerifiedAt()).append("|")
+                        .append(beneficiary.getUpdatedAt()).append("\n");
             } else {
                 sb.append("BENEFICIARY:NONE\n");
             }
@@ -686,7 +771,7 @@ public class ReleaseDecisionEngine implements DecisionEvaluator {
         return RecordEngineDecisionCommand.builder()
                 .organizationId(orgId)
                 .engineType(EngineType.DOCUMENT)
-                .subjectType(DecisionSubjectType.INVOICE.name())
+                .subjectType(DecisionSubjectType.MILESTONE.name())
                 .subjectId(milestoneId)
                 .decision(DecisionStatus.REVIEW)
                 .evaluationOutcome(EvaluationOutcome.SUCCESS)
