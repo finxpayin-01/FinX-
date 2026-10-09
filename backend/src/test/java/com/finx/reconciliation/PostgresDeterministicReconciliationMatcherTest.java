@@ -54,8 +54,19 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Real PostgreSQL Integration Test for DeterministicReconciliationMatcher.
  * Executes against finx_postgres container with Flyway V1 -> V28.
  */
-@SpringBootTest
-@ActiveProfiles("test")
+@SpringBootTest(properties = {
+        "spring.datasource.url=${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/finx_b06_test}",
+        "spring.datasource.username=${SPRING_DATASOURCE_USERNAME:finx_user}",
+        "spring.datasource.password=${SPRING_DATASOURCE_PASSWORD:finx_password}",
+        "spring.datasource.driver-class-name=org.postgresql.Driver",
+        "spring.jpa.hibernate.ddl-auto=none",
+        "spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect",
+        "spring.flyway.enabled=true",
+        "spring.flyway.baseline-on-migrate=true",
+        "rate-limit.enabled=false",
+        "finx.banking.provider=mock",
+        "razorpay.sandbox-mode=true"
+})
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @EnabledIf("isPostgresAvailable")
 public class PostgresDeterministicReconciliationMatcherTest {
@@ -89,7 +100,7 @@ public class PostgresDeterministicReconciliationMatcherTest {
     private ReconciliationItemRepository itemRepository;
 
     private static final String PROVIDER = "MOCK";
-    private static final String PROVIDER_ACCOUNT_ID = "MOCK_ESCROW_ACCOUNT";
+    private static final String PROVIDER_ACCOUNT_ID = "MOCK_ESCROW_REC_TEST";
     private static final String CURRENCY = "INR";
 
     private UserPrincipal adminUser;
@@ -122,8 +133,26 @@ public class PostgresDeterministicReconciliationMatcherTest {
     }
 
     @BeforeEach
-    void setUp() {
-        adminUser = new UserPrincipal(UUID.randomUUID(), "Admin", "admin@finx.com", "hash", Role.ADMIN, UserStatus.ACTIVE, Collections.emptyList());
+    void setUp() throws SQLException {
+        UUID adminId = UUID.randomUUID();
+        try (Connection conn = getConnection()) {
+            conn.createStatement().execute("DELETE FROM bank_statement_lines");
+            conn.createStatement().execute("DELETE FROM bank_statement_imports");
+            conn.createStatement().execute("DELETE FROM reconciliation_items");
+            conn.createStatement().execute("DELETE FROM reconciliation_runs");
+            conn.createStatement().execute("DELETE FROM payment_transactions");
+            conn.createStatement().execute("DELETE FROM payment_instructions");
+            conn.createStatement().execute("DELETE FROM settlement_instructions");
+            conn.createStatement().execute("DELETE FROM users WHERE email = 'admin_matcher_pg@finx.com'");
+
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "INSERT INTO users (id, name, email, password_hash, role, status, created_at, updated_at) " +
+                    "VALUES (?, 'Admin Matcher', 'admin_matcher_pg@finx.com', 'hashedpass', 'ADMIN', 'ACTIVE', NOW(), NOW())")) {
+                ps.setObject(1, adminId);
+                ps.executeUpdate();
+            }
+        }
+        adminUser = new UserPrincipal(adminId, "Admin Matcher", "admin_matcher_pg@finx.com", "hash", Role.ADMIN, UserStatus.ACTIVE, Collections.emptyList());
     }
 
     private Connection getConnection() throws SQLException {
@@ -212,12 +241,101 @@ public class PostgresDeterministicReconciliationMatcherTest {
         }
     }
 
+    private UUID createTestUser(Connection conn, String role) throws SQLException {
+        UUID id = UUID.randomUUID();
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO users (id, name, email, password_hash, role, status, created_at, updated_at) " +
+                        "VALUES (?, 'Test User', ?, 'hash', ?, 'ACTIVE', NOW(), NOW())")) {
+            ps.setObject(1, id);
+            ps.setString(2, "user-" + id + "@test.com");
+            ps.setString(3, role);
+            ps.executeUpdate();
+        }
+        return id;
+    }
+
+    private UUID createTestOrganization(Connection conn) throws SQLException {
+        UUID id = UUID.randomUUID();
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO organizations (id, name, legal_name, entity_type, registration_number, verification_status, created_at, updated_at) " +
+                        "VALUES (?, 'Test Org', 'Test Org Legal', 'PRIVATE_LIMITED', ?, 'VERIFIED', NOW(), NOW())")) {
+            ps.setObject(1, id);
+            ps.setString(2, "REG-" + id.toString().substring(0, 8));
+            ps.executeUpdate();
+        }
+        return id;
+    }
+
+    private UUID createTestOrgBankAccount(Connection conn, UUID orgId) throws SQLException {
+        UUID id = UUID.randomUUID();
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO organization_bank_accounts (id, organization_id, account_holder_name, account_number_masked, account_number_hash, ifsc_code, bank_name, verification_status, created_at, updated_at) " +
+                        "VALUES (?, ?, 'Test Holder', 'XXXX1234', 'hash1234', 'TEST0001001', 'Test Bank', 'VERIFIED', NOW(), NOW())")) {
+            ps.setObject(1, id);
+            ps.setObject(2, orgId);
+            ps.executeUpdate();
+        }
+        return id;
+    }
+
+    private UUID createTestDeal(Connection conn, UUID buyerId, UUID sellerId) throws SQLException {
+        UUID id = UUID.randomUUID();
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO deals (id, title, buyer_id, seller_id, total_amount, currency, status, created_at, updated_at) " +
+                        "VALUES (?, 'Test Deal', ?, ?, 100000.00, 'INR', 'IN_PROGRESS', NOW(), NOW())")) {
+            ps.setObject(1, id);
+            ps.setObject(2, buyerId);
+            ps.setObject(3, sellerId);
+            ps.executeUpdate();
+        }
+        return id;
+    }
+
+    private UUID createTestMilestone(Connection conn, UUID dealId, int sequence) throws SQLException {
+        UUID id = UUID.randomUUID();
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO milestones (id, deal_id, title, sequence, amount, currency, status, created_at, updated_at) " +
+                        "VALUES (?, ?, 'Milestone " + sequence + "', ?, 50000.00, 'INR', 'APPROVED', NOW(), NOW())")) {
+            ps.setObject(1, id);
+            ps.setObject(2, dealId);
+            ps.setInt(3, sequence);
+            ps.executeUpdate();
+        }
+        return id;
+    }
+
     @Test
     @Order(3)
     @DisplayName("3. End-to-end deterministic reconciliation on PostgreSQL with 0 financial side effects")
     void testEndToEndDeterministicReconciliationOnPostgres() throws Exception {
-        Instant start = Instant.now().minus(1, ChronoUnit.DAYS);
-        Instant end = Instant.now().plus(1, ChronoUnit.HOURS);
+        UUID buyerId;
+        UUID sellerId;
+        UUID dealId;
+        UUID milestoneId1;
+        UUID milestoneId2;
+        UUID sellerOrgId;
+        UUID beneficiaryBankAccountId;
+
+        try (Connection conn = getConnection(); Statement st = conn.createStatement()) {
+            st.execute("DELETE FROM reconciliation_items");
+            st.execute("DELETE FROM reconciliation_runs");
+            st.execute("DELETE FROM bank_statement_lines");
+            st.execute("DELETE FROM bank_statement_imports");
+            st.execute("DELETE FROM payment_transactions");
+            st.execute("DELETE FROM payment_instructions");
+            st.execute("DELETE FROM settlement_instructions");
+
+            buyerId = createTestUser(conn, "BUYER");
+            sellerId = createTestUser(conn, "SELLER");
+            dealId = createTestDeal(conn, buyerId, sellerId);
+            milestoneId1 = createTestMilestone(conn, dealId, 1);
+            milestoneId2 = createTestMilestone(conn, dealId, 2);
+            sellerOrgId = createTestOrganization(conn);
+            beneficiaryBankAccountId = createTestOrgBankAccount(conn, sellerOrgId);
+        }
+
+        Instant start = Instant.now().truncatedTo(ChronoUnit.SECONDS).minus(1, ChronoUnit.DAYS);
+        Instant end = start.plus(2, ChronoUnit.DAYS);
 
         // 1. Setup durable bank statement lines
         UUID importId = UUID.randomUUID();
@@ -246,14 +364,8 @@ public class PostgresDeterministicReconciliationMatcherTest {
         lineRepository.saveAll(lines);
 
         // 2. Setup internal records
-        // Deal & Org IDs for foreign keys
-        UUID dealId = UUID.randomUUID();
-        UUID milestoneId = UUID.randomUUID();
-        UUID buyerOrgId = UUID.randomUUID();
-        UUID sellerOrgId = UUID.randomUUID();
-
         // Internal 1: Matching payment
-        PaymentInstruction pi1 = new PaymentInstruction("INST-PG-1", dealId, milestoneId, buyerOrgId, sellerOrgId,
+        PaymentInstruction pi1 = new PaymentInstruction("INST-PG-1", dealId, milestoneId1, null, sellerOrgId,
                 BigDecimal.valueOf(5000), CURRENCY, PROVIDER, "IDEM-PG-1", adminUser.getId());
         pi1.setProviderAccountId(PROVIDER_ACCOUNT_ID);
         pi1.setStatus(InstructionStatus.SUCCESS);
@@ -265,7 +377,7 @@ public class PostgresDeterministicReconciliationMatcherTest {
         paymentTransactionRepository.save(pt1);
 
         // Internal 2: Matching settlement
-        SettlementInstruction si2 = new SettlementInstruction("SETT-PG-2", dealId, milestoneId, sellerOrgId, UUID.randomUUID(),
+        SettlementInstruction si2 = new SettlementInstruction("SETT-PG-2", dealId, milestoneId1, sellerOrgId, beneficiaryBankAccountId,
                 BigDecimal.valueOf(2000), CURRENCY, PROVIDER, "IDEM-PG-2", adminUser.getId());
         si2.setProviderAccountId(PROVIDER_ACCOUNT_ID);
         si2.setStatus(SettlementStatus.SETTLED);
@@ -275,7 +387,7 @@ public class PostgresDeterministicReconciliationMatcherTest {
         settlementInstructionRepository.save(si2);
 
         // Internal 3: Amount mismatch payment (internal is 1500, bank is 1000)
-        PaymentInstruction pi3 = new PaymentInstruction("INST-PG-3", dealId, milestoneId, buyerOrgId, sellerOrgId,
+        PaymentInstruction pi3 = new PaymentInstruction("INST-PG-3", dealId, milestoneId1, null, sellerOrgId,
                 BigDecimal.valueOf(1500), CURRENCY, PROVIDER, "IDEM-PG-3", adminUser.getId());
         pi3.setProviderAccountId(PROVIDER_ACCOUNT_ID);
         pi3.setStatus(InstructionStatus.SUCCESS);
@@ -287,7 +399,7 @@ public class PostgresDeterministicReconciliationMatcherTest {
         paymentTransactionRepository.save(pt3);
 
         // Internal 4: Missing outbound settlement (in DB as SETTLED, not in bank)
-        SettlementInstruction si4 = new SettlementInstruction("SETT-PG-4", dealId, milestoneId, sellerOrgId, UUID.randomUUID(),
+        SettlementInstruction si4 = new SettlementInstruction("SETT-PG-4", dealId, milestoneId2, sellerOrgId, beneficiaryBankAccountId,
                 BigDecimal.valueOf(750), CURRENCY, PROVIDER, "IDEM-PG-4", adminUser.getId());
         si4.setProviderAccountId(PROVIDER_ACCOUNT_ID);
         si4.setStatus(SettlementStatus.SETTLED);

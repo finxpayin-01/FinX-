@@ -132,12 +132,30 @@ All 8 component adapters are evaluated under a unified `EvaluationContext(evalua
 
 ---
 
-## 6. PostgreSQL Verification
+## 6. Final Real PostgreSQL Certification
 
-PostgreSQL integration suites are guarded by `@EnabledIf("isPostgresAvailable")` checking port 5432:
-- When live PostgreSQL is present: Executes Flyway V1->V28 migrations, validates partial unique indexes, concurrent deduplication, and schema constraints.
-- When live PostgreSQL is absent: The 84 PostgreSQL integration tests gracefully skip as environmental checks.
-- Zero core engine, adapter, model, or unit tests are skipped.
+Database: PostgreSQL (16.15)
+Endpoint: 127.0.0.1:5432
+Material PostgreSQL tests: 84
+Failures: 0
+Errors: 0
+Skipped: 0
+Flyway: V1 -> V28 PASS
+
+Live Docker Desktop engine (`finx_postgres` container) executed all 11 material PostgreSQL test classes:
+- `PostgresDurableBankStatementSchemaTest`: 26 / 26 PASS
+- `PostgresProviderAccountScopeLineageTest`: 12 / 12 PASS
+- `PostgresFinancialConsistencyTest`: 11 / 11 PASS
+- `PostgresBankStatementIngestionTest`: 7 / 7 PASS
+- `PostgresFinancialIdentityTest`: 7 / 7 PASS
+- `PostgresLockingConcurrencyTest`: 7 / 7 PASS
+- `PostgresEngineFrameworkTest`: 5 / 5 PASS
+- `DurableBankStatementEntityMappingTest`: 4 / 4 PASS
+- `PostgresDeterministicReconciliationMatcherTest`: 3 / 3 PASS
+- `PostgresFraudPolicyTest`: 1 / 1 PASS
+- `FlywayCleanMigrationTest`: 1 / 1 PASS
+
+Total Real PostgreSQL Tests: **84 / 84 PASS (100%), Skipped: 0**.
 
 ---
 
@@ -179,11 +197,11 @@ Architecture tests confirm strict containment:
 
 ## 9. Full Suite Results
 
-Execution of `.\mvnw.cmd test`:
+Execution of `.\mvnw.cmd test` with live PostgreSQL container:
 - **Tests run:** 1087
 - **Failures:** 0
 - **Errors:** 0
-- **Skipped:** 85 (84 Postgres container integration tests + 1 Browser UI test)
+- **Skipped:** 1 (`InvoiceBrowserTest` only, due to headless environment lacking graphical browser binary; 0 PostgreSQL skips)
 - **BUILD SUCCESS**
 
 ---
@@ -191,6 +209,7 @@ Execution of `.\mvnw.cmd test`:
 ## 10. Final Verdict
 
 - **ENGINE PLATFORM:** **CERTIFIED COMPLETE & HARDENED**
+- **REAL POSTGRESQL GATE:** **PASS (84 / 84, 0 SKIPPED)**
 - **PRODUCTION MONEY MOVEMENT:** **DISABLED**
 - **DATABASE MIGRATION:** **V1 -> V28 UNCHANGED (V29 ABSENT)**
-- **NEXT STEP:** **POST-ENGINE RELEASE EXECUTION ARCHITECTURE PLANNING**
+- **READY FOR POST-ENGINE EXECUTION ARCHITECTURE:** **YES**

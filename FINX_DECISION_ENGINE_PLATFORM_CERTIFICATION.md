@@ -22,7 +22,7 @@ The FinX Decision Engine Platform is **100% complete, hardened, and verified**. 
 - **Financial Side-Effects during Evaluation:** 0
 - **ReleaseInstruction Entity Creation:** NOT IMPLEMENTED (0)
 - **Production Payout State:** **DISABLED**
-- **Full Test Suite:** **PASS** (1087 tests run, 0 failures, 0 errors, 85 skipped due to optional local Postgres/Redis containers)
+- **Full Test Suite:** **PASS** (1087 tests run, 0 failures, 0 errors, 1 skipped - `InvoiceBrowserTest` browser UI test only; 0 PostgreSQL skips)
 
 ---
 
@@ -247,16 +247,38 @@ The following components are **explicitly outside the decision engine platform**
 
 ## 14. Test & Verification Results
 
-- **Full Maven Test Suite:**
-  ```
-  [INFO] Results:
-  [INFO] Tests run: 1087, Failures: 0, Errors: 0, Skipped: 85
-  [INFO] BUILD SUCCESS
-  ```
-- **Skipped Test Category Breakdown:**
-  - Exactly 85 tests skipped:
-    - 84 PostgreSQL integration tests (`PostgresDurableBankStatementSchemaTest` [26], `PostgresProviderAccountScopeLineageTest` [12], `PostgresFinancialConsistencyTest` [11], `PostgresBankStatementIngestionTest` [7], `PostgresFinancialIdentityTest` [7], `PostgresLockingConcurrencyTest` [7], `PostgresEngineFrameworkTest` [5], `DurableBankStatementEntityMappingTest` [4], `PostgresDeterministicReconciliationMatcherTest` [3], `PostgresFraudPolicyTest` [1], `FlywayCleanMigrationTest` [1]) guarded by `@EnabledIf("isPostgresAvailable")` when local Docker daemon is offline.
-    - 1 Browser UI test (`InvoiceBrowserTest` [1]) guarded by browser environment check.
+### 14.1 Final Real PostgreSQL Certification
+- **Database:** PostgreSQL (16.15)
+- **Endpoint:** 127.0.0.1:5432
+- **Material PostgreSQL Tests Run:** 84
+- **Failures:** 0
+- **Errors:** 0
+- **Skipped:** 0
+- **Flyway Status:** V1 -> V28 PASS
+
+**Explicit Material PostgreSQL Test Classes:**
+- `PostgresDurableBankStatementSchemaTest`: 26 / 26 PASS
+- `PostgresProviderAccountScopeLineageTest`: 12 / 12 PASS
+- `PostgresFinancialConsistencyTest`: 11 / 11 PASS
+- `PostgresBankStatementIngestionTest`: 7 / 7 PASS
+- `PostgresFinancialIdentityTest`: 7 / 7 PASS
+- `PostgresLockingConcurrencyTest`: 7 / 7 PASS
+- `PostgresEngineFrameworkTest`: 5 / 5 PASS
+- `DurableBankStatementEntityMappingTest`: 4 / 4 PASS
+- `PostgresDeterministicReconciliationMatcherTest`: 3 / 3 PASS
+- `PostgresFraudPolicyTest`: 1 / 1 PASS
+- `FlywayCleanMigrationTest`: 1 / 1 PASS
+
+### 14.2 Full Maven Test Suite
+```
+[INFO] Results:
+[INFO] Tests run: 1087, Failures: 0, Errors: 0, Skipped: 1
+[INFO] BUILD SUCCESS
+```
+
+- **Skipped Test Breakdown:**
+  - Exactly 1 test skipped: `InvoiceBrowserTest` (1) due to headless testing environment lacking a desktop browser binary.
+  - **PostgreSQL Skips:** **0** (All 84 material PostgreSQL tests fully executed against live container).
   - **Zero** engine, adapter, model, or unit tests were skipped.
 
 ---
