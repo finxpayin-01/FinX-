@@ -201,6 +201,10 @@ public class FlywayCleanMigrationTest {
             assertTrue(reconRunsColumns.contains("closing_balance"), "V26 column 'closing_balance' on 'reconciliation_runs' must exist, found: " + reconRunsColumns);
             assertTrue(reconRunsColumns.contains("currency"), "V26 column 'currency' on 'reconciliation_runs' must exist, found: " + reconRunsColumns);
 
+            // V28 deterministic reconciliation columns
+            assertTrue(reconRunsColumns.contains("matcher_version"), "V28 column 'matcher_version' on 'reconciliation_runs' must exist, found: " + reconRunsColumns);
+            assertTrue(reconRunsColumns.contains("statement_source_hash"), "V28 column 'statement_source_hash' on 'reconciliation_runs' must exist, found: " + reconRunsColumns);
+
             assertTrue(reconItemsColumns.contains("bank_statement_line_id"), "V26 column 'bank_statement_line_id' on 'reconciliation_items' must exist, found: " + reconItemsColumns);
             assertTrue(reconItemsColumns.contains("internal_effect_type"), "V26 column 'internal_effect_type' on 'reconciliation_items' must exist, found: " + reconItemsColumns);
             assertTrue(reconItemsColumns.contains("internal_effect_id"), "V26 column 'internal_effect_id' on 'reconciliation_items' must exist, found: " + reconItemsColumns);
@@ -208,6 +212,7 @@ public class FlywayCleanMigrationTest {
             assertTrue(reconItemsColumns.contains("direction"), "V26 column 'direction' on 'reconciliation_items' must exist, found: " + reconItemsColumns);
             assertTrue(reconItemsColumns.contains("bank_status"), "V26 column 'bank_status' on 'reconciliation_items' must exist, found: " + reconItemsColumns);
             assertTrue(reconItemsColumns.contains("resolution_notes"), "V26 column 'resolution_notes' on 'reconciliation_items' must exist, found: " + reconItemsColumns);
+            assertTrue(reconItemsColumns.contains("reason_code"), "V28 column 'reason_code' on 'reconciliation_items' must exist, found: " + reconItemsColumns);
 
             // V27 internal effect provider account scope columns
             List<String> paymentInstructionColumns = new ArrayList<>();
@@ -227,9 +232,10 @@ public class FlywayCleanMigrationTest {
             assertTrue(settlementInstructionColumns.contains("provider_account_id"),
                     "V27 column 'provider_account_id' on 'settlement_instructions' must exist, found: " + settlementInstructionColumns);
 
-            // Verify highest migration is V27 and V28 is absent
+            // Verify highest migration is V28 and V29 is absent
             boolean v27Found = false;
             boolean v28Found = false;
+            boolean v29Found = false;
             for (MigrationInfo info : infoList) {
                 if ("27".equals(info.getVersion().getVersion())) {
                     v27Found = true;
@@ -237,11 +243,15 @@ public class FlywayCleanMigrationTest {
                 if ("28".equals(info.getVersion().getVersion())) {
                     v28Found = true;
                 }
+                if ("29".equals(info.getVersion().getVersion())) {
+                    v29Found = true;
+                }
             }
             assertTrue(v27Found, "Migration V27 must be present and executed");
-            assertFalse(v28Found, "Migration V28 must NOT exist in R2.5 phase");
+            assertTrue(v28Found, "Migration V28 must be present and executed");
+            assertFalse(v29Found, "Migration V29 must NOT exist in R3 phase");
 
-            System.out.println("ALL V1 - V27 TABLES AND COLUMNS VERIFIED IN SEQUENTIAL CLEAN ORDER!\n");
+            System.out.println("ALL V1 - V28 TABLES AND COLUMNS VERIFIED IN SEQUENTIAL CLEAN ORDER!\n");
         }
     }
 }

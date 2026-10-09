@@ -72,6 +72,13 @@ public class ReconciliationRun {
     @Column(name = "currency", length = 3)
     private String currency;
 
+    // V28 Additive Deterministic Reconciliation Fields (Nullable for backward compatibility)
+    @Column(name = "matcher_version", length = 64)
+    private String matcherVersion;
+
+    @Column(name = "statement_source_hash", length = 64)
+    private String statementSourceHash;
+
     public ReconciliationRun() {
         this.id = UUID.randomUUID();
         this.status = ReconciliationRunStatus.IN_PROGRESS;
@@ -128,4 +135,9 @@ public class ReconciliationRun {
     public void setClosingBalance(BigDecimal closingBalance) { this.closingBalance = closingBalance; }
     public String getCurrency() { return currency; }
     public void setCurrency(String currency) { this.currency = currency; }
+
+    public String getMatcherVersion() { return matcherVersion; }
+    public void setMatcherVersion(String matcherVersion) { this.matcherVersion = matcherVersion; }
+    public String getStatementSourceHash() { return statementSourceHash; }
+    public void setStatementSourceHash(String statementSourceHash) { this.statementSourceHash = statementSourceHash; }
 }

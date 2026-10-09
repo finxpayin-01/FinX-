@@ -1,6 +1,7 @@
 package com.finx.reconciliation.service;
 
 import com.finx.banking.dto.BankStatementEntry;
+import com.finx.reconciliation.entity.BankStatementLine;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -16,6 +17,26 @@ import java.util.List;
 public final class BankStatementEvidenceFingerprint {
 
     private BankStatementEvidenceFingerprint() {
+    }
+
+    public static String computeLineFingerprint(BankStatementLine line) {
+        if (line == null) {
+            throw new IllegalArgumentException("BankStatementLine cannot be null");
+        }
+        return computeLineFingerprint(
+                line.getProvider(),
+                line.getProviderAccountId(),
+                line.getProviderLineId(),
+                line.getTransactionReference(),
+                line.getUtrNumber(),
+                line.getAmount(),
+                line.getCurrency(),
+                line.getDirection() != null ? line.getDirection().name() : null,
+                line.getProviderStatus(),
+                line.getNormalizedStatus() != null ? line.getNormalizedStatus().name() : null,
+                line.getTransactionTime(),
+                line.getValueDate()
+        );
     }
 
     public static String computeLineFingerprint(String provider, String providerAccountId, BankStatementEntry entry) {

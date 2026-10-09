@@ -75,6 +75,11 @@ public class ReconciliationItem {
     @Column(name = "resolution_notes", columnDefinition = "TEXT")
     private String resolutionNotes;
 
+    // V28 Additive Deterministic Reconciliation Fields (Nullable for backward compatibility)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "reason_code", length = 100)
+    private com.finx.reconciliation.enums.ReconciliationReasonCode reasonCode;
+
     public ReconciliationItem() {
         this.id = UUID.randomUUID();
         this.resolutionStatus = ResolutionStatus.UNRESOLVED;
@@ -133,4 +138,7 @@ public class ReconciliationItem {
     public void setBankStatus(String bankStatus) { this.bankStatus = bankStatus; }
     public String getResolutionNotes() { return resolutionNotes; }
     public void setResolutionNotes(String resolutionNotes) { this.resolutionNotes = resolutionNotes; }
+
+    public com.finx.reconciliation.enums.ReconciliationReasonCode getReasonCode() { return reasonCode; }
+    public void setReasonCode(com.finx.reconciliation.enums.ReconciliationReasonCode reasonCode) { this.reasonCode = reasonCode; }
 }

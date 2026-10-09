@@ -60,7 +60,7 @@ public class PostgresProviderAccountScopeLineageTest {
         flyway.clean();
         MigrateResult result = flyway.migrate();
         assertThat(result.success).isTrue();
-        assertThat(result.targetSchemaVersion).isEqualTo("27");
+        assertThat(Integer.parseInt(result.targetSchemaVersion)).isGreaterThanOrEqualTo(27);
     }
 
     private Connection getConnection() throws SQLException {
