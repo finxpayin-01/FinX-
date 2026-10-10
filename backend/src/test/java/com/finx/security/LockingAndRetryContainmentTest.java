@@ -179,6 +179,17 @@ public class LockingAndRetryContainmentTest {
                 escrowService, ledgerService, bankingProvider, auditService,
                 notificationService, riskActionService, null, null, null, approvalApplicabilityService
         );
+
+        lenient().when(milestoneRepository.findDealIdById(any())).thenAnswer(inv -> {
+            UUID id = inv.getArgument(0);
+            if (milestoneId.equals(id)) return Optional.of(dealId);
+            return Optional.empty();
+        });
+        lenient().when(milestoneRepository.findById(any())).thenAnswer(inv -> {
+            UUID id = inv.getArgument(0);
+            if (milestoneId.equals(id)) return Optional.of(milestone);
+            return Optional.empty();
+        });
     }
 
     // =========================================================================

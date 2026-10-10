@@ -7,22 +7,25 @@ This document outlines the strict 12-phase engineering roadmap (E1 through E12) 
 +---------------------------------------------------------------------------------------+
 |                               IMPLEMENTATION ROADMAP                                   |
 |                                                                                       |
-|  [E1: Release & Reservation DB Foundation]                                            |
+|  [E1: Release & Reservation DB Foundation] (V29)                                      |
 |       |                                                                               |
 |       v                                                                               |
-|  [E2: Authorization & Atomic Reservation]                                             |
+|  [E1.5: Durable Milestone Approval Binding] (V30)                                     |
 |       |                                                                               |
 |       v                                                                               |
-|  [E3: Transactional Outbox Schema & Enqueue]                                          |
+|  [E2: Authorization & Atomic Reservation] (No migration)                              |
 |       |                                                                               |
 |       v                                                                               |
-|  [E4: Worker Framework & Execution Attempt Model]                                     |
+|  [E3: Transactional Outbox Schema & Enqueue] (V31)                                     |
+|       |                                                                               |
+|       v                                                                               |
+|  [E4: Worker Framework & Execution Attempt Model] (V32)                                |
 |       |                                                                               |
 |       v                                                                               |
 |  [E5: Mock Provider Sandbox Dispatch]                                                 |
 |       |                                                                               |
 |       v                                                                               |
-|  [E6: Observation Inbox & Polling Recovery]                                           |
+|  [E6: Observation Inbox & Polling Recovery] (V33)                                      |
 |       |                                                                               |
 |       v                                                                               |
 |  [E7: Atomic Settlement Finalizer (Ledger + Escrow)]                                  |
@@ -64,8 +67,27 @@ This document outlines the strict 12-phase engineering roadmap (E1 through E12) 
 
 ---
 
+### Phase E1.5 — Durable Milestone Approval Binding
+- **Scope**: Create immutable, durable evidence of milestone approval events (`MilestoneApprovalBinding`) with deterministic SHA-256 fingerprints, transactional persistence in `MilestoneService`, and enable legitimate `ALLOW` decisions in `ApprovalDecisionAdapter`.
+- **Flyway Migration**: `V30__create_milestone_approval_bindings.sql`.
+- **Classes**:
+  - `com.finx.approval.entity.MilestoneApprovalAuthority`
+  - `com.finx.approval.entity.MilestoneApprovalBinding`
+  - `com.finx.approval.repository.MilestoneApprovalBindingRepository`
+  - `com.finx.approval.dto.ApprovalBindingEvaluation`
+  - `com.finx.approval.service.MilestoneApprovalFingerprintService`
+  - `com.finx.approval.service.MilestoneApprovalBindingService`
+- **Tests**: `MilestoneApprovalBindingServiceTest`, `MilestoneApprovalBindingIntegrationTest`, `ApprovalDecisionAdapterTest`, `PostgresMilestoneApprovalBindingTest`.
+- **Financial Side Effects Allowed**: None.
+- **Bank Calls Allowed**: None.
+- **Acceptance Criteria**: Immutable bindings with SHA-256 fingerprints, canonical `Deal -> Milestone` lock order, `ApprovalDecisionAdapter` allows only when durable binding is present and current, zero bank calls or financial side effects.
+- **Commit Message**: `feat(approval): add durable milestone approval binding`
+
+---
+
 ### Phase E2 — Release Authorization & Atomic Reservation Transaction
 - **Scope**: Implement `ReleaseInstructionService` and `ReleaseAuthorizationService` implementing TX1 and TX2.
+- **Flyway Migration**: None expected.
 - **Classes**:
   - `com.finx.release.service.ReleaseInstructionService`
   - `com.finx.release.service.ReleaseAuthorizationService`
@@ -80,7 +102,7 @@ This document outlines the strict 12-phase engineering roadmap (E1 through E12) 
 
 ### Phase E3 — Transactional Outbox Schema & Enqueueing
 - **Scope**: Implement `financial_outbox` table and enqueueing mechanism during TX2.
-- **Flyway Migration**: `V30__create_financial_outbox.sql`.
+- **Flyway Migration**: `V31__create_financial_outbox.sql`.
 - **Classes**:
   - `com.finx.outbox.domain.FinancialOutboxMessage`
   - `com.finx.outbox.repository.FinancialOutboxRepository`
@@ -95,7 +117,7 @@ This document outlines the strict 12-phase engineering roadmap (E1 through E12) 
 
 ### Phase E4 — Worker Leasing Framework & Execution Attempt Model
 - **Scope**: Build PostgreSQL worker leasing engine (`SELECT ... FOR UPDATE SKIP LOCKED`) and `SettlementExecutionAttempt` tracking.
-- **Flyway Migration**: `V31__create_settlement_execution_attempts.sql`.
+- **Flyway Migration**: `V32__create_settlement_execution_attempts.sql`.
 - **Classes**:
   - `com.finx.outbox.worker.FinancialOutboxWorker`
   - `com.finx.release.domain.SettlementExecutionAttempt`
@@ -123,7 +145,7 @@ This document outlines the strict 12-phase engineering roadmap (E1 through E12) 
 
 ### Phase E6 — Trusted Settlement Observation Inbox & Polling Recovery
 - **Scope**: Implement multi-channel settlement observation via HMAC-verified webhooks and status polling.
-- **Flyway Migration**: `V32__create_settlement_observations.sql`.
+- **Flyway Migration**: `V33__create_settlement_observations.sql`.
 - **Classes**:
   - `com.finx.webhook.controller.BankingWebhookController` (Hardened)
   - `com.finx.release.service.SettlementObservationService`

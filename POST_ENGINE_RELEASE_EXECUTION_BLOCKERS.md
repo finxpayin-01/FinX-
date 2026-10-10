@@ -19,7 +19,8 @@ This document inventories and categorizes all architectural and implementation b
 
 | ID | Blocker Description | Current State | Target Resolution Phase |
 | :--- | :--- | :--- | :--- |
-| **P0-1** | **Absence of ReleaseInstruction Entity & Lifecycle** | ReleaseDecisionEngine produces advisory `EngineDecision`, but no entity exists to bind, track, and snapshot release intent. | **Phase E1** |
+| **P0-0** | **Absence of Durable Financial Milestone Approval Binding** | Milestone `APPROVED` status alone was nonauthoritative; approval adapter had no `ALLOW` branch (`milestoneUnbound = true` hardcoded), preventing legitimate `ReleaseDecisionEngine` ALLOW decisions. | **RESOLVED E1.5** (Immutable `MilestoneApprovalBinding` table `V30`, SHA-256 fingerprints, canonical `Deal -> Milestone` lock order, and real `ALLOW` adapter branch implemented). |
+| **P0-1** | **Absence of ReleaseInstruction Entity & Lifecycle** | ReleaseDecisionEngine produces advisory `EngineDecision`, but no entity exists to bind, track, and snapshot release intent. | **Phase E1** (Schema `V29` & repositories complete). |
 | **P0-2** | **Absence of Durable Escrow Fund Reservation** | Escrow funds are only checked synchronously; concurrent releases could double-spend before ledger debit. | **Phase E1 & E2** |
 | **P0-3** | **Absence of Transactional Outbox & Worker Leasing** | No durable outbox table (`financial_outbox`) exists to guarantee at-least-once dispatch without two-phase commit risks. | **Phase E3 & E4** |
 | **P0-4** | **Legacy Settlement Service Fails-Closed (B04 Gate)** | `SettlementAuthorizationService` throws `AccessDeniedException` and collapses authorization/execution into a single unsafe transaction. | **Phase E2 & E4** |

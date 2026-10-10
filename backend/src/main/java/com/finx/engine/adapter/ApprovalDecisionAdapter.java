@@ -1,5 +1,7 @@
 package com.finx.engine.adapter;
 
+import com.finx.approval.entity.MilestoneApprovalBinding;
+import com.finx.approval.repository.MilestoneApprovalBindingRepository;
 import com.finx.engine.model.*;
 import com.finx.invoice.enums.InvoiceStatus;
 import com.finx.milestone.entity.MilestoneStatus;
@@ -10,12 +12,13 @@ import com.finx.risk.entity.RiskReview;
 import com.finx.risk.entity.RiskScore;
 import com.finx.risk.repository.BusinessRiskRepository;
 import com.finx.security.service.UserPrincipal;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.*;
 
-/** Existing product applicability only; no enterprise workflow or durable milestone approval binding. */
+/** Durable milestone approval binding evaluation with real ALLOW branch under confirmed binding. */
 @Component
 @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
 public class ApprovalDecisionAdapter implements ReadOnlyDecisionAdapter {
@@ -23,10 +26,19 @@ public class ApprovalDecisionAdapter implements ReadOnlyDecisionAdapter {
     private final ApprovalApplicabilityService applicability;
     private final OrganizationBankAccountRepository accounts;
     private final BusinessRiskRepository risk;
+    private final MilestoneApprovalBindingRepository bindingRepository;
+
+    @Autowired
+    public ApprovalDecisionAdapter(MilestoneDecisionEvidenceReader reader, ApprovalApplicabilityService applicability,
+            OrganizationBankAccountRepository accounts, BusinessRiskRepository risk,
+            @Autowired(required = false) MilestoneApprovalBindingRepository bindingRepository) {
+        this.reader = reader; this.applicability = applicability; this.accounts = accounts; this.risk = risk;
+        this.bindingRepository = bindingRepository;
+    }
 
     public ApprovalDecisionAdapter(MilestoneDecisionEvidenceReader reader, ApprovalApplicabilityService applicability,
             OrganizationBankAccountRepository accounts, BusinessRiskRepository risk) {
-        this.reader = reader; this.applicability = applicability; this.accounts = accounts; this.risk = risk;
+        this(reader, applicability, accounts, risk, null);
     }
 
     @Override public EngineType type() { return EngineType.APPROVAL; }
@@ -77,17 +89,39 @@ public class ApprovalDecisionAdapter implements ReadOnlyDecisionAdapter {
         if (scopedRestriction) blocks.add("APPROVAL_RISK_RESTRICTION_ACTIVE");
         else if (!restrictions.applicable() || !result.riskApplicable()) reviews.add("APPROVAL_RISK_SCOPE_UNRESOLVED");
 
-        // No current schema source can prove a durable milestone approval binding. No ALLOW branch exists.
-        if (result.milestoneUnbound() || result.milestoneApproved()) reviews.add("APPROVAL_UNBOUND_MILESTONE");
+        // Durable milestone approval binding evidence
+        MilestoneApprovalBinding binding = null;
+        if (bindingRepository != null) {
+            binding = bindingRepository.findByMilestoneId(s.milestone().getId()).orElse(null);
+        }
+        if (binding != null) {
+            MilestoneDecisionEvidenceReader.requireScope(binding.getDealId().equals(s.deal().getId())
+                    && binding.getOrganizationId().equals(s.deal().getBuyerOrganizationId()));
+            evidence.reference("MILESTONE_APPROVAL_BINDING", binding.getId(), binding.getApprovedAt(), null,
+                    "MILESTONE_APPROVAL_BINDING", null);
+            evidence.input("MILESTONE_APPROVAL_BINDING", binding.getId(), binding.getOrganizationId(), binding.getDealId(),
+                    binding.getMilestoneId(), binding.getApprovedBy(), binding.getApprovalAuthority().name(),
+                    binding.getProjectManagerId(), binding.getMilestoneFingerprint(), binding.getDeliverablesFingerprint(),
+                    binding.getApprovalFingerprint(), binding.getApprovedAt());
+        }
+
+        for (String reason : result.reasonCodes()) {
+            if (reason.startsWith("APPROVAL_BINDING_MISSING")) reviews.add("APPROVAL_BINDING_MISSING");
+            else if (reason.startsWith("APPROVAL_BINDING_MILESTONE_CHANGED")) reviews.add("APPROVAL_BINDING_MILESTONE_CHANGED");
+            else if (reason.startsWith("APPROVAL_BINDING_DELIVERABLES_CHANGED")) reviews.add("APPROVAL_BINDING_DELIVERABLES_CHANGED");
+            else if (reason.startsWith("APPROVAL_BINDING_AUTHORITY_CHANGED")) reviews.add("APPROVAL_BINDING_AUTHORITY_CHANGED");
+            else if (reason.startsWith("APPROVAL_BUYER_ORGANIZATION_UNBOUND")) reviews.add("APPROVAL_BUYER_ORGANIZATION_UNBOUND");
+            else if (reason.startsWith("MILESTONE_MODIFIED_AFTER_APPROVAL")) reviews.add("APPROVAL_MODIFIED_AFTER_DECISION");
+            else if (reason.startsWith("SNAPSHOT_COHERENCE_VIOLATION")) reviews.add("APPROVAL_SNAPSHOT_INCOHERENT");
+        }
+        if (result.milestoneUnbound() && reviews.stream().noneMatch(r -> r.startsWith("APPROVAL_BINDING_") || r.equals("APPROVAL_BUYER_ORGANIZATION_UNBOUND"))) {
+            reviews.add("APPROVAL_UNBOUND_MILESTONE");
+        }
         if (!result.milestoneApproved()) reviews.add("APPROVAL_PENDING");
         if (!result.invoiceApplicable() || !s.invoiceCurrent()) reviews.add("APPROVAL_INVOICE_PENDING");
         if (!result.agreementApplicable()) reviews.add("APPROVAL_AGREEMENT_NOT_SIGNED");
         if (!result.beneficiaryApplicable()) reviews.add("APPROVAL_BENEFICIARY_INELIGIBLE");
         if (!result.pmAssignmentApplicable()) reviews.add("APPROVAL_PM_ASSIGNMENT_CHANGED");
-        for (String reason : result.reasonCodes()) {
-            if (reason.startsWith("MILESTONE_MODIFIED_AFTER_APPROVAL")) reviews.add("APPROVAL_MODIFIED_AFTER_DECISION");
-            if (reason.startsWith("SNAPSHOT_COHERENCE_VIOLATION")) reviews.add("APPROVAL_SNAPSHOT_INCOHERENT");
-        }
         if (result.beneficiaryAccountId() != null) {
             var account = accounts.findById(result.beneficiaryAccountId()).orElseThrow(
                     () -> new IllegalStateException("Beneficiary evidence is unavailable"));
@@ -101,12 +135,27 @@ public class ApprovalDecisionAdapter implements ReadOnlyDecisionAdapter {
         evidence.input("APPLICABILITY", result.applicable(), result.milestoneApproved(), result.milestoneUnbound(),
                 result.invoiceApplicable(), result.agreementApplicable(), result.beneficiaryApplicable(),
                 result.pmAssignmentApplicable(), result.disputeApplicable(), scopedRestriction, result.assignedProjectManagerId());
-        reviews.add("APPROVAL_UNBOUND_MILESTONE");
-        List<String> reasons = new ArrayList<>(blocks);
-        reasons.addAll(reviews);
-        evidence.input("MAPPING", String.join("|", reasons));
-        return evidence.command(context, type(), blocks.isEmpty() ? DecisionStatus.REVIEW : DecisionStatus.BLOCK, reasons,
-                "Historical milestone approval is not bound to a durable revision/fingerprint and cannot act as current financial authorization. "
-                        + "This assesses existing product approval applicability only; enterprise approval is not implemented.");
+
+        if (!blocks.isEmpty()) {
+            List<String> reasons = new ArrayList<>(blocks);
+            reasons.addAll(reviews);
+            evidence.input("MAPPING", String.join("|", reasons));
+            return evidence.command(context, type(), DecisionStatus.BLOCK, reasons,
+                    "Explicit approval prohibition active.");
+        }
+
+        if (!reviews.isEmpty() || !result.applicable() || binding == null) {
+            List<String> reasons = new ArrayList<>(reviews);
+            evidence.input("MAPPING", String.join("|", reasons));
+            String explanation = reviews.contains("APPROVAL_UNBOUND_MILESTONE")
+                    ? "Historical milestone approval is not bound to a durable revision/fingerprint and cannot act as current financial authorization. This assesses existing product approval applicability only; enterprise approval is not implemented."
+                    : "Approval review requirements are not satisfied.";
+            return evidence.command(context, type(), DecisionStatus.REVIEW, reasons, explanation);
+        }
+
+        List<String> allowReasons = List.of("APPROVAL_CURRENT_BINDING_CONFIRMED");
+        evidence.input("MAPPING", String.join("|", allowReasons));
+        return evidence.command(context, type(), DecisionStatus.ALLOW, allowReasons,
+                "Durable milestone approval binding confirmed and current. All applicability requirements satisfied.");
     }
 }

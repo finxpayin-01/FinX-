@@ -21,6 +21,9 @@ public interface MilestoneRepository extends JpaRepository<Milestone, UUID> {
     @Query("select m from Milestone m where m.id = :id")
     java.util.Optional<Milestone> findByIdForUpdate(@Param("id") UUID id);
 
+    @Query("select m.dealId from Milestone m where m.id = :id")
+    java.util.Optional<UUID> findDealIdById(@Param("id") UUID id);
+
     @Query("SELECT m FROM Milestone m WHERE m.status IN (com.finx.milestone.entity.MilestoneStatus.PENDING, com.finx.milestone.entity.MilestoneStatus.IN_PROGRESS) AND m.submissionDeadline IS NOT NULL AND m.submissionDeadline <= :now")
     List<Milestone> findOverdueCandidates(@Param("now") java.time.Instant now);
 

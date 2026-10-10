@@ -55,7 +55,7 @@ class MilestoneApprovalDecisionPersistenceTest {
     private static final List<String> UNCHANGED_TABLES = List.of("settlement_instructions", "payment_instructions",
             "payment_transactions", "journal_entries", "journal_lines", "escrow_accounts", "escrow_ledger", "milestones",
             "deliverables", "invoices", "invoice_reviews", "invoice_assessments", "deal_agreements", "risk_reviews",
-            "risk_scores", "risk_score_history", "risk_events", "organization_bank_accounts");
+            "risk_scores", "risk_score_history", "risk_events", "organization_bank_accounts", "milestone_approval_bindings");
 
     @BeforeEach void fixture() {
         buyer = new User("Buyer", UUID.randomUUID() + "@test.invalid", "test", Role.BUYER, UserStatus.ACTIVE); em.persist(buyer);
@@ -154,7 +154,8 @@ class MilestoneApprovalDecisionPersistenceTest {
                 Map.entry("AGREEMENT", DealAgreement.class), Map.entry("DELIVERABLE", Deliverable.class), Map.entry("INVOICE", Invoice.class),
                 Map.entry("INVOICE_ASSESSMENT", InvoiceAssessment.class), Map.entry("INVOICE_REVIEW", InvoiceReview.class),
                 Map.entry("ESCROW_ACCOUNT", EscrowAccount.class), Map.entry("ESCROW_LEDGER", EscrowLedger.class),
-                Map.entry("DISPUTE", Dispute.class), Map.entry("ORGANIZATION_BANK_ACCOUNT", OrganizationBankAccount.class), Map.entry("RISK_REVIEW", RiskReview.class));
+                Map.entry("DISPUTE", Dispute.class), Map.entry("ORGANIZATION_BANK_ACCOUNT", OrganizationBankAccount.class),
+                Map.entry("RISK_REVIEW", RiskReview.class), Map.entry("MILESTONE_APPROVAL_BINDING", com.finx.approval.entity.MilestoneApprovalBinding.class));
         assertThat(d.getEvidenceReferences()).isNotEmpty().allSatisfy(ref -> {
             assertThat(types).containsKey(ref.sourceType()); assertThat(em.find(types.get(ref.sourceType()), ref.sourceId())).isNotNull();
         });

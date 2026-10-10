@@ -46,6 +46,30 @@ public class MilestoneService {
     private final EscrowService escrowService;
     private final com.finx.milestone.reminder.MilestoneReminderService milestoneReminderService;
     private final com.finx.common.time.FinxClock clock;
+    private final com.finx.approval.service.MilestoneApprovalBindingService approvalBindingService;
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager entityManager;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public MilestoneService(MilestoneRepository milestoneRepository,
+                            DeliverableRepository deliverableRepository,
+                            DealRepository dealRepository,
+                            AuditService auditService,
+                            NotificationService notificationService,
+                            EscrowService escrowService,
+                            com.finx.milestone.reminder.MilestoneReminderService milestoneReminderService,
+                            com.finx.common.time.FinxClock clock,
+                            @org.springframework.beans.factory.annotation.Autowired(required = false) com.finx.approval.service.MilestoneApprovalBindingService approvalBindingService) {
+        this.milestoneRepository = milestoneRepository;
+        this.deliverableRepository = deliverableRepository;
+        this.dealRepository = dealRepository;
+        this.auditService = auditService;
+        this.notificationService = notificationService;
+        this.escrowService = escrowService;
+        this.milestoneReminderService = milestoneReminderService;
+        this.clock = clock;
+        this.approvalBindingService = approvalBindingService;
+    }
 
     public MilestoneService(MilestoneRepository milestoneRepository,
                             DeliverableRepository deliverableRepository,
@@ -55,14 +79,7 @@ public class MilestoneService {
                             EscrowService escrowService,
                             com.finx.milestone.reminder.MilestoneReminderService milestoneReminderService,
                             com.finx.common.time.FinxClock clock) {
-        this.milestoneRepository = milestoneRepository;
-        this.deliverableRepository = deliverableRepository;
-        this.dealRepository = dealRepository;
-        this.auditService = auditService;
-        this.notificationService = notificationService;
-        this.escrowService = escrowService;
-        this.milestoneReminderService = milestoneReminderService;
-        this.clock = clock;
+        this(milestoneRepository, deliverableRepository, dealRepository, auditService, notificationService, escrowService, milestoneReminderService, clock, null);
     }
 
     @Transactional
@@ -317,19 +334,31 @@ public class MilestoneService {
 
     @Transactional
     public MilestoneResponse approveMilestone(UUID milestoneId, UserPrincipal currentUser) {
-        // B11: Canonical lock order: Deal -> Milestone.
-        // Acquire locks in deterministic order to prevent races and silent overwrites.
-        Milestone initial = milestoneRepository.findByIdForUpdate(milestoneId)
-                .or(() -> milestoneRepository.findById(milestoneId))
+        // Canonical lock order: Deal -> Milestone.
+        // Step 1: Read milestone ID -> dealId without write lock.
+        UUID dealId = milestoneRepository.findDealIdById(milestoneId)
+                .or(() -> milestoneRepository.findById(milestoneId).map(Milestone::getDealId))
                 .orElseThrow(() -> new ResourceNotFoundException("Milestone", "id", milestoneId));
 
-        Deal deal = dealRepository.findByIdForUpdate(initial.getDealId())
-                .or(() -> dealRepository.findById(initial.getDealId()))
-                .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", initial.getDealId()));
+        // Step 2: Lock Deal.
+        Deal deal = dealRepository.findByIdForUpdate(dealId)
+                .or(() -> dealRepository.findById(dealId))
+                .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", dealId));
 
+        // Step 3: Lock Milestone.
         Milestone milestone = milestoneRepository.findByIdForUpdate(milestoneId)
                 .or(() -> milestoneRepository.findById(milestoneId))
                 .orElseThrow(() -> new ResourceNotFoundException("Milestone", "id", milestoneId));
+        if (entityManager != null) {
+            try {
+                entityManager.refresh(milestone);
+            } catch (Exception ignored) {}
+        }
+
+        // Step 4: Reverify milestone.dealId == locked Deal.id
+        if (!deal.getId().equals(milestone.getDealId())) {
+            throw new BadRequestException("Milestone does not belong to deal");
+        }
 
         boolean isBuyer = deal.getBuyerId().equals(currentUser.getId());
         boolean isAdmin = currentUser.getRole() == Role.ADMIN;
@@ -344,19 +373,40 @@ public class MilestoneService {
             throw new BadRequestException("Only submitted milestones under review can be approved. Current status: " + milestone.getStatus());
         }
 
-        milestone.setStatus(MilestoneStatus.APPROVED);
-        Milestone updated = milestoneRepository.saveAndFlush(milestone);
+        Instant approvalTime = (clock != null) ? clock.now() : Instant.now();
 
+        // Update pending deliverables first
         List<Deliverable> deliverables = deliverableRepository.findByMilestoneIdOrderBySubmittedAtDesc(milestoneId);
         for (Deliverable d : deliverables) {
             if (d.getStatus() == DeliverableStatus.PENDING) {
                 d.setStatus(DeliverableStatus.APPROVED);
-                d.setReviewedAt(Instant.now());
+                d.setReviewedAt(approvalTime);
                 d.setReviewedBy(currentUser.getId());
                 deliverableRepository.save(d);
             }
         }
-        updated.setDeliverables(deliverables);
+        deliverableRepository.flush();
+
+        milestone.setStatus(MilestoneStatus.APPROVED);
+        Milestone updated = milestoneRepository.saveAndFlush(milestone);
+
+        // Snapshot current post-approval persisted state
+        List<Deliverable> persistedDeliverables = deliverableRepository.findByMilestoneIdOrderBySubmittedAtDesc(milestoneId);
+        updated.setDeliverables(persistedDeliverables);
+
+        // Create immutable approval binding for modern org-bound deals
+        if (deal.getBuyerOrganizationId() != null && approvalBindingService != null) {
+            approvalBindingService.createBinding(deal, updated, persistedDeliverables, currentUser, approvalTime);
+        } else {
+            log.warn("Legacy unbound milestone approval for milestone {} on deal {} without buyerOrganizationId is nonauthoritative for release", milestoneId, deal.getId());
+            auditService.logEvent(
+                    currentUser.getId(),
+                    "LEGACY_UNBOUND_MILESTONE_APPROVED",
+                    "MILESTONE",
+                    updated.getId().toString(),
+                    "Legacy unbound milestone approved without organization binding - nonauthoritative for release"
+            );
+        }
 
         auditService.logEvent(
                 currentUser.getId(),
@@ -379,18 +429,31 @@ public class MilestoneService {
 
     @Transactional
     public MilestoneResponse rejectMilestone(UUID milestoneId, String reason, UserPrincipal currentUser) {
-        // B11: Canonical lock order: Deal -> Milestone.
-        Milestone initial = milestoneRepository.findByIdForUpdate(milestoneId)
-                .or(() -> milestoneRepository.findById(milestoneId))
+        // Canonical lock order: Deal -> Milestone.
+        // Step 1: Read milestone ID -> dealId without write lock.
+        UUID dealId = milestoneRepository.findDealIdById(milestoneId)
+                .or(() -> milestoneRepository.findById(milestoneId).map(Milestone::getDealId))
                 .orElseThrow(() -> new ResourceNotFoundException("Milestone", "id", milestoneId));
 
-        Deal deal = dealRepository.findByIdForUpdate(initial.getDealId())
-                .or(() -> dealRepository.findById(initial.getDealId()))
-                .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", initial.getDealId()));
+        // Step 2: Lock Deal.
+        Deal deal = dealRepository.findByIdForUpdate(dealId)
+                .or(() -> dealRepository.findById(dealId))
+                .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", dealId));
 
+        // Step 3: Lock Milestone.
         Milestone milestone = milestoneRepository.findByIdForUpdate(milestoneId)
                 .or(() -> milestoneRepository.findById(milestoneId))
                 .orElseThrow(() -> new ResourceNotFoundException("Milestone", "id", milestoneId));
+        if (entityManager != null) {
+            try {
+                entityManager.refresh(milestone);
+            } catch (Exception ignored) {}
+        }
+
+        // Step 4: Reverify milestone.dealId == locked Deal.id
+        if (!deal.getId().equals(milestone.getDealId())) {
+            throw new BadRequestException("Milestone does not belong to deal");
+        }
 
         boolean isBuyer = deal.getBuyerId().equals(currentUser.getId());
         boolean isAdmin = currentUser.getRole() == Role.ADMIN;

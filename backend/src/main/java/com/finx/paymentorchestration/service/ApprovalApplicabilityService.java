@@ -61,6 +61,7 @@ public class ApprovalApplicabilityService {
     private final DisputeRepository disputeRepository;
     private final RiskActionService riskActionService;
     private final BusinessRiskRepository businessRiskRepository;
+    private final com.finx.approval.service.MilestoneApprovalBindingService approvalBindingService;
 
     @Autowired
     public ApprovalApplicabilityService(
@@ -74,7 +75,8 @@ public class ApprovalApplicabilityService {
             @Autowired(required = false) VerificationEligibilityService eligibilityService,
             @Autowired(required = false) DisputeRepository disputeRepository,
             @Autowired(required = false) RiskActionService riskActionService,
-            @Autowired(required = false) BusinessRiskRepository businessRiskRepository) {
+            @Autowired(required = false) BusinessRiskRepository businessRiskRepository,
+            @Autowired(required = false) com.finx.approval.service.MilestoneApprovalBindingService approvalBindingService) {
         this.dealRepository = dealRepository;
         this.milestoneRepository = milestoneRepository;
         this.deliverableRepository = deliverableRepository;
@@ -86,6 +88,24 @@ public class ApprovalApplicabilityService {
         this.disputeRepository = disputeRepository;
         this.riskActionService = riskActionService;
         this.businessRiskRepository = businessRiskRepository;
+        this.approvalBindingService = approvalBindingService;
+    }
+
+    public ApprovalApplicabilityService(
+            DealRepository dealRepository,
+            MilestoneRepository milestoneRepository,
+            DeliverableRepository deliverableRepository,
+            InvoiceRepository invoiceRepository,
+            InvoiceReviewRepository invoiceReviewRepository,
+            InvoiceAssessmentRepository invoiceAssessmentRepository,
+            DealAgreementRepository agreementRepository,
+            VerificationEligibilityService eligibilityService,
+            DisputeRepository disputeRepository,
+            RiskActionService riskActionService,
+            BusinessRiskRepository businessRiskRepository) {
+        this(dealRepository, milestoneRepository, deliverableRepository, invoiceRepository, invoiceReviewRepository,
+                invoiceAssessmentRepository, agreementRepository, eligibilityService, disputeRepository,
+                riskActionService, businessRiskRepository, null);
     }
 
     public record ApprovalApplicabilityResult(
@@ -110,8 +130,42 @@ public class ApprovalApplicabilityService {
             String agreementSha256,
             UUID beneficiaryAccountId,
             boolean isSandboxBeneficiary,
-            UUID assignedProjectManagerId
-    ) {}
+            UUID assignedProjectManagerId,
+            UUID bindingId,
+            String approvalAuthority,
+            String approvalFingerprint
+    ) {
+        public ApprovalApplicabilityResult(
+                boolean applicable,
+                List<String> reasonCodes,
+                Instant observedAt,
+                UUID dealId,
+                UUID milestoneId,
+                boolean milestoneApproved,
+                boolean milestoneUnbound,
+                boolean invoiceApplicable,
+                boolean agreementApplicable,
+                boolean beneficiaryApplicable,
+                boolean pmAssignmentApplicable,
+                boolean disputeApplicable,
+                boolean riskApplicable,
+                UUID invoiceId,
+                String invoiceFingerprint,
+                UUID invoiceAssessmentId,
+                UUID agreementId,
+                Integer agreementVersion,
+                String agreementSha256,
+                UUID beneficiaryAccountId,
+                boolean isSandboxBeneficiary,
+                UUID assignedProjectManagerId
+        ) {
+            this(applicable, reasonCodes, observedAt, dealId, milestoneId, milestoneApproved, milestoneUnbound,
+                    invoiceApplicable, agreementApplicable, beneficiaryApplicable, pmAssignmentApplicable,
+                    disputeApplicable, riskApplicable, invoiceId, invoiceFingerprint, invoiceAssessmentId,
+                    agreementId, agreementVersion, agreementSha256, beneficiaryAccountId, isSandboxBeneficiary,
+                    assignedProjectManagerId, null, null, null);
+        }
+    }
 
     public record InvoiceApplicabilityResult(
             boolean applicable,
@@ -197,15 +251,45 @@ public class ApprovalApplicabilityService {
 
         // 1. Milestone Approval Status & Unbound Evaluation
         boolean milestoneApproved = milestone.getStatus() == MilestoneStatus.APPROVED || milestone.getStatus() == MilestoneStatus.COMPLETED;
-        boolean milestoneUnbound = true; // In current schema, milestones lack persistent approval revision/fingerprint
+        boolean milestoneUnbound;
+        UUID bindingId = null;
+        String approvalAuthority = null;
+        String approvalFingerprint = null;
+
+        List<Deliverable> deliverables = deliverableRepository.findByMilestoneIdOrderBySubmittedAtDesc(milestoneId);
+
         if (!milestoneApproved) {
+            milestoneUnbound = true;
             reasons.add("MILESTONE_NOT_APPROVED: Milestone status is " + milestone.getStatus());
-        } else {
+        } else if (deal.getBuyerOrganizationId() == null) {
+            milestoneUnbound = true;
+            reasons.add("APPROVAL_BUYER_ORGANIZATION_UNBOUND: Deal lacks buyerOrganizationId binding");
             reasons.add("UNBOUND_MILESTONE_APPROVAL: Milestone approval is historical status only without durable revision or fingerprint binding; cannot serve as current financial authorization");
+        } else if (approvalBindingService == null) {
+            milestoneUnbound = true;
+            reasons.add("UNBOUND_MILESTONE_APPROVAL: Milestone approval is historical status only without durable revision or fingerprint binding; cannot serve as current financial authorization");
+        } else {
+            var bindingEval = approvalBindingService.evaluateCurrentBinding(deal, milestone, deliverables);
+            if (!bindingEval.present()) {
+                milestoneUnbound = true;
+                reasons.add("APPROVAL_BINDING_MISSING: Milestone has no durable approval binding");
+                reasons.add("UNBOUND_MILESTONE_APPROVAL: Milestone approval is historical status only without durable revision or fingerprint binding; cannot serve as current financial authorization");
+            } else if (!bindingEval.current()) {
+                milestoneUnbound = true;
+                reasons.add(bindingEval.reasonCode() + ": Persisted approval binding is no longer current");
+                reasons.add("UNBOUND_MILESTONE_APPROVAL: Milestone approval is historical status only without durable revision or fingerprint binding; cannot serve as current financial authorization");
+                bindingId = bindingEval.binding().getId();
+                approvalAuthority = bindingEval.binding().getApprovalAuthority().name();
+                approvalFingerprint = bindingEval.binding().getApprovalFingerprint();
+            } else {
+                milestoneUnbound = false;
+                bindingId = bindingEval.binding().getId();
+                approvalAuthority = bindingEval.binding().getApprovalAuthority().name();
+                approvalFingerprint = bindingEval.binding().getApprovalFingerprint();
+            }
         }
 
         // Check if milestone was modified after approval
-        List<Deliverable> deliverables = deliverableRepository.findByMilestoneIdOrderBySubmittedAtDesc(milestoneId);
         Instant latestDeliverableReview = deliverables.stream()
                 .map(Deliverable::getReviewedAt)
                 .filter(Objects::nonNull)
@@ -268,7 +352,6 @@ public class ApprovalApplicabilityService {
         }
 
         // For financial authorization: must be bound and all components fresh and coherent.
-        // Since milestoneUnbound is true in current schema (and payout is disabled under B04), overall applicable is false.
         boolean overallApplicable = milestoneApproved && !milestoneUnbound
                 && snapshotCoherent
                 && invoiceResult.applicable()
@@ -300,7 +383,10 @@ public class ApprovalApplicabilityService {
                 agreementResult.documentSha256(),
                 beneficiaryResult.bankAccountId(),
                 beneficiaryResult.isSandbox(),
-                deal.getProjectManagerId()
+                deal.getProjectManagerId(),
+                bindingId,
+                approvalAuthority,
+                approvalFingerprint
         );
     }
 

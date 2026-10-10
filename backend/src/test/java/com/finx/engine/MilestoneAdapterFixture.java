@@ -46,6 +46,9 @@ abstract class MilestoneAdapterFixture {
     final EscrowLedgerRepository ledger = mock(EscrowLedgerRepository.class);
     final BusinessRiskRepository risk = mock(BusinessRiskRepository.class);
     final VerificationEligibilityService eligibility = mock(VerificationEligibilityService.class);
+    final com.finx.approval.repository.MilestoneApprovalBindingRepository bindings = mock(com.finx.approval.repository.MilestoneApprovalBindingRepository.class);
+    com.finx.approval.service.MilestoneApprovalFingerprintService fingerprints;
+    com.finx.approval.service.MilestoneApprovalBindingService bindingService;
     final Instant now = Instant.parse("2026-10-04T12:00:00Z");
     Deal deal;
     Milestone milestone;
@@ -87,12 +90,32 @@ abstract class MilestoneAdapterFixture {
         when(eligibility.evaluateBeneficiaryEligibility(deal.getSellerOrganizationId())).thenReturn(
                 new VerificationEligibilityService.BeneficiaryEligibilityResult(true, bank, null, true));
         when(banks.findById(bank.getId())).thenReturn(Optional.of(bank));
+        fingerprints = new com.finx.approval.service.MilestoneApprovalFingerprintService();
+        bindingService = new com.finx.approval.service.MilestoneApprovalBindingService(bindings, fingerprints, deals, milestones, deliverables);
         var nativeService = new ApprovalApplicabilityService(deals, milestones, deliverables, invoices, reviews, assessments,
-                agreements, eligibility, disputes, null, risk);
+                agreements, eligibility, disputes, null, risk, bindingService);
         var reader = new MilestoneDecisionEvidenceReader(deals, milestones, organizations, new DealAccessService(members),
                 deliverables, agreements, disputes, invoices, assessments, reviews, nativeService);
         rules = new MilestoneRulesDecisionAdapter(reader, milestones, accounts, ledger);
-        approval = new ApprovalDecisionAdapter(reader, nativeService, banks, risk);
+        approval = new ApprovalDecisionAdapter(reader, nativeService, banks, risk, bindings);
+    }
+
+    com.finx.approval.entity.MilestoneApprovalBinding createValidBinding() {
+        String mHash = fingerprints.computeMilestoneFingerprint(milestone);
+        String dHash = fingerprints.computeDeliverablesFingerprint(submissions);
+        String aHash = fingerprints.computeApprovalFingerprint(
+                deal.getBuyerOrganizationId(), deal.getId(), milestone.getId(),
+                deal.getBuyerId(), com.finx.approval.entity.MilestoneApprovalAuthority.BUYER, deal.getProjectManagerId(),
+                mHash, dHash, now.minusSeconds(50)
+        );
+        com.finx.approval.entity.MilestoneApprovalBinding b = new com.finx.approval.entity.MilestoneApprovalBinding(
+                UUID.randomUUID(), deal.getBuyerOrganizationId(), deal.getId(), milestone.getId(),
+                deal.getBuyerId(), com.finx.approval.entity.MilestoneApprovalAuthority.BUYER,
+                mHash, dHash, aHash, deal.getProjectManagerId(),
+                now.minusSeconds(50), now.minusSeconds(50)
+        );
+        when(bindings.findByMilestoneId(milestone.getId())).thenReturn(Optional.of(b));
+        return b;
     }
 
     void invoice() {
@@ -129,7 +152,7 @@ abstract class MilestoneAdapterFixture {
 
     void assertReadOnly() {
         for (Object repository : List.of(deals, milestones, deliverables, agreements, disputes, invoices, assessments, reviews,
-                organizations, members, banks, accounts, ledger, risk)) {
+                organizations, members, banks, accounts, ledger, risk, bindings)) {
             assertThat(mockingDetails(repository).getInvocations()).allSatisfy(inv ->
                     assertThat(inv.getMethod().getName()).doesNotMatch("save.*|delete.*|persist|flush|lock|.*ForUpdate"));
         }
