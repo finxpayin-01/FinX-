@@ -21,6 +21,6 @@ public interface ReleaseReservationRepository extends JpaRepository<ReleaseReser
 
     List<ReleaseReservation> findByEscrowAccountIdAndStatus(UUID escrowAccountId, ReleaseReservationStatus status);
 
-    @Query("SELECT COALESCE(SUM(r.amount), 0) FROM ReleaseReservation r WHERE r.escrowAccountId = :escrowAccountId AND r.status = 'ACTIVE'")
+    @Query("SELECT COALESCE(SUM(r.amount), 0) FROM ReleaseReservation r WHERE r.escrowAccountId = :escrowAccountId AND r.status = com.finx.release.model.ReleaseReservationStatus.ACTIVE")
     BigDecimal sumActiveReservationsForEscrow(@Param("escrowAccountId") UUID escrowAccountId);
 }

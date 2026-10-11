@@ -51,15 +51,16 @@ This document outlines the strict 12-phase engineering roadmap (E1 through E12) 
 
 ## Phase Breakdown
 
-### Phase E1 — ReleaseInstruction & Reservation Persistence Foundation
+### Phase E1 — ReleaseInstruction & Reservation Persistence Foundation [COMPLETE]
 - **Scope**: Define domain models, database schema, and JPA repositories for `ReleaseInstruction` and `ReleaseReservation`.
+- **Status**: **COMPLETE** (Commit `7fcac79`).
 - **Flyway Migration**: `V29__create_release_instructions_and_reservations.sql`.
 - **Classes**:
-  - `com.finx.release.domain.ReleaseInstruction`
-  - `com.finx.release.domain.ReleaseReservation`
+  - `com.finx.release.entity.ReleaseInstruction`
+  - `com.finx.release.entity.ReleaseReservation`
   - `com.finx.release.repository.ReleaseInstructionRepository`
   - `com.finx.release.repository.ReleaseReservationRepository`
-- **Tests**: `ReleaseInstructionPersistenceTest`, `ReleaseReservationPersistenceTest`.
+- **Tests**: `ReleasePersistenceEntityMappingTest`, `ReleasePersistenceFoundationArchitectureTest`, `ReleaseRepositoryTest`, `PostgresReleasePersistenceFoundationTest`.
 - **Financial Side Effects Allowed**: None.
 - **Bank Calls Allowed**: None.
 - **Acceptance Criteria**: Entity constraints, foreign keys to `engine_decisions` and `escrow_accounts`, and partial unique indexes verified in PostgreSQL.
@@ -67,8 +68,9 @@ This document outlines the strict 12-phase engineering roadmap (E1 through E12) 
 
 ---
 
-### Phase E1.5 — Durable Milestone Approval Binding
+### Phase E1.5 — Durable Milestone Approval Binding [COMPLETE]
 - **Scope**: Create immutable, durable evidence of milestone approval events (`MilestoneApprovalBinding`) with deterministic SHA-256 fingerprints, transactional persistence in `MilestoneService`, and enable legitimate `ALLOW` decisions in `ApprovalDecisionAdapter`.
+- **Status**: **COMPLETE** (Commit `5db581d`).
 - **Flyway Migration**: `V30__create_milestone_approval_bindings.sql`.
 - **Classes**:
   - `com.finx.approval.entity.MilestoneApprovalAuthority`
@@ -85,18 +87,23 @@ This document outlines the strict 12-phase engineering roadmap (E1 through E12) 
 
 ---
 
-### Phase E2 — Release Authorization & Atomic Reservation Transaction
-- **Scope**: Implement `ReleaseInstructionService` and `ReleaseAuthorizationService` implementing TX1 and TX2.
-- **Flyway Migration**: None expected.
+### Phase E2 — Release Authorization & Atomic Reservation Transaction [COMPLETE]
+- **Scope**: Implement `ReleaseInstructionService`, `ReleaseDecisionExecutionValidator`, `ReleaseFundingScopeResolver`, and `ReleaseAuthorizationService` implementing TX1 and TX2.
+- **Status**: **COMPLETE**.
+- **Flyway Migration**: None (V30 is certified and sufficient; no V31 created).
 - **Classes**:
+  - `com.finx.release.command.CreateReleaseInstructionCommand`
+  - `com.finx.release.service.ReleaseInstructionRequestFingerprint`
+  - `com.finx.release.service.ReleaseFundingScopeResolver`
+  - `com.finx.release.service.ReleaseDecisionExecutionValidator`
   - `com.finx.release.service.ReleaseInstructionService`
-  - `com.finx.release.service.ReleaseAuthorizationService`
   - `com.finx.release.service.EscrowReservationService`
-- **Tests**: `ReleaseAuthorizationServiceTest`, `EscrowReservationConcurrencyTest`.
-- **Financial Side Effects Allowed**: Internal reservation claims only (no ledger postings, no escrow deductions).
-- **Bank Calls Allowed**: None.
-- **Acceptance Criteria**: Invariant re-check (dispute, beneficiary, decision fingerprint freshness) strictly enforced before acquiring row-level locks on `EscrowAccount`.
-- **Commit Message**: `feat(release): implement release authorization and atomic fund reservation`
+  - `com.finx.release.service.ReleaseAuthorizationService`
+- **Tests**: `ReleaseFundingScopeResolverTest`, `ReleaseDecisionExecutionValidatorTest`, `ReleaseInstructionServiceTest`, `ReleaseAuthorizationServiceTest`, `ReleaseExecutionE2ArchitectureTest`, `ReleaseInstructionLifecycleTest`, `PostgresReleaseAuthorizationConcurrencyTest`.
+- **Financial Side Effects Allowed**: Internal reservation claims only (zero ledger postings, zero escrow balance deductions, zero bank calls).
+- **Bank Calls Allowed**: None (0 calls; legacy B04 containment remains fail-closed).
+- **Acceptance Criteria**: Strict canonical pessimistic lock order (`Deal -> Milestone -> EscrowAccount -> ReleaseInstruction`), full invariant recheck, escrow availability calculation under row lock preventing oversubscription, atomic `CREATED -> AUTHORIZED -> RESERVED` transition.
+- **Commit Message**: `feat(release): implement authorization and atomic fund reservation`
 
 ---
 

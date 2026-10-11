@@ -138,12 +138,32 @@ public class ReleaseInstruction {
 
     // Controlled mutation methods for lifecycle (used during transitions)
     public void markAuthorized(UUID authorizedBy, Instant authorizedAt) {
+        if (this.status != ReleaseInstructionStatus.CREATED) {
+            throw new IllegalStateException("Cannot authorize ReleaseInstruction in status " + this.status);
+        }
         this.authorizedBy = Objects.requireNonNull(authorizedBy, "authorizedBy must not be null");
         this.authorizedAt = Objects.requireNonNull(authorizedAt, "authorizedAt must not be null");
         this.status = ReleaseInstructionStatus.AUTHORIZED;
         this.updatedAt = Instant.now();
     }
 
+    public void markReserved() {
+        if (this.status != ReleaseInstructionStatus.AUTHORIZED) {
+            throw new IllegalStateException("Cannot mark reserved on ReleaseInstruction in status " + this.status);
+        }
+        this.status = ReleaseInstructionStatus.RESERVED;
+        this.updatedAt = Instant.now();
+    }
+
+    public void markCancelled() {
+        if (this.status == ReleaseInstructionStatus.SETTLED || this.status == ReleaseInstructionStatus.CANCELLED) {
+            throw new IllegalStateException("Cannot cancel instruction in " + this.status + " status");
+        }
+        this.status = ReleaseInstructionStatus.CANCELLED;
+        this.updatedAt = Instant.now();
+    }
+
+    @Deprecated
     public void updateStatus(ReleaseInstructionStatus newStatus) {
         this.status = Objects.requireNonNull(newStatus, "status must not be null");
         this.updatedAt = Instant.now();
