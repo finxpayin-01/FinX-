@@ -107,18 +107,24 @@ This document outlines the strict 12-phase engineering roadmap (E1 through E12) 
 
 ---
 
-### Phase E3 — Transactional Outbox Schema & Enqueueing
-- **Scope**: Implement `financial_outbox` table and enqueueing mechanism during TX2.
+### Phase E3 — Transactional Outbox Schema & Enqueueing [COMPLETE]
+- **Scope**: Implement `financial_outbox` table and atomic enqueueing mechanism during TX2 (`CREATED -> QUEUED` with `ACTIVE` reservation and `PENDING` outbox).
+- **Status**: **COMPLETE**.
 - **Flyway Migration**: `V31__create_financial_outbox.sql`.
 - **Classes**:
-  - `com.finx.outbox.domain.FinancialOutboxMessage`
+  - `com.finx.outbox.model.FinancialOutboxEventType`
+  - `com.finx.outbox.model.FinancialOutboxStatus`
+  - `com.finx.outbox.model.FinancialOperationKey`
+  - `com.finx.outbox.entity.FinancialOutboxMessage`
   - `com.finx.outbox.repository.FinancialOutboxRepository`
   - `com.finx.outbox.service.FinancialOutboxService`
-- **Tests**: `FinancialOutboxEnqueueTest`, `OutboxTransactionalAtomicityTest`.
-- **Financial Side Effects Allowed**: Outbox persistence only.
-- **Bank Calls Allowed**: None.
-- **Acceptance Criteria**: Rollback of authorization/reservation rolls back outbox message; sanitized payloads verified.
-- **Commit Message**: `feat(outbox): implement transactional financial outbox schema and service`
+  - `com.finx.release.service.ReleaseAuthorizationService` (atomic enqueue integration)
+  - `com.finx.release.entity.ReleaseInstruction` (`markQueued`)
+- **Tests**: `FinancialOutboxEntityTest`, `FinancialOutboxServiceTest`, `FinancialOutboxArchitectureTest`, `ReleaseExecutionE3ArchitectureTest`, `ReleaseStartupSideEffectTest`, `PostgresFinancialOutboxSchemaTest`, `PostgresOutboxTransactionalAtomicityTest`, `PostgresReleaseAuthorizationConcurrencyTest`.
+- **Financial Side Effects Allowed**: Local outbox command persistence only (`PENDING`). Zero ledger writes, zero escrow balance deductions, zero settlement instructions.
+- **Bank Calls Allowed**: None (0 calls; banking provider dependencies strictly forbidden).
+- **Acceptance Criteria**: Rollback of outbox enqueue rolls back authorization and reservation atomically; identifier-only payload (no raw banking payload, credentials, or secrets); unique constraints prevent duplicate commands; legacy RESERVED safe upgrade and QUEUED idempotent replay verified in real PostgreSQL.
+- **Commit Message**: `feat(outbox): implement transactional financial outbox`
 
 ---
 

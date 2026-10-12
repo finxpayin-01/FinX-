@@ -68,6 +68,30 @@ class ReleaseInstructionLifecycleTest {
     }
 
     @Test
+    @DisplayName("markQueued transitions RESERVED -> QUEUED")
+    void testMarkQueuedFromReserved() {
+        UUID actorId = UUID.randomUUID();
+        Instant now = Instant.now();
+        ReleaseInstruction instruction = createInstruction(ReleaseInstructionStatus.CREATED);
+        instruction.markAuthorized(actorId, now);
+        instruction.markReserved();
+
+        instruction.markQueued();
+
+        assertThat(instruction.getStatus()).isEqualTo(ReleaseInstructionStatus.QUEUED);
+    }
+
+    @Test
+    @DisplayName("markQueued rejects non-RESERVED status (e.g., CREATED or AUTHORIZED)")
+    void testMarkQueuedFromNonReservedThrows() {
+        ReleaseInstruction instruction = createInstruction(ReleaseInstructionStatus.CREATED);
+
+        assertThatThrownBy(instruction::markQueued)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Cannot mark queued on ReleaseInstruction in status CREATED");
+    }
+
+    @Test
     @DisplayName("markCancelled transitions CREATED -> CANCELLED")
     void testMarkCancelledFromCreated() {
         ReleaseInstruction instruction = createInstruction(ReleaseInstructionStatus.CREATED);

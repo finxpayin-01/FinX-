@@ -4,6 +4,7 @@ import com.finx.approval.dto.ApprovalBindingEvaluation;
 import com.finx.approval.service.MilestoneApprovalBindingService;
 import com.finx.common.enums.Role;
 import com.finx.common.enums.UserStatus;
+import com.finx.common.time.FinxClock;
 import com.finx.deal.entity.Deal;
 import com.finx.deal.entity.DealStatus;
 import com.finx.deal.repository.DealRepository;
@@ -12,21 +13,24 @@ import com.finx.dispute.repository.DisputeRepository;
 import com.finx.escrow.entity.EscrowAccount;
 import com.finx.escrow.entity.EscrowAccountStatus;
 import com.finx.escrow.repository.EscrowAccountRepository;
+import com.finx.milestone.entity.Deliverable;
 import com.finx.milestone.entity.Milestone;
 import com.finx.milestone.entity.MilestoneStatus;
 import com.finx.milestone.repository.DeliverableRepository;
 import com.finx.milestone.repository.MilestoneRepository;
 import com.finx.org.entity.OrganizationBankAccount;
+import com.finx.outbox.entity.FinancialOutboxMessage;
+import com.finx.outbox.model.FinancialOutboxEventType;
+import com.finx.outbox.model.FinancialOutboxStatus;
+import com.finx.outbox.repository.FinancialOutboxRepository;
+import com.finx.outbox.service.FinancialOutboxService;
 import com.finx.release.entity.ReleaseInstruction;
 import com.finx.release.entity.ReleaseReservation;
 import com.finx.release.model.ReleaseInstructionStatus;
 import com.finx.release.model.ReleaseReservationStatus;
 import com.finx.release.repository.ReleaseInstructionRepository;
 import com.finx.release.repository.ReleaseReservationRepository;
-import com.finx.release.service.EscrowReservationService;
-import com.finx.release.service.ReleaseAuthorizationService;
-import com.finx.release.service.ReleaseDecisionExecutionValidator;
-import com.finx.release.service.ReleaseFundingScopeResolver;
+import com.finx.release.service.*;
 import com.finx.release.service.ReleaseFundingScopeResolver.FundingScope;
 import com.finx.security.service.UserPrincipal;
 import com.finx.verification.service.VerificationEligibilityService;
@@ -37,6 +41,8 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -47,7 +53,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
-class ReleaseAuthorizationServiceTest {
+public class ReleaseAuthorizationServiceTest {
 
     private ReleaseInstructionRepository instructionRepo;
     private ReleaseReservationRepository reservationRepo;
@@ -61,8 +67,16 @@ class ReleaseAuthorizationServiceTest {
     private ReleaseDecisionExecutionValidator executionValidator;
     private ReleaseFundingScopeResolver fundingScopeResolver;
     private EscrowReservationService escrowReservationService;
-
+    private FinancialOutboxRepository financialOutboxRepo;
+    private FinancialOutboxService financialOutboxService;
+    private FinxClock clock;
     private ReleaseAuthorizationService authService;
+
+    private UserPrincipal adminPrincipal;
+    private UserPrincipal financePrincipal;
+    private UserPrincipal buyerPrincipal;
+    private UserPrincipal sellerPrincipal;
+    private UserPrincipal pmPrincipal;
 
     private UUID instructionId;
     private UUID dealId;
@@ -80,12 +94,6 @@ class ReleaseAuthorizationServiceTest {
     private ReleaseInstruction instruction;
     private OrganizationBankAccount beneficiary;
 
-    private UserPrincipal adminPrincipal;
-    private UserPrincipal financePrincipal;
-    private UserPrincipal buyerPrincipal;
-    private UserPrincipal sellerPrincipal;
-    private UserPrincipal pmPrincipal;
-
     @BeforeEach
     void setUp() throws Exception {
         instructionRepo = mock(ReleaseInstructionRepository.class);
@@ -100,6 +108,9 @@ class ReleaseAuthorizationServiceTest {
         executionValidator = mock(ReleaseDecisionExecutionValidator.class);
         fundingScopeResolver = mock(ReleaseFundingScopeResolver.class);
         escrowReservationService = new EscrowReservationService(reservationRepo);
+        financialOutboxRepo = mock(FinancialOutboxRepository.class);
+        clock = new FinxClock();
+        financialOutboxService = new FinancialOutboxService(financialOutboxRepo, clock);
 
         authService = new ReleaseAuthorizationService(
                 instructionRepo,
@@ -113,7 +124,9 @@ class ReleaseAuthorizationServiceTest {
                 deliverableRepo,
                 executionValidator,
                 fundingScopeResolver,
-                escrowReservationService
+                escrowReservationService,
+                financialOutboxService,
+                financialOutboxRepo
         );
 
         instructionId = UUID.randomUUID();
@@ -142,11 +155,15 @@ class ReleaseAuthorizationServiceTest {
         escrowAccount = new EscrowAccount();
         setField(escrowAccount, "id", escrowAccountId);
         setField(escrowAccount, "dealId", dealId);
-        setField(escrowAccount, "currency", "INR");
-        setField(escrowAccount, "status", EscrowAccountStatus.ACTIVE);
         setField(escrowAccount, "balance", new BigDecimal("100000.0000"));
         setField(escrowAccount, "totalFunded", new BigDecimal("100000.0000"));
         setField(escrowAccount, "totalReleased", BigDecimal.ZERO);
+        setField(escrowAccount, "currency", "INR");
+        setField(escrowAccount, "status", EscrowAccountStatus.ACTIVE);
+
+        beneficiary = new OrganizationBankAccount();
+        setField(beneficiary, "id", beneficiaryBankAccountId);
+        setField(beneficiary, "organizationId", sellerOrgId);
 
         instruction = new ReleaseInstruction(
                 instructionId,
@@ -154,37 +171,30 @@ class ReleaseAuthorizationServiceTest {
                 dealId,
                 milestoneId,
                 releaseDecisionId,
-                "b".repeat(64),
+                "fingerprint-123",
                 policyVersionId,
-                "c".repeat(64),
+                "content-hash-123",
                 beneficiaryBankAccountId,
                 "AXIS",
                 "ESCROW-POOL-1",
                 new BigDecimal("50000.0000"),
                 "INR",
-                "idem-key-1",
-                "d".repeat(64),
+                "IDEM-TEST",
+                "REQ-HASH",
                 UUID.randomUUID()
         );
 
-        beneficiary = new OrganizationBankAccount();
-        setField(beneficiary, "id", beneficiaryBankAccountId);
-        setField(beneficiary, "organizationId", sellerOrgId);
+        adminPrincipal = new UserPrincipal(UUID.randomUUID(), "Admin", "admin@finx.com", "pwd", Role.ADMIN, UserStatus.ACTIVE, Collections.emptyList());
+        financePrincipal = new UserPrincipal(UUID.randomUUID(), "Finance", "fin@finx.com", "pwd", Role.FINANCE, UserStatus.ACTIVE, Collections.emptyList());
+        buyerPrincipal = new UserPrincipal(UUID.randomUUID(), "Buyer", "buyer@client.com", "pwd", Role.BUYER, UserStatus.ACTIVE, Collections.emptyList());
+        sellerPrincipal = new UserPrincipal(UUID.randomUUID(), "Seller", "seller@vendor.com", "pwd", Role.SELLER, UserStatus.ACTIVE, Collections.emptyList());
+        pmPrincipal = new UserPrincipal(UUID.randomUUID(), "PM", "pm@client.com", "pwd", Role.PROJECT_MANAGER, UserStatus.ACTIVE, Collections.emptyList());
 
-        adminPrincipal = new UserPrincipal(UUID.randomUUID(), "Admin", "admin@finx.com", "pass", Role.ADMIN, UserStatus.ACTIVE, List.of());
-        financePrincipal = new UserPrincipal(UUID.randomUUID(), "Finance", "fin@finx.com", "pass", Role.FINANCE, UserStatus.ACTIVE, List.of());
-        buyerPrincipal = new UserPrincipal(UUID.randomUUID(), "Buyer", "buyer@buyer.com", "pass", Role.BUYER, UserStatus.ACTIVE, List.of());
-        sellerPrincipal = new UserPrincipal(UUID.randomUUID(), "Seller", "seller@seller.com", "pass", Role.SELLER, UserStatus.ACTIVE, List.of());
-        pmPrincipal = new UserPrincipal(UUID.randomUUID(), "PM", "pm@finx.com", "pass", Role.PROJECT_MANAGER, UserStatus.ACTIVE, List.of());
+        ReleaseInstructionRepository.ScopeProjection scopeProj = mock(ReleaseInstructionRepository.ScopeProjection.class);
+        when(scopeProj.getDealId()).thenReturn(dealId);
+        when(scopeProj.getMilestoneId()).thenReturn(milestoneId);
+        when(instructionRepo.findScopeById(instructionId)).thenReturn(Optional.of(scopeProj));
 
-        // Default lookups
-        when(instructionRepo.findById(instructionId)).thenReturn(Optional.of(instruction));
-        when(instructionRepo.findScopeById(instructionId)).thenReturn(Optional.of(new ReleaseInstructionRepository.ScopeProjection() {
-            @Override
-            public UUID getDealId() { return dealId; }
-            @Override
-            public UUID getMilestoneId() { return milestoneId; }
-        }));
         when(dealRepo.findByIdForUpdate(dealId)).thenReturn(Optional.of(deal));
         when(milestoneRepo.findByIdForUpdate(milestoneId)).thenReturn(Optional.of(milestone));
         when(escrowAccountRepo.findByDealIdForUpdate(dealId)).thenReturn(Optional.of(escrowAccount));
@@ -204,10 +214,11 @@ class ReleaseAuthorizationServiceTest {
         when(reservationRepo.sumActiveReservationsForEscrow(escrowAccountId)).thenReturn(BigDecimal.ZERO);
         when(reservationRepo.findByReleaseInstructionId(instructionId)).thenReturn(Optional.empty());
         when(reservationRepo.findFirstByMilestoneIdAndStatus(milestoneId, ReleaseReservationStatus.ACTIVE)).thenReturn(Optional.empty());
-        when(reservationRepo.save(any(ReleaseReservation.class))).thenAnswer(i -> {
-            ReleaseReservation res = i.getArgument(0);
-            return res;
-        });
+        when(reservationRepo.save(any(ReleaseReservation.class))).thenAnswer(i -> i.getArgument(0));
+
+        when(financialOutboxRepo.findByReleaseInstructionIdAndEventType(any(), any())).thenReturn(Optional.empty());
+        when(financialOutboxRepo.findByEventTypeAndOperationKey(any(), any())).thenReturn(Optional.empty());
+        when(financialOutboxRepo.save(any(FinancialOutboxMessage.class))).thenAnswer(i -> i.getArgument(0));
     }
 
     private static void setField(Object target, String fieldName, Object value) throws Exception {
@@ -217,19 +228,23 @@ class ReleaseAuthorizationServiceTest {
     }
 
     @Test
-    @DisplayName("1. ADMIN authorize/reserve succeeds")
+    @DisplayName("1. ADMIN authorize/reserve succeeds with QUEUED instruction and PENDING outbox")
     void test01_adminAuthorizeReserve() {
         ReleaseReservation res = authService.authorizeAndReserve(instructionId, adminPrincipal);
         assertThat(res).isNotNull();
         assertThat(res.getStatus()).isEqualTo(ReleaseReservationStatus.ACTIVE);
+        assertThat(instruction.getStatus()).isEqualTo(ReleaseInstructionStatus.QUEUED);
+        verify(financialOutboxRepo, times(1)).save(any(FinancialOutboxMessage.class));
     }
 
     @Test
-    @DisplayName("2. FINANCE authorize/reserve succeeds")
+    @DisplayName("2. FINANCE authorize/reserve succeeds with QUEUED instruction and PENDING outbox")
     void test02_financeAuthorizeReserve() {
         ReleaseReservation res = authService.authorizeAndReserve(instructionId, financePrincipal);
         assertThat(res).isNotNull();
         assertThat(res.getStatus()).isEqualTo(ReleaseReservationStatus.ACTIVE);
+        assertThat(instruction.getStatus()).isEqualTo(ReleaseInstructionStatus.QUEUED);
+        verify(financialOutboxRepo, times(1)).save(any(FinancialOutboxMessage.class));
     }
 
     @Test
@@ -265,11 +280,11 @@ class ReleaseAuthorizationServiceTest {
     }
 
     @Test
-    @DisplayName("7. Instruction transitions CREATED -> RESERVED")
-    void test07_instructionTransitionsToReserved() {
+    @DisplayName("7. Instruction transitions CREATED -> QUEUED")
+    void test07_instructionTransitionsToQueued() {
         assertThat(instruction.getStatus()).isEqualTo(ReleaseInstructionStatus.CREATED);
         authService.authorizeAndReserve(instructionId, adminPrincipal);
-        assertThat(instruction.getStatus()).isEqualTo(ReleaseInstructionStatus.RESERVED);
+        assertThat(instruction.getStatus()).isEqualTo(ReleaseInstructionStatus.QUEUED);
     }
 
     @Test
@@ -346,10 +361,15 @@ class ReleaseAuthorizationServiceTest {
     }
 
     @Test
-    @DisplayName("18. No outbox created")
-    void test18_noOutboxCreated() {
+    @DisplayName("18. Exactly one PENDING outbox message created")
+    void test18_exactlyOnePendingOutboxCreated() {
         authService.authorizeAndReserve(instructionId, adminPrincipal);
-        // Verified: outbox infrastructure absent
+        verify(financialOutboxRepo, times(1)).save(argThat(msg ->
+                msg.getStatus() == FinancialOutboxStatus.PENDING
+                        && msg.getEventType() == FinancialOutboxEventType.RELEASE_DISPATCH_REQUESTED
+                        && msg.getReleaseInstructionId().equals(instructionId)
+                        && msg.getOperationKey().equals(instructionId.toString())
+        ));
     }
 
     @Test
@@ -524,24 +544,47 @@ class ReleaseAuthorizationServiceTest {
     }
 
     @Test
-    @DisplayName("35. Authorization replay on RESERVED returns exact existing reservation")
-    void test35_replayOnReservedReturnsExisting() throws Exception {
-        // First execution
-        ReleaseReservation res1 = authService.authorizeAndReserve(instructionId, adminPrincipal);
+    @DisplayName("35. Legacy RESERVED instruction safely upgraded to QUEUED + PENDING outbox")
+    void test35_legacyReservedUpgradeToQueuedWithOutbox() throws Exception {
+        setField(instruction, "status", ReleaseInstructionStatus.RESERVED);
+        ReleaseReservation existingRes = new ReleaseReservation(
+                UUID.randomUUID(), instructionId, escrowAccountId, milestoneId,
+                new BigDecimal("50000.0000"), "INR"
+        );
+        when(reservationRepo.findByReleaseInstructionId(instructionId)).thenReturn(Optional.of(existingRes));
+        when(financialOutboxRepo.findByReleaseInstructionIdAndEventType(instructionId, FinancialOutboxEventType.RELEASE_DISPATCH_REQUESTED))
+                .thenReturn(Optional.empty());
 
-        // Simulate state in persistence
-        when(reservationRepo.findByReleaseInstructionId(instructionId)).thenReturn(Optional.of(res1));
+        ReleaseReservation res = authService.authorizeAndReserve(instructionId, adminPrincipal);
 
-        // Second execution (replay)
-        ReleaseReservation res2 = authService.authorizeAndReserve(instructionId, adminPrincipal);
-
-        assertThat(res2.getId()).isEqualTo(res1.getId());
-        verify(reservationRepo, times(1)).save(any(ReleaseReservation.class)); // Only saved once
+        assertThat(res.getId()).isEqualTo(existingRes.getId());
+        assertThat(instruction.getStatus()).isEqualTo(ReleaseInstructionStatus.QUEUED);
+        verify(financialOutboxRepo, times(1)).save(any(FinancialOutboxMessage.class));
     }
 
     @Test
-    @DisplayName("36. RESERVED without reservation -> fail closed")
-    void test36_reservedWithoutReservationFailsClosed() throws Exception {
+    @DisplayName("36. Stale release decision during RESERVED recovery leaves instruction RESERVED with 0 outbox")
+    void test36_staleDecisionDuringReservedRecovery() throws Exception {
+        setField(instruction, "status", ReleaseInstructionStatus.RESERVED);
+        ReleaseReservation existingRes = new ReleaseReservation(
+                UUID.randomUUID(), instructionId, escrowAccountId, milestoneId,
+                new BigDecimal("50000.0000"), "INR"
+        );
+        when(reservationRepo.findByReleaseInstructionId(instructionId)).thenReturn(Optional.of(existingRes));
+        doThrow(new IllegalStateException("Decision stale"))
+                .when(executionValidator).validateForExecution(eq(releaseDecisionId), any(), any(), any());
+
+        assertThatThrownBy(() -> authService.authorizeAndReserve(instructionId, adminPrincipal))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Decision stale");
+
+        assertThat(instruction.getStatus()).isEqualTo(ReleaseInstructionStatus.RESERVED);
+        verify(financialOutboxRepo, never()).save(any(FinancialOutboxMessage.class));
+    }
+
+    @Test
+    @DisplayName("37. RESERVED without reservation -> fail closed")
+    void test37_reservedWithoutReservationFailsClosed() throws Exception {
         setField(instruction, "status", ReleaseInstructionStatus.RESERVED);
         when(reservationRepo.findByReleaseInstructionId(instructionId)).thenReturn(Optional.empty());
 
@@ -551,8 +594,89 @@ class ReleaseAuthorizationServiceTest {
     }
 
     @Test
-    @DisplayName("37. CREATED with preexisting ACTIVE reservation -> fail closed")
-    void test37_createdWithPreexistingActiveReservationFailsClosed() throws Exception {
+    @DisplayName("38. RESERVED with existing outbox -> fail closed (Part V)")
+    void test38_reservedWithExistingOutboxFailsClosed() throws Exception {
+        setField(instruction, "status", ReleaseInstructionStatus.RESERVED);
+        ReleaseReservation existingRes = new ReleaseReservation(
+                UUID.randomUUID(), instructionId, escrowAccountId, milestoneId,
+                new BigDecimal("50000.0000"), "INR"
+        );
+        when(reservationRepo.findByReleaseInstructionId(instructionId)).thenReturn(Optional.of(existingRes));
+        FinancialOutboxMessage rogueOutbox = FinancialOutboxMessage.createReleaseDispatch(instruction, Instant.now());
+        when(financialOutboxRepo.findByReleaseInstructionIdAndEventType(instructionId, FinancialOutboxEventType.RELEASE_DISPATCH_REQUESTED))
+                .thenReturn(Optional.of(rogueOutbox));
+
+        assertThatThrownBy(() -> authService.authorizeAndReserve(instructionId, adminPrincipal))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("DATA_INTEGRITY_ERROR: ReleaseInstruction is in illegal state RESERVED with existing outbox event");
+    }
+
+    @Test
+    @DisplayName("39. QUEUED replay returns existing reservation with 0 additional outbox writes (Part W, AN)")
+    void test39_queuedReplayIdempotency() throws Exception {
+        setField(instruction, "status", ReleaseInstructionStatus.QUEUED);
+        ReleaseReservation existingRes = new ReleaseReservation(
+                UUID.randomUUID(), instructionId, escrowAccountId, milestoneId,
+                new BigDecimal("50000.0000"), "INR"
+        );
+        when(reservationRepo.findByReleaseInstructionId(instructionId)).thenReturn(Optional.of(existingRes));
+
+        FinancialOutboxMessage outbox = FinancialOutboxMessage.createReleaseDispatch(instruction, Instant.now());
+        when(financialOutboxRepo.findByReleaseInstructionIdAndEventType(instructionId, FinancialOutboxEventType.RELEASE_DISPATCH_REQUESTED))
+                .thenReturn(Optional.of(outbox));
+        when(financialOutboxRepo.findByEventTypeAndOperationKey(FinancialOutboxEventType.RELEASE_DISPATCH_REQUESTED, instructionId.toString()))
+                .thenReturn(Optional.of(outbox));
+
+        ReleaseReservation res = authService.authorizeAndReserve(instructionId, adminPrincipal);
+
+        assertThat(res.getId()).isEqualTo(existingRes.getId());
+        assertThat(instruction.getStatus()).isEqualTo(ReleaseInstructionStatus.QUEUED);
+        verify(financialOutboxRepo, never()).save(any(FinancialOutboxMessage.class));
+        verify(reservationRepo, never()).save(any(ReleaseReservation.class));
+    }
+
+    @Test
+    @DisplayName("40. QUEUED missing outbox -> fail closed (Part X, AO)")
+    void test40_queuedMissingOutboxFailsClosed() throws Exception {
+        setField(instruction, "status", ReleaseInstructionStatus.QUEUED);
+        ReleaseReservation existingRes = new ReleaseReservation(
+                UUID.randomUUID(), instructionId, escrowAccountId, milestoneId,
+                new BigDecimal("50000.0000"), "INR"
+        );
+        when(reservationRepo.findByReleaseInstructionId(instructionId)).thenReturn(Optional.of(existingRes));
+        when(financialOutboxRepo.findByReleaseInstructionIdAndEventType(instructionId, FinancialOutboxEventType.RELEASE_DISPATCH_REQUESTED))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> authService.authorizeAndReserve(instructionId, adminPrincipal))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("DATA_INTEGRITY_ERROR: ReleaseInstruction is QUEUED but outbox event is missing");
+    }
+
+    @Test
+    @DisplayName("41. CREATED with preexisting outbox -> fail closed (Part Y, AO)")
+    void test41_createdWithPreexistingOutboxFailsClosed() {
+        FinancialOutboxMessage rogueOutbox = FinancialOutboxMessage.createReleaseDispatch(instruction, Instant.now());
+        when(financialOutboxRepo.findByReleaseInstructionIdAndEventType(instructionId, FinancialOutboxEventType.RELEASE_DISPATCH_REQUESTED))
+                .thenReturn(Optional.of(rogueOutbox));
+
+        assertThatThrownBy(() -> authService.authorizeAndReserve(instructionId, adminPrincipal))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("DATA_INTEGRITY_ERROR: Outbox event already exists for CREATED instruction");
+    }
+
+    @Test
+    @DisplayName("42. AUTHORIZED state -> fail closed (Part Z, AO)")
+    void test42_authorizedStateFailsClosed() throws Exception {
+        setField(instruction, "status", ReleaseInstructionStatus.AUTHORIZED);
+
+        assertThatThrownBy(() -> authService.authorizeAndReserve(instructionId, adminPrincipal))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("DATA_INTEGRITY_ERROR: ReleaseInstruction is in illegal state AUTHORIZED");
+    }
+
+    @Test
+    @DisplayName("43. CREATED with preexisting ACTIVE reservation -> fail closed")
+    void test43_createdWithPreexistingActiveReservationFailsClosed() {
         ReleaseReservation rogueRes = new ReleaseReservation(
                 UUID.randomUUID(), instructionId, escrowAccountId, milestoneId,
                 new BigDecimal("50000.0000"), "INR"
@@ -565,8 +689,8 @@ class ReleaseAuthorizationServiceTest {
     }
 
     @Test
-    @DisplayName("38. No financial mutation beyond ReleaseInstruction + ReleaseReservation")
-    void test38_noFinancialMutationBeyondInstructionAndReservation() {
+    @DisplayName("44. No financial mutation beyond ReleaseInstruction, ReleaseReservation, and Outbox")
+    void test44_noFinancialMutationBeyondInstructionReservationAndOutbox() {
         authService.authorizeAndReserve(instructionId, adminPrincipal);
 
         assertThat(escrowAccount.getBalance()).isEqualByComparingTo(new BigDecimal("100000.0000"));

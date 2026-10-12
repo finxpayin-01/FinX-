@@ -155,6 +155,14 @@ public class ReleaseInstruction {
         this.updatedAt = Instant.now();
     }
 
+    public void markQueued() {
+        if (this.status != ReleaseInstructionStatus.RESERVED) {
+            throw new IllegalStateException("Cannot mark queued on ReleaseInstruction in status " + this.status);
+        }
+        this.status = ReleaseInstructionStatus.QUEUED;
+        this.updatedAt = Instant.now();
+    }
+
     public void markCancelled() {
         if (this.status == ReleaseInstructionStatus.SETTLED || this.status == ReleaseInstructionStatus.CANCELLED) {
             throw new IllegalStateException("Cannot cancel instruction in " + this.status + " status");

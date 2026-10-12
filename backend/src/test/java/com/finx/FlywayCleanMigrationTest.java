@@ -239,12 +239,36 @@ public class FlywayCleanMigrationTest {
             // V30 milestone approval bindings table
             assertTrue(tables.contains("milestone_approval_bindings"), "V30 table 'milestone_approval_bindings' must exist");
 
-            // Verify highest migration is V30 and V31 is absent
+            // V31 financial outbox table
+            assertTrue(tables.contains("financial_outbox"), "V31 table 'financial_outbox' must exist");
+
+            List<String> outboxColumns = new ArrayList<>();
+            try (ResultSet rs = conn.getMetaData().getColumns(null, null, "%", "%")) {
+                while (rs.next()) {
+                    if ("financial_outbox".equalsIgnoreCase(rs.getString("TABLE_NAME"))) {
+                        outboxColumns.add(rs.getString("COLUMN_NAME").toLowerCase());
+                    }
+                }
+            }
+            assertTrue(outboxColumns.contains("release_instruction_id"), "V31 column 'release_instruction_id' on 'financial_outbox' must exist");
+            assertTrue(outboxColumns.contains("event_type"), "V31 column 'event_type' on 'financial_outbox' must exist");
+            assertTrue(outboxColumns.contains("operation_key"), "V31 column 'operation_key' on 'financial_outbox' must exist");
+            assertTrue(outboxColumns.contains("payload_version"), "V31 column 'payload_version' on 'financial_outbox' must exist");
+            assertTrue(outboxColumns.contains("status"), "V31 column 'status' on 'financial_outbox' must exist");
+            assertTrue(outboxColumns.contains("attempt_count"), "V31 column 'attempt_count' on 'financial_outbox' must exist");
+            assertTrue(outboxColumns.contains("available_at"), "V31 column 'available_at' on 'financial_outbox' must exist");
+            assertTrue(outboxColumns.contains("locked_at"), "V31 column 'locked_at' on 'financial_outbox' must exist");
+            assertTrue(outboxColumns.contains("locked_by"), "V31 column 'locked_by' on 'financial_outbox' must exist");
+            assertTrue(outboxColumns.contains("created_at"), "V31 column 'created_at' on 'financial_outbox' must exist");
+            assertTrue(outboxColumns.contains("updated_at"), "V31 column 'updated_at' on 'financial_outbox' must exist");
+
+            // Verify highest migration is V31 and V32 is absent
             boolean v27Found = false;
             boolean v28Found = false;
             boolean v29Found = false;
             boolean v30Found = false;
             boolean v31Found = false;
+            boolean v32Found = false;
             for (MigrationInfo info : infoList) {
                 if ("27".equals(info.getVersion().getVersion())) {
                     v27Found = true;
@@ -261,14 +285,18 @@ public class FlywayCleanMigrationTest {
                 if ("31".equals(info.getVersion().getVersion())) {
                     v31Found = true;
                 }
+                if ("32".equals(info.getVersion().getVersion())) {
+                    v32Found = true;
+                }
             }
             assertTrue(v27Found, "Migration V27 must be present and executed");
             assertTrue(v28Found, "Migration V28 must be present and executed");
             assertTrue(v29Found, "Migration V29 must be present and executed");
             assertTrue(v30Found, "Migration V30 must be present and executed");
-            assertFalse(v31Found, "Migration V31 must NOT exist in E1.5 phase");
+            assertTrue(v31Found, "Migration V31 must be present and executed");
+            assertFalse(v32Found, "Migration V32 must NOT exist in E3 phase");
 
-            System.out.println("ALL V1 - V30 TABLES AND COLUMNS VERIFIED IN SEQUENTIAL CLEAN ORDER!\n");
+            System.out.println("ALL V1 - V31 TABLES AND COLUMNS VERIFIED IN SEQUENTIAL CLEAN ORDER!\n");
         }
     }
 }

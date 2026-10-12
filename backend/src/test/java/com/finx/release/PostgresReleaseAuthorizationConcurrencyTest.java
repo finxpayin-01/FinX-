@@ -125,6 +125,7 @@ public class PostgresReleaseAuthorizationConcurrencyTest {
     @Autowired private DeliverableRepository deliverableRepo;
     @Autowired private JournalEntryRepository journalEntryRepo;
     @Autowired private SettlementInstructionRepository settlementInstructionRepo;
+    @Autowired private com.finx.outbox.repository.FinancialOutboxRepository outboxRepo;
 
     @MockBean private BankingProvider bankingProvider;
     @SpyBean private ReleaseDecisionEngine releaseDecisionEngine;
@@ -429,8 +430,18 @@ public class PostgresReleaseAuthorizationConcurrencyTest {
 
         // Verify committed database state
         ReleaseInstruction committedInstruction = instructionRepo.findById(instruction.getId()).orElseThrow();
-        assertThat(committedInstruction.getStatus()).isEqualTo(ReleaseInstructionStatus.RESERVED);
+        assertThat(committedInstruction.getStatus()).isEqualTo(ReleaseInstructionStatus.QUEUED);
         assertThat(committedInstruction.getAuthorizedBy()).isEqualTo(adminUser.getId());
+
+        // Verify committed financial outbox state
+        List<com.finx.outbox.entity.FinancialOutboxMessage> outboxList = outboxRepo.findAll().stream()
+                .filter(m -> m.getReleaseInstructionId().equals(instruction.getId()))
+                .toList();
+        assertThat(outboxList).hasSize(1);
+        com.finx.outbox.entity.FinancialOutboxMessage outboxMsg = outboxList.get(0);
+        assertThat(outboxMsg.getReleaseInstructionId()).isEqualTo(instruction.getId());
+        assertThat(outboxMsg.getStatus()).isEqualTo(com.finx.outbox.model.FinancialOutboxStatus.PENDING);
+        assertThat(outboxMsg.getEventType()).isEqualTo(com.finx.outbox.model.FinancialOutboxEventType.RELEASE_DISPATCH_REQUESTED);
 
         EscrowAccount committedEscrow = escrowRepo.findById(escrowAccount.getId()).orElseThrow();
         assertThat(committedEscrow.getBalance()).isEqualByComparingTo(new BigDecimal("100000.0000"));
@@ -438,7 +449,7 @@ public class PostgresReleaseAuthorizationConcurrencyTest {
     }
 
     @Test
-    @DisplayName("5. Concurrent same instruction results in exactly one reservation")
+    @DisplayName("5. Concurrent same instruction results in exactly one reservation and one outbox row")
     void test05_concurrentSameInstructionSingleReservation() throws Exception {
         EngineDecision decision = setupCompleteReleaseDecisionForMilestone(milestone1);
         CreateReleaseInstructionCommand cmd = new CreateReleaseInstructionCommand(decision.getId(), "idem-same-instruction");
@@ -475,6 +486,17 @@ public class PostgresReleaseAuthorizationConcurrencyTest {
                 .filter(r -> r.getReleaseInstructionId().equals(instruction.getId()))
                 .count();
         assertThat(activeCount).isEqualTo(1);
+
+        // Instruction final state is QUEUED
+        ReleaseInstruction finalInstruction = instructionRepo.findById(instruction.getId()).orElseThrow();
+        assertThat(finalInstruction.getStatus()).isEqualTo(ReleaseInstructionStatus.QUEUED);
+
+        // Exactly one PENDING outbox message for this instruction
+        List<com.finx.outbox.entity.FinancialOutboxMessage> outboxForInstruction = outboxRepo.findAll().stream()
+                .filter(o -> o.getReleaseInstructionId().equals(instruction.getId()))
+                .toList();
+        assertThat(outboxForInstruction).hasSize(1);
+        assertThat(outboxForInstruction.get(0).getStatus()).isEqualTo(com.finx.outbox.model.FinancialOutboxStatus.PENDING);
     }
 
     @Test
@@ -547,6 +569,20 @@ public class PostgresReleaseAuthorizationConcurrencyTest {
         BigDecimal availableToReserve = finalEscrow.getBalance().subtract(activeReservedSum);
         assertThat(availableToReserve).isEqualByComparingTo(new BigDecimal("30000.0000"));
         assertThat(availableToReserve).isGreaterThanOrEqualTo(BigDecimal.ZERO);
+
+        // Verify outbox rows: exactly 1 PENDING outbox for the winning instruction, 0 for the losing instruction
+        ReleaseInstruction inst1 = instructionRepo.findById(instruction1.getId()).orElseThrow();
+        ReleaseInstruction inst2 = instructionRepo.findById(instruction2.getId()).orElseThrow();
+        if (inst1.getStatus() == ReleaseInstructionStatus.QUEUED) {
+            assertThat(inst2.getStatus()).isEqualTo(ReleaseInstructionStatus.CREATED);
+            assertThat(outboxRepo.findAll().stream().filter(o -> o.getReleaseInstructionId().equals(instruction1.getId())).count()).isEqualTo(1);
+            assertThat(outboxRepo.findAll().stream().filter(o -> o.getReleaseInstructionId().equals(instruction2.getId())).count()).isEqualTo(0);
+        } else {
+            assertThat(inst1.getStatus()).isEqualTo(ReleaseInstructionStatus.CREATED);
+            assertThat(inst2.getStatus()).isEqualTo(ReleaseInstructionStatus.QUEUED);
+            assertThat(outboxRepo.findAll().stream().filter(o -> o.getReleaseInstructionId().equals(instruction2.getId())).count()).isEqualTo(1);
+            assertThat(outboxRepo.findAll().stream().filter(o -> o.getReleaseInstructionId().equals(instruction1.getId())).count()).isEqualTo(0);
+        }
 
         // Zero JournalEntry writes
         assertThat(journalEntryRepo.findAll()).isEmpty();

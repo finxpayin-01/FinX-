@@ -18,6 +18,10 @@ import com.finx.milestone.entity.Milestone;
 import com.finx.milestone.entity.MilestoneStatus;
 import com.finx.milestone.repository.DeliverableRepository;
 import com.finx.milestone.repository.MilestoneRepository;
+import com.finx.outbox.entity.FinancialOutboxMessage;
+import com.finx.outbox.model.FinancialOutboxEventType;
+import com.finx.outbox.repository.FinancialOutboxRepository;
+import com.finx.outbox.service.FinancialOutboxService;
 import com.finx.release.entity.ReleaseInstruction;
 import com.finx.release.entity.ReleaseReservation;
 import com.finx.release.model.ReleaseInstructionStatus;
@@ -30,10 +34,8 @@ import com.finx.verification.service.VerificationEligibilityService.BeneficiaryE
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -43,12 +45,13 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Service governing ReleaseInstruction platform authorization and atomic fund reservation (TX2).
+ * Service governing ReleaseInstruction platform authorization, atomic fund reservation,
+ * and transactional outbox enqueueing (TX2).
  * <p>
  * Enforces canonical pessimistic write lock order:
  * Deal -> Milestone -> EscrowAccount -> ReleaseInstruction
  * <p>
- * Strictly atomic: Transitions CREATED -> AUTHORIZED -> RESERVED in one local PostgreSQL transaction.
+ * Strictly atomic: Transitions CREATED -> AUTHORIZED -> RESERVED -> QUEUED in one local PostgreSQL transaction.
  * Serialized by EscrowAccount row-level locks to prevent concurrent oversubscription.
  * Zero ledger postings, zero escrow balance deductions, zero bank calls.
  */
@@ -68,8 +71,11 @@ public class ReleaseAuthorizationService {
     private final ReleaseDecisionExecutionValidator executionValidator;
     private final ReleaseFundingScopeResolver fundingScopeResolver;
     private final EscrowReservationService escrowReservationService;
-    private final org.springframework.transaction.PlatformTransactionManager transactionManager;
+    private final FinancialOutboxService financialOutboxService;
+    private final FinancialOutboxRepository financialOutboxRepository;
+    private final PlatformTransactionManager transactionManager;
 
+    @Deprecated
     public ReleaseAuthorizationService(
             ReleaseInstructionRepository releaseInstructionRepository,
             ReleaseReservationRepository releaseReservationRepository,
@@ -86,7 +92,30 @@ public class ReleaseAuthorizationService {
     ) {
         this(releaseInstructionRepository, releaseReservationRepository, dealRepository, milestoneRepository,
                 escrowAccountRepository, disputeRepository, verificationEligibilityService, approvalBindingService,
-                deliverableRepository, executionValidator, fundingScopeResolver, escrowReservationService, null);
+                deliverableRepository, executionValidator, fundingScopeResolver, escrowReservationService,
+                null, null, null);
+    }
+
+    public ReleaseAuthorizationService(
+            ReleaseInstructionRepository releaseInstructionRepository,
+            ReleaseReservationRepository releaseReservationRepository,
+            DealRepository dealRepository,
+            MilestoneRepository milestoneRepository,
+            EscrowAccountRepository escrowAccountRepository,
+            DisputeRepository disputeRepository,
+            VerificationEligibilityService verificationEligibilityService,
+            MilestoneApprovalBindingService approvalBindingService,
+            DeliverableRepository deliverableRepository,
+            ReleaseDecisionExecutionValidator executionValidator,
+            ReleaseFundingScopeResolver fundingScopeResolver,
+            EscrowReservationService escrowReservationService,
+            FinancialOutboxService financialOutboxService,
+            FinancialOutboxRepository financialOutboxRepository
+    ) {
+        this(releaseInstructionRepository, releaseReservationRepository, dealRepository, milestoneRepository,
+                escrowAccountRepository, disputeRepository, verificationEligibilityService, approvalBindingService,
+                deliverableRepository, executionValidator, fundingScopeResolver, escrowReservationService,
+                financialOutboxService, financialOutboxRepository, null);
     }
 
     @Autowired
@@ -103,6 +132,8 @@ public class ReleaseAuthorizationService {
             ReleaseDecisionExecutionValidator executionValidator,
             ReleaseFundingScopeResolver fundingScopeResolver,
             EscrowReservationService escrowReservationService,
+            FinancialOutboxService financialOutboxService,
+            FinancialOutboxRepository financialOutboxRepository,
             PlatformTransactionManager transactionManager
     ) {
         this.releaseInstructionRepository = Objects.requireNonNull(releaseInstructionRepository, "releaseInstructionRepository must not be null");
@@ -117,6 +148,8 @@ public class ReleaseAuthorizationService {
         this.executionValidator = Objects.requireNonNull(executionValidator, "executionValidator must not be null");
         this.fundingScopeResolver = Objects.requireNonNull(fundingScopeResolver, "fundingScopeResolver must not be null");
         this.escrowReservationService = Objects.requireNonNull(escrowReservationService, "escrowReservationService must not be null");
+        this.financialOutboxService = financialOutboxService;
+        this.financialOutboxRepository = financialOutboxRepository;
         this.transactionManager = transactionManager;
     }
 
@@ -193,14 +226,14 @@ public class ReleaseAuthorizationService {
             throw new UnauthorizedException("Role " + role + " is not authorized to authorize release instructions. Only ADMIN and FINANCE permitted.");
         }
 
-        // 2. Discover Deal & Milestone IDs without write lock (Part T)
+        // 2. Discover Deal & Milestone IDs without write lock
         ReleaseInstructionRepository.ScopeProjection initialScope = releaseInstructionRepository.findScopeById(releaseInstructionId)
                 .orElseThrow(() -> new ResourceNotFoundException("ReleaseInstruction", "id", releaseInstructionId));
 
         UUID dealId = initialScope.getDealId();
         UUID milestoneId = initialScope.getMilestoneId();
 
-        // 3. Acquire Pessimistic Locks in Canonical Order: Deal -> Milestone -> EscrowAccount -> ReleaseInstruction (Part T, U)
+        // 3. Acquire Pessimistic Locks in Canonical Order: Deal -> Milestone -> EscrowAccount -> ReleaseInstruction
         Deal lockedDeal = dealRepository.findByIdForUpdate(dealId)
                 .orElseThrow(() -> new ResourceNotFoundException("Deal", "id", dealId));
 
@@ -213,7 +246,7 @@ public class ReleaseAuthorizationService {
         ReleaseInstruction lockedInstruction = releaseInstructionRepository.findByIdForUpdate(releaseInstructionId)
                 .orElseThrow(() -> new ResourceNotFoundException("ReleaseInstruction", "id", releaseInstructionId));
 
-        // 4. Re-verify All Entity Bindings After Locks Acquired (Part T, W)
+        // 4. Re-verify All Entity Bindings After Locks Acquired
         if (!lockedInstruction.getDealId().equals(lockedDeal.getId())) {
             throw new IllegalStateException("Locked instruction dealId does not match locked Deal");
         }
@@ -245,28 +278,84 @@ public class ReleaseAuthorizationService {
             throw new IllegalStateException("Milestone is not APPROVED. Current status: " + lockedMilestone.getStatus());
         }
 
-        // Deal status guards (Part W)
+        // Deal status guards
         DealStatus dealStatus = lockedDeal.getStatus();
         if (dealStatus == DealStatus.REJECTED || dealStatus == DealStatus.CANCELLED
                 || dealStatus == DealStatus.COMPLETED || dealStatus == DealStatus.DISPUTED) {
             throw new IllegalStateException("Deal status " + dealStatus + " prohibits milestone release authorization");
         }
 
-        // 5. Instruction Lifecycle & Idempotent Replay Handling (Parts AF, AG)
+        // 5. Instruction Lifecycle & Idempotent Replay Handling (Parts U, V, W, X, Y, Z)
+        if (lockedInstruction.getStatus() == ReleaseInstructionStatus.QUEUED) {
+            Optional<ReleaseReservation> resOpt = releaseReservationRepository.findByReleaseInstructionId(lockedInstruction.getId());
+            if (resOpt.isEmpty()) {
+                throw new IllegalStateException("DATA_INTEGRITY_ERROR: ReleaseInstruction is QUEUED but ReleaseReservation is missing");
+            }
+            ReleaseReservation existingRes = resOpt.get();
+            if (existingRes.getStatus() != ReleaseReservationStatus.ACTIVE
+                    || !existingRes.getMilestoneId().equals(lockedMilestone.getId())
+                    || !existingRes.getEscrowAccountId().equals(lockedEscrow.getId())
+                    || existingRes.getAmount().compareTo(lockedInstruction.getAmount()) != 0
+                    || !existingRes.getCurrency().equalsIgnoreCase(lockedInstruction.getCurrency())) {
+                throw new IllegalStateException("DATA_INTEGRITY_ERROR: ReleaseInstruction is QUEUED but ReleaseReservation is inconsistent");
+            }
+
+            if (financialOutboxRepository != null) {
+                Optional<FinancialOutboxMessage> outboxOpt = financialOutboxRepository.findByReleaseInstructionIdAndEventType(
+                        lockedInstruction.getId(), FinancialOutboxEventType.RELEASE_DISPATCH_REQUESTED);
+                if (outboxOpt.isEmpty()) {
+                    throw new IllegalStateException("DATA_INTEGRITY_ERROR: ReleaseInstruction is QUEUED but outbox event is missing");
+                }
+                FinancialOutboxMessage outbox = outboxOpt.get();
+                if (!outbox.getReleaseInstructionId().equals(lockedInstruction.getId())
+                        || outbox.getEventType() != FinancialOutboxEventType.RELEASE_DISPATCH_REQUESTED
+                        || !outbox.getOperationKey().equals(lockedInstruction.getId().toString())) {
+                    throw new IllegalStateException("DATA_INTEGRITY_ERROR: ReleaseInstruction is QUEUED but outbox event identity is inconsistent");
+                }
+
+                Optional<FinancialOutboxMessage> opKeyOpt = financialOutboxRepository.findByEventTypeAndOperationKey(
+                        FinancialOutboxEventType.RELEASE_DISPATCH_REQUESTED, lockedInstruction.getId().toString());
+                if (opKeyOpt.isPresent() && !opKeyOpt.get().getId().equals(outbox.getId())) {
+                    throw new IllegalStateException("DATA_INTEGRITY_ERROR: Conflicting outbox event for operation key " + lockedInstruction.getId());
+                }
+            }
+
+            return existingRes;
+        }
+
         if (lockedInstruction.getStatus() == ReleaseInstructionStatus.RESERVED) {
             Optional<ReleaseReservation> resOpt = releaseReservationRepository.findByReleaseInstructionId(lockedInstruction.getId());
-            if (resOpt.isPresent()) {
-                ReleaseReservation existingRes = resOpt.get();
-                if (existingRes.getStatus() == ReleaseReservationStatus.ACTIVE
-                        && existingRes.getMilestoneId().equals(lockedMilestone.getId())
-                        && existingRes.getEscrowAccountId().equals(lockedEscrow.getId())
-                        && existingRes.getAmount().compareTo(lockedInstruction.getAmount()) == 0
-                        && existingRes.getCurrency().equalsIgnoreCase(lockedInstruction.getCurrency())) {
-                    return existingRes;
-                }
+            if (resOpt.isEmpty()) {
+                throw new IllegalStateException("DATA_INTEGRITY_ERROR: ReleaseInstruction is RESERVED but ReleaseReservation is missing");
+            }
+            ReleaseReservation existingRes = resOpt.get();
+            if (existingRes.getStatus() != ReleaseReservationStatus.ACTIVE
+                    || !existingRes.getMilestoneId().equals(lockedMilestone.getId())
+                    || !existingRes.getEscrowAccountId().equals(lockedEscrow.getId())
+                    || existingRes.getAmount().compareTo(lockedInstruction.getAmount()) != 0
+                    || !existingRes.getCurrency().equalsIgnoreCase(lockedInstruction.getCurrency())) {
                 throw new IllegalStateException("DATA_INTEGRITY_ERROR: ReleaseInstruction is RESERVED but ReleaseReservation is inconsistent");
             }
-            throw new IllegalStateException("DATA_INTEGRITY_ERROR: ReleaseInstruction is RESERVED but ReleaseReservation is missing");
+
+            // Part V: If instruction == RESERVED and outbox event already exists: FAIL CLOSED
+            if (financialOutboxRepository != null) {
+                if (financialOutboxRepository.findByReleaseInstructionIdAndEventType(
+                        lockedInstruction.getId(), FinancialOutboxEventType.RELEASE_DISPATCH_REQUESTED).isPresent()) {
+                    throw new IllegalStateException("DATA_INTEGRITY_ERROR: ReleaseInstruction is in illegal state RESERVED with existing outbox event");
+                }
+            }
+
+            // Part U: Re-run all execution-critical guards without calling markAuthorized again
+            runExecutionGuards(lockedDeal, lockedMilestone, lockedInstruction);
+
+            // Enqueue dispatch event, mark QUEUED and commit
+            if (financialOutboxService != null) {
+                financialOutboxService.enqueueReleaseDispatch(lockedInstruction);
+            }
+            lockedInstruction.markQueued();
+            releaseInstructionRepository.save(lockedInstruction);
+
+            return existingRes;
         }
 
         if (lockedInstruction.getStatus() == ReleaseInstructionStatus.AUTHORIZED) {
@@ -285,49 +374,16 @@ public class ReleaseAuthorizationService {
             throw new IllegalStateException("An active ReleaseReservation already exists for milestone " + lockedMilestone.getId());
         }
 
-        // 6. Pre-Reservation Execution Guards (Parts W, X, Y, Z, AA)
-
-        // A. Release decision integrity & currentness
-        executionValidator.validateForExecution(
-                lockedInstruction.getReleaseDecisionId(),
-                lockedDeal,
-                lockedMilestone,
-                lockedInstruction.getBeneficiaryBankAccountId()
-        );
-
-        // B. Durable milestone approval binding recheck (Part X)
-        List<Deliverable> deliverables = deliverableRepository.findByMilestoneIdOrderBySubmittedAtDesc(lockedMilestone.getId());
-        ApprovalBindingEvaluation approvalEval = approvalBindingService.evaluateCurrentBinding(lockedDeal, lockedMilestone, deliverables);
-        if (!approvalEval.present() || !approvalEval.current()) {
-            throw new IllegalStateException("Milestone approval binding is missing or not current: " + approvalEval.reasonCode());
+        // Part Y: Invariant: No outbox event may pre-exist for CREATED instruction
+        if (financialOutboxRepository != null) {
+            if (financialOutboxRepository.findByReleaseInstructionIdAndEventType(
+                    lockedInstruction.getId(), FinancialOutboxEventType.RELEASE_DISPATCH_REQUESTED).isPresent()) {
+                throw new IllegalStateException("DATA_INTEGRITY_ERROR: Outbox event already exists for CREATED instruction " + lockedInstruction.getId());
+            }
         }
 
-        // C. Dispute recheck (Part Y)
-        if (disputeRepository.existsByDealIdAndStatus(lockedDeal.getId(), DisputeStatus.OPEN)) {
-            throw new IllegalStateException("Deal " + lockedDeal.getId() + " has an OPEN dispute");
-        }
-        if (disputeRepository.existsByMilestoneIdAndStatus(lockedMilestone.getId(), DisputeStatus.OPEN)) {
-            throw new IllegalStateException("Milestone " + lockedMilestone.getId() + " has an OPEN dispute");
-        }
-
-        // D. Canonical beneficiary recheck (Part Z)
-        BeneficiaryEligibilityResult bResult = verificationEligibilityService.evaluateBeneficiaryEligibility(lockedDeal.getSellerOrganizationId());
-        if (!bResult.eligible() || bResult.bankAccount() == null) {
-            throw new IllegalStateException("Canonical beneficiary resolution failed: " + bResult.failureReason());
-        }
-        if (!bResult.bankAccount().getId().equals(lockedInstruction.getBeneficiaryBankAccountId())) {
-            throw new IllegalStateException("Canonical beneficiary has changed since instruction creation: original="
-                    + lockedInstruction.getBeneficiaryBankAccountId() + " vs current=" + bResult.bankAccount().getId());
-        }
-
-        // E. Funding scope recheck (Part AA)
-        ReleaseFundingScopeResolver.FundingScope scope = fundingScopeResolver.resolveFundingScope(lockedDeal, lockedMilestone);
-        if (!scope.provider().equalsIgnoreCase(lockedInstruction.getProvider())) {
-            throw new IllegalStateException("Funding provider changed from " + lockedInstruction.getProvider() + " to " + scope.provider());
-        }
-        if (!scope.providerAccountId().equals(lockedInstruction.getProviderAccountId())) {
-            throw new IllegalStateException("Funding providerAccountId changed from " + lockedInstruction.getProviderAccountId() + " to " + scope.providerAccountId());
-        }
+        // 6. Pre-Reservation Execution Guards
+        runExecutionGuards(lockedDeal, lockedMilestone, lockedInstruction);
 
         // 7. Escrow Balance Availability Check (Part AB)
         BigDecimal activeReserved = releaseReservationRepository.sumActiveReservationsForEscrow(lockedEscrow.getId());
@@ -337,10 +393,15 @@ public class ReleaseAuthorizationService {
                     + availableToReserve + ", required=" + lockedInstruction.getAmount());
         }
 
-        // 8. Atomic State Transitions & Reservation Creation (Parts AC, AD, AE)
+        // 8. Atomic State Transitions, Reservation Creation & Outbox Enqueue (Parts S, T)
         lockedInstruction.markAuthorized(currentUser.getId(), Instant.now());
         ReleaseReservation reservation = escrowReservationService.createActiveReservation(lockedInstruction, lockedEscrow, lockedMilestone);
         lockedInstruction.markReserved();
+
+        if (financialOutboxService != null) {
+            financialOutboxService.enqueueReleaseDispatch(lockedInstruction);
+        }
+        lockedInstruction.markQueued();
         releaseInstructionRepository.save(lockedInstruction);
 
         // Advance EscrowAccount version to serialize concurrent reservations & reflect durable reservation
@@ -348,5 +409,49 @@ public class ReleaseAuthorizationService {
         escrowAccountRepository.save(lockedEscrow);
 
         return reservation;
+    }
+
+    private void runExecutionGuards(Deal lockedDeal, Milestone lockedMilestone, ReleaseInstruction lockedInstruction) {
+        // A. Release decision integrity & currentness
+        executionValidator.validateForExecution(
+                lockedInstruction.getReleaseDecisionId(),
+                lockedDeal,
+                lockedMilestone,
+                lockedInstruction.getBeneficiaryBankAccountId()
+        );
+
+        // B. Durable milestone approval binding recheck
+        List<Deliverable> deliverables = deliverableRepository.findByMilestoneIdOrderBySubmittedAtDesc(lockedMilestone.getId());
+        ApprovalBindingEvaluation approvalEval = approvalBindingService.evaluateCurrentBinding(lockedDeal, lockedMilestone, deliverables);
+        if (!approvalEval.present() || !approvalEval.current()) {
+            throw new IllegalStateException("Milestone approval binding is missing or not current: " + approvalEval.reasonCode());
+        }
+
+        // C. Dispute recheck
+        if (disputeRepository.existsByDealIdAndStatus(lockedDeal.getId(), DisputeStatus.OPEN)) {
+            throw new IllegalStateException("Deal " + lockedDeal.getId() + " has an OPEN dispute");
+        }
+        if (disputeRepository.existsByMilestoneIdAndStatus(lockedMilestone.getId(), DisputeStatus.OPEN)) {
+            throw new IllegalStateException("Milestone " + lockedMilestone.getId() + " has an OPEN dispute");
+        }
+
+        // D. Canonical beneficiary recheck
+        BeneficiaryEligibilityResult bResult = verificationEligibilityService.evaluateBeneficiaryEligibility(lockedDeal.getSellerOrganizationId());
+        if (!bResult.eligible() || bResult.bankAccount() == null) {
+            throw new IllegalStateException("Canonical beneficiary resolution failed: " + bResult.failureReason());
+        }
+        if (!bResult.bankAccount().getId().equals(lockedInstruction.getBeneficiaryBankAccountId())) {
+            throw new IllegalStateException("Canonical beneficiary has changed since instruction creation: original="
+                    + lockedInstruction.getBeneficiaryBankAccountId() + " vs current=" + bResult.bankAccount().getId());
+        }
+
+        // E. Funding scope recheck
+        ReleaseFundingScopeResolver.FundingScope scope = fundingScopeResolver.resolveFundingScope(lockedDeal, lockedMilestone);
+        if (!scope.provider().equalsIgnoreCase(lockedInstruction.getProvider())) {
+            throw new IllegalStateException("Funding provider changed from " + lockedInstruction.getProvider() + " to " + scope.provider());
+        }
+        if (!scope.providerAccountId().equals(lockedInstruction.getProviderAccountId())) {
+            throw new IllegalStateException("Funding providerAccountId changed from " + lockedInstruction.getProviderAccountId() + " to " + scope.providerAccountId());
+        }
     }
 }
