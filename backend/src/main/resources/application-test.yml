@@ -36,6 +36,9 @@ finx:
       auto-settle: false
       simulate-latency-ms: 0
     webhook-secret: mock-banking-webhook-secret-key-32chars
+  release:
+    sandbox-dispatch:
+      enabled: false
 
 mailersend:
   api-key: mock-mailersend-key

@@ -15,7 +15,9 @@ import static org.assertj.core.api.Assertions.assertThat;
         "spring.datasource.driver-class-name=org.h2.Driver",
         "spring.jpa.hibernate.ddl-auto=create-drop",
         "spring.flyway.enabled=false",
-        "rate-limit.enabled=false"
+        "rate-limit.enabled=false",
+        "finx.banking.provider=mock",
+        "finx.release.sandbox-dispatch.enabled=true"
 })
 public class ReleaseStartupSideEffectTest {
 
@@ -31,12 +33,19 @@ public class ReleaseStartupSideEffectTest {
     @Autowired
     private com.finx.release.execution.repository.SettlementExecutionAttemptRepository attemptRepository;
 
+    @Autowired(required = false)
+    private com.finx.banking.provider.BankingProvider bankingProvider;
+
     @Test
-    @DisplayName("Spring context startup produces zero outbox messages, reservations, instructions, or execution attempts")
+    @DisplayName("Spring context startup with sandbox dispatch enabled produces zero provider calls, outbox messages, reservations, instructions, or execution attempts")
     void testStartupCreatesZeroSideEffects() {
         assertThat(outboxRepository.count()).isEqualTo(0);
         assertThat(reservationRepository.count()).isEqualTo(0);
         assertThat(instructionRepository.count()).isEqualTo(0);
         assertThat(attemptRepository.count()).isEqualTo(0);
+
+        if (bankingProvider instanceof com.finx.banking.provider.mock.MockBankingProvider mock) {
+            assertThat(mock.fetchTransactions(java.time.LocalDate.now(), java.time.LocalDate.now())).isEmpty();
+        }
     }
 }

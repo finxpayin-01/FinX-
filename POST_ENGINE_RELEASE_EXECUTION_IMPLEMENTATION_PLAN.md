@@ -149,16 +149,23 @@ This document outlines the strict 12-phase engineering roadmap (E1 through E12) 
 
 ---
 
-### Phase E5 — Mock Banking Provider Dispatch Sandbox
-- **Scope**: Connect `FinancialOutboxWorker` to `MockBankingProvider` for end-to-end sandbox dispatch.
+### Phase E5 — Mock Banking Provider Sandbox Dispatch & Unknown-Outcome Safety [COMPLETE]
+- **Scope**: Explicit sandbox-gated dispatch orchestration, out-of-transaction HTTP/mock boundary, ephemeral in-memory PII decryption, idempotent `MockBankingProvider` simulation, two-phase dispatch transactions (TX-D1 and TX-D2), and unknown-outcome safety with automatic retry blocking.
+- **Status**: **COMPLETE**.
+- **Flyway Migration**: **NONE** (V32 remains highest migration; V33 strictly reserved for E6).
 - **Classes**:
-  - `com.finx.release.worker.SettlementDispatchHandler`
-  - `com.finx.banking.provider.MockBankingProvider` (Harden with simulated network delays/failures).
-- **Tests**: `SettlementDispatchHandlerTest`, `MockBankDispatchIntegrationTest`.
-- **Financial Side Effects Allowed**: Sandbox test simulations only.
-- **Bank Calls Allowed**: MockBankingProvider only.
-- **Acceptance Criteria**: Stable provider idempotency key (`FINX-REL-{id}`) verified across retries.
-- **Commit Message**: `feat(dispatch): connect outbox worker to mock banking provider dispatch`
+  - `com.finx.release.execution.gate.SandboxSettlementDispatchGate`
+  - `com.finx.release.execution.service.SettlementDispatchHandler`
+  - `com.finx.release.execution.service.SettlementDispatchStateService`
+  - `com.finx.release.execution.model.DispatchPreparedContext`
+  - `com.finx.release.execution.model.SettlementDispatchResult`
+  - `com.finx.banking.provider.mock.MockBankingProvider` (Harded with in-memory request fingerprint idempotency, conflict detection, single debit)
+- **Tests**: `SandboxSettlementDispatchGateTest`, `MockBankSettlementIdempotencyTest`, `SettlementExecutionAttemptEntityTest`, `ReleaseInstructionLifecycleTest`, `FinancialOutboxEntityTest`, `SettlementDispatchStateServiceTest`, `SettlementDispatchHandlerTest`, `ReleaseExecutionE5ArchitectureTest`, `ReleaseStartupSideEffectTest`, `PostgresMockSettlementDispatchIntegrationTest`.
+- **Financial Side Effects Allowed**: None. Mock `SETTLED` status is treated as synchronous acknowledgement only, NOT financial settlement finality. ReleaseInstruction transitions to `PENDING_SETTLEMENT` (or `UNKNOWN_RECON_REQUIRED` on failure); Outbox transitions to `PROCESSED`; ReleaseReservation strictly remains `ACTIVE`; Milestone remains `APPROVED`; Zero ledger writes; Zero escrow balance deductions; Zero SettlementInstruction writes.
+- **Bank Calls Allowed**: MockBankingProvider only in explicit sandbox mode (`finx.release.sandbox-dispatch.enabled=true`, provider `mock`). Real provider calls: 0. Production payout: DISABLED.
+- **Acceptance Criteria**: Strict fail-closed sandbox gate; no DB locks held during provider call; ephemeral PII decryption in memory only (never persisted/logged); stable provider operation key (`FINX-REL-{id}`); unknown outcome transitions to `UNKNOWN_RECON_REQUIRED` and blocks blind automated retries; second call to `dispatchPreparedWorkItem` makes 0 additional bank calls; crash recovery blocks retry for network-started rows; 1458/1458 tests passing in full Maven build.
+- **Next**: **Phase E6 — Trusted Settlement Observation Inbox & Provider Status Recovery** (Migration: `V33__create_settlement_observations.sql`).
+- **Commit Message**: `feat(dispatch): add safe mock settlement dispatch`
 
 ---
 

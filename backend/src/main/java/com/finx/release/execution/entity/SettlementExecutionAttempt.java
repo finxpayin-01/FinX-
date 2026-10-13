@@ -146,6 +146,70 @@ public class SettlementExecutionAttempt {
         this.responseReceivedAt = null;
     }
 
+    public void markSending(Instant startedAt) {
+        if (this.status != SettlementExecutionAttemptStatus.PREPARED) {
+            throw new IllegalStateException("Cannot mark SENDING from status: " + this.status);
+        }
+        Objects.requireNonNull(startedAt, "startedAt must not be null");
+        this.status = SettlementExecutionAttemptStatus.SENDING;
+        this.requestStartedAt = startedAt;
+        this.updatedAt = startedAt;
+    }
+
+    public void markAcknowledged(String providerSettlementId, String providerStatus, Instant responseReceivedAt) {
+        if (this.status != SettlementExecutionAttemptStatus.SENDING) {
+            throw new IllegalStateException("Cannot mark ACKNOWLEDGED from status: " + this.status);
+        }
+        Objects.requireNonNull(providerSettlementId, "providerSettlementId must not be null");
+        if (providerSettlementId.isBlank() || providerSettlementId.length() > 128) {
+            throw new IllegalArgumentException("providerSettlementId must be non-blank and <= 128 characters");
+        }
+        Objects.requireNonNull(providerStatus, "providerStatus must not be null");
+        if (providerStatus.isBlank() || providerStatus.length() > 64) {
+            throw new IllegalArgumentException("providerStatus must be non-blank and <= 64 characters");
+        }
+        Objects.requireNonNull(responseReceivedAt, "responseReceivedAt must not be null");
+
+        this.status = SettlementExecutionAttemptStatus.ACKNOWLEDGED;
+        this.providerSettlementId = providerSettlementId;
+        this.providerStatus = providerStatus;
+        this.responseReceivedAt = responseReceivedAt;
+        this.retryable = false;
+        this.errorCode = null;
+        this.updatedAt = responseReceivedAt;
+    }
+
+    public void markUnknown(String safeErrorCode, Instant observedAt) {
+        if (this.status != SettlementExecutionAttemptStatus.SENDING) {
+            throw new IllegalStateException("Cannot mark UNKNOWN from status: " + this.status);
+        }
+        Objects.requireNonNull(observedAt, "observedAt must not be null");
+        if (safeErrorCode != null && safeErrorCode.length() > 100) {
+            throw new IllegalArgumentException("safeErrorCode length must be <= 100 characters");
+        }
+
+        this.status = SettlementExecutionAttemptStatus.UNKNOWN;
+        this.responseReceivedAt = observedAt;
+        this.retryable = false;
+        this.errorCode = safeErrorCode;
+        this.updatedAt = observedAt;
+    }
+
+    public void markTerminalFailedBeforeDispatch(String safeErrorCode, Instant now) {
+        if (this.status != SettlementExecutionAttemptStatus.PREPARED) {
+            throw new IllegalStateException("Cannot mark TERMINAL_FAILED from status: " + this.status);
+        }
+        Objects.requireNonNull(now, "now must not be null");
+        if (safeErrorCode != null && safeErrorCode.length() > 100) {
+            throw new IllegalArgumentException("safeErrorCode length must be <= 100 characters");
+        }
+
+        this.status = SettlementExecutionAttemptStatus.TERMINAL_FAILED;
+        this.retryable = false;
+        this.errorCode = safeErrorCode;
+        this.updatedAt = now;
+    }
+
     public UUID getId() {
         return id;
     }

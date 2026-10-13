@@ -25,6 +25,10 @@ public interface SettlementExecutionAttemptRepository extends JpaRepository<Sett
 
     long countByOutboxMessageId(UUID outboxMessageId);
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("SELECT a FROM SettlementExecutionAttempt a WHERE a.id = :id")
+    Optional<SettlementExecutionAttempt> findByIdForUpdate(@org.springframework.data.repository.query.Param("id") UUID id);
+
     @Query("SELECT COALESCE(MAX(a.attemptNumber), 0) FROM SettlementExecutionAttempt a WHERE a.outboxMessageId = :outboxMessageId")
     int maxAttemptNumberForOutbox(@Param("outboxMessageId") UUID outboxMessageId);
 }

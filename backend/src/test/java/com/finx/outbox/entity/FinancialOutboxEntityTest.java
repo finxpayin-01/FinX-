@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class FinancialOutboxEntityTest {
 
@@ -118,5 +119,96 @@ public class FinancialOutboxEntityTest {
             assertThat(field.getType().getName()).doesNotContain("BankingProvider");
             assertThat(field.getType().getName()).doesNotContain("Settlement");
         }
+    }
+
+    @Test
+    @DisplayName("4. markProcessed transitions LEASED -> PROCESSED, clears locks, and sets processedAt")
+    void testMarkProcessedFromLeased() {
+        ReleaseInstruction instruction = createDummyInstruction(UUID.randomUUID());
+        Instant now = Instant.now();
+        FinancialOutboxMessage message = FinancialOutboxMessage.createReleaseDispatch(instruction, now);
+
+        message.markLeased("worker-1", now);
+        assertThat(message.getStatus()).isEqualTo(FinancialOutboxStatus.LEASED);
+        assertThat(message.getLockedBy()).isEqualTo("worker-1");
+
+        Instant processedTime = now.plusSeconds(1);
+        message.markProcessed(processedTime, null);
+
+        assertThat(message.getStatus()).isEqualTo(FinancialOutboxStatus.PROCESSED);
+        assertThat(message.getProcessedAt()).isEqualTo(processedTime);
+        assertThat(message.getLockedAt()).isNull();
+        assertThat(message.getLockedBy()).isNull();
+        assertThat(message.getLastErrorCode()).isNull();
+        assertThat(message.getUpdatedAt()).isEqualTo(processedTime);
+    }
+
+    @Test
+    @DisplayName("5. markProcessed with safe error code for UNKNOWN outcome")
+    void testMarkProcessedWithSafeErrorCodeForUnknown() {
+        ReleaseInstruction instruction = createDummyInstruction(UUID.randomUUID());
+        Instant now = Instant.now();
+        FinancialOutboxMessage message = FinancialOutboxMessage.createReleaseDispatch(instruction, now);
+
+        message.markLeased("worker-1", now);
+        Instant processedTime = now.plusSeconds(5);
+        message.markProcessed(processedTime, "DISPATCH_OUTCOME_UNKNOWN");
+
+        assertThat(message.getStatus()).isEqualTo(FinancialOutboxStatus.PROCESSED);
+        assertThat(message.getLastErrorCode()).isEqualTo("DISPATCH_OUTCOME_UNKNOWN");
+        assertThat(message.getProcessedAt()).isEqualTo(processedTime);
+        assertThat(message.getLockedBy()).isNull();
+    }
+
+    @Test
+    @DisplayName("6. markDeadLetter transitions LEASED -> DEAD_LETTER, clears locks, and sets deadLetteredAt")
+    void testMarkDeadLetterFromLeased() {
+        ReleaseInstruction instruction = createDummyInstruction(UUID.randomUUID());
+        Instant now = Instant.now();
+        FinancialOutboxMessage message = FinancialOutboxMessage.createReleaseDispatch(instruction, now);
+
+        message.markLeased("worker-1", now);
+        Instant dlTime = now.plusSeconds(2);
+        message.markDeadLetter("PRE_DISPATCH_TERMINAL_FAILURE", dlTime);
+
+        assertThat(message.getStatus()).isEqualTo(FinancialOutboxStatus.DEAD_LETTER);
+        assertThat(message.getDeadLetteredAt()).isEqualTo(dlTime);
+        assertThat(message.getLockedAt()).isNull();
+        assertThat(message.getLockedBy()).isNull();
+        assertThat(message.getLastErrorCode()).isEqualTo("PRE_DISPATCH_TERMINAL_FAILURE");
+        assertThat(message.getUpdatedAt()).isEqualTo(dlTime);
+    }
+
+    @Test
+    @DisplayName("7. Non-LEASED status rejects markProcessed and markDeadLetter")
+    void testNonLeasedRejectsProcessedAndDeadLetter() {
+        ReleaseInstruction instruction = createDummyInstruction(UUID.randomUUID());
+        Instant now = Instant.now();
+        FinancialOutboxMessage message = FinancialOutboxMessage.createReleaseDispatch(instruction, now);
+
+        // PENDING -> PROCESSED rejected
+        assertThatThrownBy(() -> message.markProcessed(now, null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Cannot mark PROCESSED when status is: PENDING");
+
+        // PENDING -> DEAD_LETTER rejected
+        assertThatThrownBy(() -> message.markDeadLetter("ERR", now))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Cannot mark DEAD_LETTER when status is: PENDING");
+
+        // Release lease for RETRY
+        message.markLeased("worker-1", now);
+        message.releaseLeaseForRetry(now.plusSeconds(10), "RETRY_DELAY", now);
+        assertThat(message.getStatus()).isEqualTo(FinancialOutboxStatus.RETRY);
+
+        // RETRY -> PROCESSED rejected
+        assertThatThrownBy(() -> message.markProcessed(now, null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Cannot mark PROCESSED when status is: RETRY");
+
+        // RETRY -> DEAD_LETTER rejected
+        assertThatThrownBy(() -> message.markDeadLetter("ERR", now))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Cannot mark DEAD_LETTER when status is: RETRY");
     }
 }

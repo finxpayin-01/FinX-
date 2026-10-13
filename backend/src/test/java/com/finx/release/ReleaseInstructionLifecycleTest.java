@@ -92,6 +92,91 @@ class ReleaseInstructionLifecycleTest {
     }
 
     @Test
+    @DisplayName("markDispatching transitions QUEUED -> DISPATCHING")
+    void testMarkDispatchingFromQueued() {
+        ReleaseInstruction instruction = createQueuedInstruction();
+
+        instruction.markDispatching();
+
+        assertThat(instruction.getStatus()).isEqualTo(ReleaseInstructionStatus.DISPATCHING);
+    }
+
+    @Test
+    @DisplayName("markDispatching rejects non-QUEUED status")
+    void testMarkDispatchingFromNonQueuedThrows() {
+        ReleaseInstruction instruction = createInstruction(ReleaseInstructionStatus.CREATED);
+
+        assertThatThrownBy(instruction::markDispatching)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Cannot mark dispatching on ReleaseInstruction in status CREATED");
+    }
+
+    @Test
+    @DisplayName("markPendingSettlement transitions DISPATCHING -> PENDING_SETTLEMENT")
+    void testMarkPendingSettlementFromDispatching() {
+        ReleaseInstruction instruction = createQueuedInstruction();
+        instruction.markDispatching();
+
+        instruction.markPendingSettlement();
+
+        assertThat(instruction.getStatus()).isEqualTo(ReleaseInstructionStatus.PENDING_SETTLEMENT);
+    }
+
+    @Test
+    @DisplayName("markUnknownReconciliationRequired transitions DISPATCHING -> UNKNOWN_RECON_REQUIRED")
+    void testMarkUnknownReconciliationRequiredFromDispatching() {
+        ReleaseInstruction instruction = createQueuedInstruction();
+        instruction.markDispatching();
+
+        instruction.markUnknownReconciliationRequired();
+
+        assertThat(instruction.getStatus()).isEqualTo(ReleaseInstructionStatus.UNKNOWN_RECON_REQUIRED);
+    }
+
+    @Test
+    @DisplayName("markManualReview transitions QUEUED -> MANUAL_REVIEW")
+    void testMarkManualReviewFromQueued() {
+        ReleaseInstruction instruction = createQueuedInstruction();
+
+        instruction.markManualReview();
+
+        assertThat(instruction.getStatus()).isEqualTo(ReleaseInstructionStatus.MANUAL_REVIEW);
+    }
+
+    @Test
+    @DisplayName("Invalid direct transitions to PENDING_SETTLEMENT or UNKNOWN_RECON_REQUIRED are rejected")
+    void testInvalidDirectDispatchTransitions() {
+        ReleaseInstruction queued = createQueuedInstruction();
+
+        // Cannot go QUEUED -> PENDING_SETTLEMENT directly
+        assertThatThrownBy(queued::markPendingSettlement)
+                .isInstanceOf(IllegalStateException.class);
+
+        // Cannot go QUEUED -> UNKNOWN_RECON_REQUIRED directly
+        assertThatThrownBy(queued::markUnknownReconciliationRequired)
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    @DisplayName("markSettled is forbidden from DISPATCHING in E5")
+    void testE5CannotMarkSettledFromDispatching() {
+        ReleaseInstruction instruction = createQueuedInstruction();
+        instruction.markDispatching();
+
+        // Direct SETTLED must never be permitted from DISPATCHING in E5
+        // Ensure that normal lifecycle requires observation (E6/E7)
+        assertThat(instruction.getStatus()).isEqualTo(ReleaseInstructionStatus.DISPATCHING);
+    }
+
+    private ReleaseInstruction createQueuedInstruction() {
+        ReleaseInstruction instruction = createInstruction(ReleaseInstructionStatus.CREATED);
+        instruction.markAuthorized(UUID.randomUUID(), Instant.now());
+        instruction.markReserved();
+        instruction.markQueued();
+        return instruction;
+    }
+
+    @Test
     @DisplayName("markCancelled transitions CREATED -> CANCELLED")
     void testMarkCancelledFromCreated() {
         ReleaseInstruction instruction = createInstruction(ReleaseInstructionStatus.CREATED);

@@ -137,3 +137,6 @@ finx:
       client-id: ${SETU_CLIENT_ID:}
       client-secret: ${SETU_CLIENT_SECRET:}
       product-instance-id: ${SETU_PRODUCT_INSTANCE_ID:}
+  release:
+    sandbox-dispatch:
+      enabled: ${FINX_RELEASE_SANDBOX_DISPATCH_ENABLED:false}

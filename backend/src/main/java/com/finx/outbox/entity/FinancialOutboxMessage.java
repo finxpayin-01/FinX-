@@ -176,6 +176,49 @@ public class FinancialOutboxMessage {
         this.updatedAt = now;
     }
 
+    /**
+     * Marks the outbox message as PROCESSED.
+     * Allowed only from LEASED.
+     */
+    public void markProcessed(Instant now, String safeErrorCodeOrNull) {
+        Objects.requireNonNull(now, "now must not be null");
+        if (this.status != FinancialOutboxStatus.LEASED) {
+            throw new IllegalStateException("Cannot mark PROCESSED when status is: " + this.status);
+        }
+        if (safeErrorCodeOrNull != null && safeErrorCodeOrNull.length() > 100) {
+            throw new IllegalArgumentException("safeErrorCodeOrNull length must be <= 100 characters");
+        }
+
+        this.status = FinancialOutboxStatus.PROCESSED;
+        this.processedAt = now;
+        this.lockedBy = null;
+        this.lockedAt = null;
+        this.lastErrorCode = safeErrorCodeOrNull;
+        this.updatedAt = now;
+    }
+
+    /**
+     * Marks the outbox message as DEAD_LETTER.
+     * Allowed only from LEASED.
+     */
+    public void markDeadLetter(String safeErrorCode, Instant now) {
+        Objects.requireNonNull(now, "now must not be null");
+        Objects.requireNonNull(safeErrorCode, "safeErrorCode must not be null");
+        if (this.status != FinancialOutboxStatus.LEASED) {
+            throw new IllegalStateException("Cannot mark DEAD_LETTER when status is: " + this.status);
+        }
+        if (safeErrorCode.length() > 100) {
+            throw new IllegalArgumentException("safeErrorCode length must be <= 100 characters");
+        }
+
+        this.status = FinancialOutboxStatus.DEAD_LETTER;
+        this.deadLetteredAt = now;
+        this.lockedBy = null;
+        this.lockedAt = null;
+        this.lastErrorCode = safeErrorCode;
+        this.updatedAt = now;
+    }
+
     // Getters
     public UUID getId() { return id; }
     public UUID getReleaseInstructionId() { return releaseInstructionId; }

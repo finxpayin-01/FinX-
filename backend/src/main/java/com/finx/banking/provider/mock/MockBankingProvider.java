@@ -7,6 +7,7 @@ import com.finx.banking.dto.BankStatementEntry;
 import com.finx.banking.dto.BankStatementFinality;
 import com.finx.banking.dto.BankStatementPage;
 import com.finx.banking.dto.BankStatementQuery;
+import com.finx.exception.DuplicateResourceException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,9 +28,35 @@ public class MockBankingProvider implements BankingProvider {
 
     private static final Logger log = LoggerFactory.getLogger(MockBankingProvider.class);
 
+    private record MockSettlementFingerprint(
+            String settlementReference,
+            UUID dealId,
+            UUID milestoneId,
+            BigDecimal normalizedAmount,
+            String currency,
+            String beneficiaryAccountNumber,
+            String beneficiaryIfsc,
+            String idempotencyKey
+    ) {
+        static MockSettlementFingerprint from(SettlementRequest request) {
+            return new MockSettlementFingerprint(
+                    request.settlementReference(),
+                    request.dealId(),
+                    request.milestoneId(),
+                    request.amount() != null ? request.amount().stripTrailingZeros() : null,
+                    request.currency() != null ? request.currency().trim().toUpperCase(Locale.ROOT) : null,
+                    request.beneficiaryAccountNumber(),
+                    request.beneficiaryIfsc() != null ? request.beneficiaryIfsc().trim().toUpperCase(Locale.ROOT) : null,
+                    request.idempotencyKey()
+            );
+        }
+    }
+
     private final String webhookSecret;
     private final Map<String, PaymentInstructionResult> virtualAccounts = new ConcurrentHashMap<>();
     private final Map<String, SettlementResult> settlements = new ConcurrentHashMap<>();
+    private final Map<String, SettlementResult> settlementIdempotencyMap = new ConcurrentHashMap<>();
+    private final Map<String, MockSettlementFingerprint> settlementFingerprintMap = new ConcurrentHashMap<>();
     private final List<BankTransactionRecord> simulatedBankFeed = Collections.synchronizedList(new ArrayList<>());
     private final List<BankStatementEntry> durableStatementEntries = Collections.synchronizedList(new ArrayList<>());
 
@@ -116,6 +143,21 @@ public class MockBankingProvider implements BankingProvider {
 
     @Override
     public SettlementResult initiateSettlement(SettlementRequest request) {
+        String idempotencyKey = request.idempotencyKey();
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            MockSettlementFingerprint currentFp = MockSettlementFingerprint.from(request);
+            SettlementResult cached = settlementIdempotencyMap.get(idempotencyKey);
+            if (cached != null) {
+                MockSettlementFingerprint cachedFp = settlementFingerprintMap.get(idempotencyKey);
+                if (cachedFp != null && cachedFp.equals(currentFp)) {
+                    log.info("[SANDBOX / TEST MODE] Idempotent replay of mock settlement for idempotencyKey={}", idempotencyKey);
+                    return cached;
+                }
+                log.warn("[SANDBOX / TEST MODE] Conflicting mock settlement request for idempotencyKey={}", idempotencyKey);
+                throw new DuplicateResourceException("Conflicting mock settlement request for idempotencyKey=" + idempotencyKey);
+            }
+        }
+
         String providerSettlementId = "MOCK-SETTL-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         String utr = "UTR-MOCK-STL-" + UUID.randomUUID().toString().substring(0, 10).toUpperCase();
 
@@ -129,6 +171,11 @@ public class MockBankingProvider implements BankingProvider {
         );
 
         settlements.put(providerSettlementId, result);
+
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            settlementIdempotencyMap.put(idempotencyKey, result);
+            settlementFingerprintMap.put(idempotencyKey, MockSettlementFingerprint.from(request));
+        }
 
         // Record in simulated bank feed for reconciliation
         simulatedBankFeed.add(new BankTransactionRecord(

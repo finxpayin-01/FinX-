@@ -163,6 +163,38 @@ public class ReleaseInstruction {
         this.updatedAt = Instant.now();
     }
 
+    public void markDispatching() {
+        if (this.status != ReleaseInstructionStatus.QUEUED) {
+            throw new IllegalStateException("Cannot mark dispatching on ReleaseInstruction in status " + this.status);
+        }
+        this.status = ReleaseInstructionStatus.DISPATCHING;
+        this.updatedAt = Instant.now();
+    }
+
+    public void markPendingSettlement() {
+        if (this.status != ReleaseInstructionStatus.DISPATCHING) {
+            throw new IllegalStateException("Cannot mark pending settlement on ReleaseInstruction in status " + this.status);
+        }
+        this.status = ReleaseInstructionStatus.PENDING_SETTLEMENT;
+        this.updatedAt = Instant.now();
+    }
+
+    public void markUnknownReconciliationRequired() {
+        if (this.status != ReleaseInstructionStatus.DISPATCHING) {
+            throw new IllegalStateException("Cannot mark unknown recon required on ReleaseInstruction in status " + this.status);
+        }
+        this.status = ReleaseInstructionStatus.UNKNOWN_RECON_REQUIRED;
+        this.updatedAt = Instant.now();
+    }
+
+    public void markManualReview() {
+        if (this.status == ReleaseInstructionStatus.SETTLED || this.status == ReleaseInstructionStatus.CANCELLED) {
+            throw new IllegalStateException("Cannot mark manual review on ReleaseInstruction in status " + this.status);
+        }
+        this.status = ReleaseInstructionStatus.MANUAL_REVIEW;
+        this.updatedAt = Instant.now();
+    }
+
     public void markCancelled() {
         if (this.status == ReleaseInstructionStatus.SETTLED || this.status == ReleaseInstructionStatus.CANCELLED) {
             throw new IllegalStateException("Cannot cancel instruction in " + this.status + " status");
