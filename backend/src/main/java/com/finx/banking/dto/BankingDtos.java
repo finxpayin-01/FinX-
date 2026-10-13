@@ -110,6 +110,24 @@ public class BankingDtos {
             String failureReason
     ) {}
 
+    public record SettlementLookupResult(
+            boolean supported,
+            boolean found,
+            SettlementStatusResult settlement
+    ) {
+        public static SettlementLookupResult unsupported() {
+            return new SettlementLookupResult(false, false, null);
+        }
+
+        public static SettlementLookupResult notFound() {
+            return new SettlementLookupResult(true, false, null);
+        }
+
+        public static SettlementLookupResult found(SettlementStatusResult settlement) {
+            return new SettlementLookupResult(true, true, settlement);
+        }
+    }
+
     public record BankTransactionRecord(
             String transactionReference,
             String utrNumber,

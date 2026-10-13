@@ -9,6 +9,16 @@ import com.finx.paymentorchestration.TestEscrowFundingFixture;
 import com.finx.paymentorchestration.entity.PaymentInstruction;
 import com.finx.paymentorchestration.repository.PaymentInstructionRepository;
 import com.finx.paymentorchestration.service.PaymentOrchestrationService;
+import com.finx.release.entity.ReleaseInstruction;
+import com.finx.release.model.ReleaseInstructionStatus;
+import com.finx.release.repository.ReleaseInstructionRepository;
+import com.finx.release.execution.entity.SettlementExecutionAttempt;
+import com.finx.release.execution.repository.SettlementExecutionAttemptRepository;
+import com.finx.release.observation.entity.SettlementObservation;
+import com.finx.release.observation.model.SettlementObservationFinality;
+import com.finx.release.observation.model.SettlementObservationReasonCodes;
+import com.finx.release.observation.model.SettlementObservationSource;
+import com.finx.release.observation.repository.SettlementObservationRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -54,9 +64,15 @@ class BankingWebhookControllerTest {
     @Autowired private PaymentInstructionRepository instructionRepository;
     @Autowired private PaymentOrchestrationService orchestrationService;
     @Autowired private BankingProvider bankingProvider;
+    @Autowired private SettlementExecutionAttemptRepository attemptRepository;
+    @Autowired private ReleaseInstructionRepository releaseInstructionRepository;
+    @Autowired private SettlementObservationRepository observationRepository;
 
     @BeforeEach
     void cleanUp() {
+        observationRepository.deleteAll();
+        attemptRepository.deleteAll();
+        releaseInstructionRepository.deleteAll();
         webhookEventRepository.deleteAll();
     }
 
@@ -468,5 +484,404 @@ class BankingWebhookControllerTest {
         assertThatThrownBy(() -> orchestrationService.confirmPayment(UUID.randomUUID(), null, null))
                 .isInstanceOf(AccessDeniedException.class)
                 .hasMessage("Payment confirmation is disabled pending trusted bank ingestion");
+    }
+
+    // ==========================================
+    // 7. E6 Settlement Webhooks & Observation
+    // ==========================================
+
+    private ReleaseInstruction createInstruction(UUID id, BigDecimal amount, String currency, String providerAccountId) {
+        ReleaseInstruction instruction = new ReleaseInstruction(
+                id,
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                "1".repeat(64),
+                UUID.randomUUID(),
+                "2".repeat(64),
+                UUID.randomUUID(),
+                "MOCK",
+                providerAccountId,
+                amount,
+                currency,
+                "idem-" + UUID.randomUUID(),
+                "3".repeat(64),
+                UUID.randomUUID()
+        );
+        instruction.markAuthorized(UUID.randomUUID(), Instant.now());
+        instruction.markReserved();
+        instruction.markQueued();
+        instruction.markDispatching();
+        instruction.markPendingSettlement();
+        return releaseInstructionRepository.saveAndFlush(instruction);
+    }
+
+    private SettlementExecutionAttempt createAttempt(ReleaseInstruction instruction, String providerSettlementId) {
+        SettlementExecutionAttempt attempt = new SettlementExecutionAttempt(
+                UUID.randomUUID(),
+                instruction.getId(),
+                UUID.randomUUID(),
+                1,
+                "OP-" + UUID.randomUUID(),
+                "FINX-REL-" + instruction.getId(),
+                instruction.getProvider(),
+                instruction.getProviderAccountId(),
+                instruction.getBeneficiaryBankAccountId(),
+                instruction.getAmount(),
+                instruction.getCurrency(),
+                "hash-" + UUID.randomUUID(),
+                "worker-1",
+                Instant.now()
+        );
+        attempt.markSending(Instant.now());
+        if (providerSettlementId != null) {
+            attempt.markAcknowledged(providerSettlementId, "ACKNOWLEDGED", Instant.now());
+        }
+        return attemptRepository.saveAndFlush(attempt);
+    }
+
+    @Test
+    @DisplayName("22. Valid signed SETTLEMENT_SETTLED creates FINAL_SUCCESS observation without finalization")
+    void validSignedSettlementSettled_createsObservationWithoutFinalization() throws Exception {
+        ReleaseInstruction instruction = createInstruction(UUID.randomUUID(), new BigDecimal("1000.0000"), "INR", "MOCK-ACC-1");
+        SettlementExecutionAttempt attempt = createAttempt(instruction, "MOCK-SETTLE-001");
+
+        String eventId = "evt-settle-022";
+        Map<String, Object> payloadMap = Map.of(
+                "eventId", eventId,
+                "eventType", "SETTLEMENT_SETTLED",
+                "providerSettlementId", "MOCK-SETTLE-001",
+                "status", "SETTLED",
+                "utrNumber", "UTR-123456",
+                "amount", "1000.0000",
+                "currency", "INR",
+                "direction", "DEBIT",
+                "providerAccountId", "MOCK-ACC-1"
+        );
+        String payload = objectMapper.writeValueAsString(payloadMap);
+
+        mockMvc.perform(post("/api/v1/webhooks/banking/" + PROVIDER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload)
+                        .header("X-FinX-Signature", VALID_SIGNATURE)
+                        .header("X-FinX-Timestamp", validTimestamp()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("processed"));
+
+        List<SettlementObservation> observations = observationRepository.findByExecutionAttemptIdOrderByObservedAtDesc(attempt.getId());
+        assertThat(observations).hasSize(1);
+        SettlementObservation obs = observations.get(0);
+        assertThat(obs.getSource()).isEqualTo(SettlementObservationSource.WEBHOOK);
+        assertThat(obs.getFinality()).isEqualTo(SettlementObservationFinality.FINAL_SUCCESS);
+        assertThat(obs.getReasonCode()).isEqualTo(SettlementObservationReasonCodes.SETTLEMENT_FINAL_CONFIRMED);
+        assertThat(obs.getUtrNumber()).isEqualTo("UTR-123456");
+
+        // Verify ReleaseInstruction remains PENDING_SETTLEMENT — ZERO finalization
+        ReleaseInstruction refreshed = releaseInstructionRepository.findById(instruction.getId()).orElseThrow();
+        assertThat(refreshed.getStatus()).isEqualTo(ReleaseInstructionStatus.PENDING_SETTLEMENT);
+    }
+
+    @Test
+    @DisplayName("23. Duplicate settlement webhook produces exactly one observation")
+    void duplicateSettlementWebhook_producesAtMostOneObservation() throws Exception {
+        ReleaseInstruction instruction = createInstruction(UUID.randomUUID(), new BigDecimal("1000.0000"), "INR", "MOCK-ACC-1");
+        SettlementExecutionAttempt attempt = createAttempt(instruction, "MOCK-SETTLE-023");
+
+        String eventId = "evt-settle-023";
+        String payload = objectMapper.writeValueAsString(Map.of(
+                "eventId", eventId,
+                "eventType", "SETTLEMENT_SETTLED",
+                "providerSettlementId", "MOCK-SETTLE-023",
+                "status", "SETTLED",
+                "utrNumber", "UTR-023"
+        ));
+        String ts = validTimestamp();
+
+        mockMvc.perform(post("/api/v1/webhooks/banking/" + PROVIDER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload)
+                        .header("X-FinX-Signature", VALID_SIGNATURE)
+                        .header("X-FinX-Timestamp", ts))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("processed"));
+
+        mockMvc.perform(post("/api/v1/webhooks/banking/" + PROVIDER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload)
+                        .header("X-FinX-Signature", VALID_SIGNATURE)
+                        .header("X-FinX-Timestamp", ts))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("already_processed"));
+
+        assertThat(observationRepository.findByExecutionAttemptIdOrderByObservedAtDesc(attempt.getId())).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("24. Same eventId with tampered settlement payload is rejected")
+    void sameEventIdTamperedSettlementPayload_rejected() throws Exception {
+        ReleaseInstruction instruction = createInstruction(UUID.randomUUID(), new BigDecimal("1000.0000"), "INR", "MOCK-ACC-1");
+        createAttempt(instruction, "MOCK-SETTLE-024");
+
+        String eventId = "evt-settle-024";
+        String payload1 = objectMapper.writeValueAsString(Map.of(
+                "eventId", eventId,
+                "eventType", "SETTLEMENT_SETTLED",
+                "providerSettlementId", "MOCK-SETTLE-024",
+                "status", "SETTLED",
+                "utrNumber", "UTR-024",
+                "amount", "1000.0000"
+        ));
+        String payload2 = objectMapper.writeValueAsString(Map.of(
+                "eventId", eventId,
+                "eventType", "SETTLEMENT_SETTLED",
+                "providerSettlementId", "MOCK-SETTLE-024",
+                "status", "SETTLED",
+                "utrNumber", "UTR-024",
+                "amount", "2000.0000"
+        ));
+        String ts = validTimestamp();
+
+        mockMvc.perform(post("/api/v1/webhooks/banking/" + PROVIDER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload1)
+                        .header("X-FinX-Signature", VALID_SIGNATURE)
+                        .header("X-FinX-Timestamp", ts))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/webhooks/banking/" + PROVIDER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload2)
+                        .header("X-FinX-Signature", VALID_SIGNATURE)
+                        .header("X-FinX-Timestamp", ts))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Payload hash mismatch for event ID: " + eventId));
+    }
+
+    @Test
+    @DisplayName("25. Settlement webhook with unknown settlement reference fails closed and marks FAILED")
+    void unknownSettlementRef_failsClosedAndMarksFailed() throws Exception {
+        String eventId = "evt-settle-025";
+        String payload = objectMapper.writeValueAsString(Map.of(
+                "eventId", eventId,
+                "eventType", "SETTLEMENT_SETTLED",
+                "providerSettlementId", "UNKNOWN-SETTLEMENT-REF",
+                "status", "SETTLED",
+                "utrNumber", "UTR-025"
+        ));
+
+        mockMvc.perform(post("/api/v1/webhooks/banking/" + PROVIDER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload)
+                        .header("X-FinX-Signature", VALID_SIGNATURE)
+                        .header("X-FinX-Timestamp", validTimestamp()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Unknown settlement reference in webhook payload"));
+
+        Optional<WebhookEvent> event = webhookEventRepository.findByProviderAndProviderEventId("MOCK", eventId);
+        assertThat(event).isPresent();
+        assertThat(event.get().getProcessingStatus()).isEqualTo("FAILED");
+        assertThat(observationRepository.findAll()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("26. Conflicting settlement identifiers fails closed")
+    void conflictingSettlementIdentifiers_failsClosed() throws Exception {
+        ReleaseInstruction instruction1 = createInstruction(UUID.randomUUID(), new BigDecimal("1000.0000"), "INR", "MOCK-ACC-1");
+        SettlementExecutionAttempt attempt1 = createAttempt(instruction1, "MOCK-SETTLE-026-A");
+
+        ReleaseInstruction instruction2 = createInstruction(UUID.randomUUID(), new BigDecimal("1000.0000"), "INR", "MOCK-ACC-1");
+        SettlementExecutionAttempt attempt2 = createAttempt(instruction2, "MOCK-SETTLE-026-B");
+
+        String eventId = "evt-settle-026";
+        String payload = objectMapper.writeValueAsString(Map.of(
+                "eventId", eventId,
+                "eventType", "SETTLEMENT_SETTLED",
+                "providerSettlementId", "MOCK-SETTLE-026-A",
+                "settlementReference", attempt2.getProviderOperationKey(),
+                "status", "SETTLED",
+                "utrNumber", "UTR-026"
+        ));
+
+        mockMvc.perform(post("/api/v1/webhooks/banking/" + PROVIDER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload)
+                        .header("X-FinX-Signature", VALID_SIGNATURE)
+                        .header("X-FinX-Timestamp", validTimestamp()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Conflicting settlement identifiers in webhook payload"));
+
+        Optional<WebhookEvent> event = webhookEventRepository.findByProviderAndProviderEventId("MOCK", eventId);
+        assertThat(event).isPresent();
+        assertThat(event.get().getProcessingStatus()).isEqualTo("FAILED");
+    }
+
+    @Test
+    @DisplayName("27. SETTLED missing UTR records UNKNOWN observation")
+    void settledMissingUtr_recordsUnknownObservation() throws Exception {
+        ReleaseInstruction instruction = createInstruction(UUID.randomUUID(), new BigDecimal("1000.0000"), "INR", "MOCK-ACC-1");
+        SettlementExecutionAttempt attempt = createAttempt(instruction, "MOCK-SETTLE-027");
+
+        String eventId = "evt-settle-027";
+        String payload = objectMapper.writeValueAsString(Map.of(
+                "eventId", eventId,
+                "eventType", "SETTLEMENT_SETTLED",
+                "providerSettlementId", "MOCK-SETTLE-027",
+                "status", "SETTLED"
+        ));
+
+        mockMvc.perform(post("/api/v1/webhooks/banking/" + PROVIDER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload)
+                        .header("X-FinX-Signature", VALID_SIGNATURE)
+                        .header("X-FinX-Timestamp", validTimestamp()))
+                .andExpect(status().isOk());
+
+        List<SettlementObservation> observations = observationRepository.findByExecutionAttemptIdOrderByObservedAtDesc(attempt.getId());
+        assertThat(observations).hasSize(1);
+        assertThat(observations.get(0).getFinality()).isEqualTo(SettlementObservationFinality.UNKNOWN);
+        assertThat(observations.get(0).getReasonCode()).isEqualTo(SettlementObservationReasonCodes.SETTLEMENT_FINAL_MISSING_UTR);
+    }
+
+    @Test
+    @DisplayName("28. Wrong amount records UNKNOWN observation")
+    void wrongAmount_recordsUnknownObservation() throws Exception {
+        ReleaseInstruction instruction = createInstruction(UUID.randomUUID(), new BigDecimal("1000.0000"), "INR", "MOCK-ACC-1");
+        SettlementExecutionAttempt attempt = createAttempt(instruction, "MOCK-SETTLE-028");
+
+        String eventId = "evt-settle-028";
+        String payload = objectMapper.writeValueAsString(Map.of(
+                "eventId", eventId,
+                "eventType", "SETTLEMENT_SETTLED",
+                "providerSettlementId", "MOCK-SETTLE-028",
+                "status", "SETTLED",
+                "utrNumber", "UTR-028",
+                "amount", "999.0000"
+        ));
+
+        mockMvc.perform(post("/api/v1/webhooks/banking/" + PROVIDER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload)
+                        .header("X-FinX-Signature", VALID_SIGNATURE)
+                        .header("X-FinX-Timestamp", validTimestamp()))
+                .andExpect(status().isOk());
+
+        List<SettlementObservation> observations = observationRepository.findByExecutionAttemptIdOrderByObservedAtDesc(attempt.getId());
+        assertThat(observations).hasSize(1);
+        assertThat(observations.get(0).getFinality()).isEqualTo(SettlementObservationFinality.UNKNOWN);
+        assertThat(observations.get(0).getReasonCode()).isEqualTo(SettlementObservationReasonCodes.SETTLEMENT_AMOUNT_MISMATCH);
+    }
+
+    @Test
+    @DisplayName("29. Wrong currency records UNKNOWN observation")
+    void wrongCurrency_recordsUnknownObservation() throws Exception {
+        ReleaseInstruction instruction = createInstruction(UUID.randomUUID(), new BigDecimal("1000.0000"), "INR", "MOCK-ACC-1");
+        SettlementExecutionAttempt attempt = createAttempt(instruction, "MOCK-SETTLE-029");
+
+        String eventId = "evt-settle-029";
+        String payload = objectMapper.writeValueAsString(Map.of(
+                "eventId", eventId,
+                "eventType", "SETTLEMENT_SETTLED",
+                "providerSettlementId", "MOCK-SETTLE-029",
+                "status", "SETTLED",
+                "utrNumber", "UTR-029",
+                "currency", "USD"
+        ));
+
+        mockMvc.perform(post("/api/v1/webhooks/banking/" + PROVIDER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload)
+                        .header("X-FinX-Signature", VALID_SIGNATURE)
+                        .header("X-FinX-Timestamp", validTimestamp()))
+                .andExpect(status().isOk());
+
+        List<SettlementObservation> observations = observationRepository.findByExecutionAttemptIdOrderByObservedAtDesc(attempt.getId());
+        assertThat(observations).hasSize(1);
+        assertThat(observations.get(0).getFinality()).isEqualTo(SettlementObservationFinality.UNKNOWN);
+        assertThat(observations.get(0).getReasonCode()).isEqualTo(SettlementObservationReasonCodes.SETTLEMENT_CURRENCY_MISMATCH);
+    }
+
+    @Test
+    @DisplayName("30. Wrong provider account records UNKNOWN observation")
+    void wrongProviderAccount_recordsUnknownObservation() throws Exception {
+        ReleaseInstruction instruction = createInstruction(UUID.randomUUID(), new BigDecimal("1000.0000"), "INR", "MOCK-ACC-1");
+        SettlementExecutionAttempt attempt = createAttempt(instruction, "MOCK-SETTLE-030");
+
+        String eventId = "evt-settle-030";
+        String payload = objectMapper.writeValueAsString(Map.of(
+                "eventId", eventId,
+                "eventType", "SETTLEMENT_SETTLED",
+                "providerSettlementId", "MOCK-SETTLE-030",
+                "status", "SETTLED",
+                "utrNumber", "UTR-030",
+                "providerAccountId", "WRONG-ACC-999"
+        ));
+
+        mockMvc.perform(post("/api/v1/webhooks/banking/" + PROVIDER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload)
+                        .header("X-FinX-Signature", VALID_SIGNATURE)
+                        .header("X-FinX-Timestamp", validTimestamp()))
+                .andExpect(status().isOk());
+
+        List<SettlementObservation> observations = observationRepository.findByExecutionAttemptIdOrderByObservedAtDesc(attempt.getId());
+        assertThat(observations).hasSize(1);
+        assertThat(observations.get(0).getFinality()).isEqualTo(SettlementObservationFinality.UNKNOWN);
+        assertThat(observations.get(0).getReasonCode()).isEqualTo(SettlementObservationReasonCodes.SETTLEMENT_PROVIDER_ACCOUNT_MISMATCH);
+    }
+
+    @Test
+    @DisplayName("31. REVERSED status records REVERSED observation")
+    void reversedStatus_recordsReversedObservation() throws Exception {
+        ReleaseInstruction instruction = createInstruction(UUID.randomUUID(), new BigDecimal("1000.0000"), "INR", "MOCK-ACC-1");
+        SettlementExecutionAttempt attempt = createAttempt(instruction, "MOCK-SETTLE-031");
+
+        String eventId = "evt-settle-031";
+        String payload = objectMapper.writeValueAsString(Map.of(
+                "eventId", eventId,
+                "eventType", "SETTLEMENT_REVERSED",
+                "providerSettlementId", "MOCK-SETTLE-031",
+                "status", "REVERSED",
+                "utrNumber", "UTR-031"
+        ));
+
+        mockMvc.perform(post("/api/v1/webhooks/banking/" + PROVIDER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload)
+                        .header("X-FinX-Signature", VALID_SIGNATURE)
+                        .header("X-FinX-Timestamp", validTimestamp()))
+                .andExpect(status().isOk());
+
+        List<SettlementObservation> observations = observationRepository.findByExecutionAttemptIdOrderByObservedAtDesc(attempt.getId());
+        assertThat(observations).hasSize(1);
+        assertThat(observations.get(0).getFinality()).isEqualTo(SettlementObservationFinality.REVERSED);
+        assertThat(observations.get(0).getReasonCode()).isEqualTo(SettlementObservationReasonCodes.SETTLEMENT_REVERSED);
+    }
+
+    @Test
+    @DisplayName("32. FAILED status records FAILED observation")
+    void failedStatus_recordsFailedObservation() throws Exception {
+        ReleaseInstruction instruction = createInstruction(UUID.randomUUID(), new BigDecimal("1000.0000"), "INR", "MOCK-ACC-1");
+        SettlementExecutionAttempt attempt = createAttempt(instruction, "MOCK-SETTLE-032");
+
+        String eventId = "evt-settle-032";
+        String payload = objectMapper.writeValueAsString(Map.of(
+                "eventId", eventId,
+                "eventType", "SETTLEMENT_FAILED",
+                "providerSettlementId", "MOCK-SETTLE-032",
+                "status", "FAILED"
+        ));
+
+        mockMvc.perform(post("/api/v1/webhooks/banking/" + PROVIDER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload)
+                        .header("X-FinX-Signature", VALID_SIGNATURE)
+                        .header("X-FinX-Timestamp", validTimestamp()))
+                .andExpect(status().isOk());
+
+        List<SettlementObservation> observations = observationRepository.findByExecutionAttemptIdOrderByObservedAtDesc(attempt.getId());
+        assertThat(observations).hasSize(1);
+        assertThat(observations.get(0).getFinality()).isEqualTo(SettlementObservationFinality.FAILED);
+        assertThat(observations.get(0).getReasonCode()).isEqualTo(SettlementObservationReasonCodes.SETTLEMENT_FAILED);
     }
 }

@@ -198,7 +198,16 @@ public class MockBankingProvider implements BankingProvider {
 
     @Override
     public SettlementStatusResult getSettlementStatus(String providerSettlementId) {
-        SettlementResult existing = settlements.get(providerSettlementId);
+        if (providerSettlementId == null || providerSettlementId.isBlank()) {
+            return new SettlementStatusResult(
+                    providerSettlementId,
+                    "NOT_FOUND",
+                    null,
+                    null,
+                    "SETTLEMENT_NOT_FOUND"
+            );
+        }
+        SettlementResult existing = settlements.get(providerSettlementId.trim());
         if (existing != null) {
             return new SettlementStatusResult(
                     existing.providerSettlementId(),
@@ -210,11 +219,30 @@ public class MockBankingProvider implements BankingProvider {
         }
         return new SettlementStatusResult(
                 providerSettlementId,
-                "SETTLED",
-                "UTR-MOCK-SET-" + UUID.randomUUID().toString().substring(0, 8),
-                Instant.now(),
-                null
+                "NOT_FOUND",
+                null,
+                null,
+                "SETTLEMENT_NOT_FOUND"
         );
+    }
+
+    @Override
+    public SettlementLookupResult lookupSettlementByOperationKey(String providerOperationKey) {
+        if (providerOperationKey == null || providerOperationKey.isBlank()) {
+            return SettlementLookupResult.notFound();
+        }
+        SettlementResult existing = settlementIdempotencyMap.get(providerOperationKey.trim());
+        if (existing != null) {
+            SettlementStatusResult statusResult = new SettlementStatusResult(
+                    existing.providerSettlementId(),
+                    existing.status(),
+                    existing.utrNumber(),
+                    existing.initiatedAt(),
+                    null
+            );
+            return SettlementLookupResult.found(statusResult);
+        }
+        return SettlementLookupResult.notFound();
     }
 
     @Override

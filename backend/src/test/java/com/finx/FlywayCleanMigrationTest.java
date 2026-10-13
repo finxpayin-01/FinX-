@@ -287,7 +287,38 @@ public class FlywayCleanMigrationTest {
             assertTrue(attemptColumns.contains("status"), "V32 column 'status' must exist");
             assertTrue(attemptColumns.contains("worker_id"), "V32 column 'worker_id' must exist");
 
-            // Verify highest migration is V32 and V33 is absent
+            // V33 settlement observations table
+            assertTrue(tables.contains("settlement_observations"), "V33 table 'settlement_observations' must exist");
+
+            List<String> obsColumns = new ArrayList<>();
+            try (ResultSet rs = conn.getMetaData().getColumns(null, null, "%", "%")) {
+                while (rs.next()) {
+                    if ("settlement_observations".equalsIgnoreCase(rs.getString("TABLE_NAME"))) {
+                        obsColumns.add(rs.getString("COLUMN_NAME").toLowerCase());
+                    }
+                }
+            }
+            assertTrue(obsColumns.contains("release_instruction_id"), "V33 column 'release_instruction_id' must exist");
+            assertTrue(obsColumns.contains("execution_attempt_id"), "V33 column 'execution_attempt_id' must exist");
+            assertTrue(obsColumns.contains("webhook_event_id"), "V33 column 'webhook_event_id' must exist");
+            assertTrue(obsColumns.contains("provider"), "V33 column 'provider' must exist");
+            assertTrue(obsColumns.contains("source"), "V33 column 'source' must exist");
+            assertTrue(obsColumns.contains("source_reference"), "V33 column 'source_reference' must exist");
+            assertTrue(obsColumns.contains("provider_operation_key"), "V33 column 'provider_operation_key' must exist");
+            assertTrue(obsColumns.contains("provider_settlement_id"), "V33 column 'provider_settlement_id' must exist");
+            assertTrue(obsColumns.contains("provider_account_id"), "V33 column 'provider_account_id' must exist");
+            assertTrue(obsColumns.contains("provider_status"), "V33 column 'provider_status' must exist");
+            assertTrue(obsColumns.contains("finality"), "V33 column 'finality' must exist");
+            assertTrue(obsColumns.contains("reason_code"), "V33 column 'reason_code' must exist");
+            assertTrue(obsColumns.contains("utr_number"), "V33 column 'utr_number' must exist");
+            assertTrue(obsColumns.contains("observed_amount"), "V33 column 'observed_amount' must exist");
+            assertTrue(obsColumns.contains("observed_currency"), "V33 column 'observed_currency' must exist");
+            assertTrue(obsColumns.contains("observed_direction"), "V33 column 'observed_direction' must exist");
+            assertTrue(obsColumns.contains("evidence_hash"), "V33 column 'evidence_hash' must exist");
+            assertTrue(obsColumns.contains("observed_at"), "V33 column 'observed_at' must exist");
+            assertTrue(obsColumns.contains("created_at"), "V33 column 'created_at' must exist");
+
+            // Verify highest migration is V33 and V34 is absent
             boolean v27Found = false;
             boolean v28Found = false;
             boolean v29Found = false;
@@ -295,6 +326,7 @@ public class FlywayCleanMigrationTest {
             boolean v31Found = false;
             boolean v32Found = false;
             boolean v33Found = false;
+            boolean v34Found = false;
             for (MigrationInfo info : infoList) {
                 if ("27".equals(info.getVersion().getVersion())) {
                     v27Found = true;
@@ -317,6 +349,9 @@ public class FlywayCleanMigrationTest {
                 if ("33".equals(info.getVersion().getVersion())) {
                     v33Found = true;
                 }
+                if ("34".equals(info.getVersion().getVersion())) {
+                    v34Found = true;
+                }
             }
             assertTrue(v27Found, "Migration V27 must be present and executed");
             assertTrue(v28Found, "Migration V28 must be present and executed");
@@ -324,9 +359,10 @@ public class FlywayCleanMigrationTest {
             assertTrue(v30Found, "Migration V30 must be present and executed");
             assertTrue(v31Found, "Migration V31 must be present and executed");
             assertTrue(v32Found, "Migration V32 must be present and executed");
-            assertFalse(v33Found, "Migration V33 must NOT exist in E4 phase");
+            assertTrue(v33Found, "Migration V33 must be present and executed in E6 phase");
+            assertFalse(v34Found, "Migration V34 must NOT exist in E6 phase");
 
-            System.out.println("ALL V1 - V32 TABLES AND COLUMNS VERIFIED IN SEQUENTIAL CLEAN ORDER!\n");
+            System.out.println("ALL V1 - V33 TABLES AND COLUMNS VERIFIED IN SEQUENTIAL CLEAN ORDER!\n");
         }
     }
 }

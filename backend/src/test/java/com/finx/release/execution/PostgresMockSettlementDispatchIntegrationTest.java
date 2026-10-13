@@ -194,7 +194,6 @@ public class PostgresMockSettlementDispatchIntegrationTest {
         jdbc.execute("DELETE FROM deals");
         jdbc.execute("DELETE FROM organization_bank_accounts");
         jdbc.execute("DELETE FROM organizations");
-        jdbc.execute("DELETE FROM users");
 
         String suffix = UUID.randomUUID().toString().substring(0, 8);
         adminUser = userRepo.save(new User("Admin " + suffix, "admin" + suffix + "@finx.invalid", "pass", Role.ADMIN, UserStatus.ACTIVE));

@@ -179,6 +179,31 @@ public class SettlementExecutionAttempt {
         this.updatedAt = responseReceivedAt;
     }
 
+    public void recordRecoveredAcknowledgementIdentity(String providerSettlementId, String providerStatus, Instant recoveryTime) {
+        if (this.status != SettlementExecutionAttemptStatus.SENDING && this.status != SettlementExecutionAttemptStatus.UNKNOWN) {
+            throw new IllegalStateException("Cannot recover acknowledgement identity from status: " + this.status);
+        }
+        Objects.requireNonNull(providerSettlementId, "providerSettlementId must not be null");
+        if (providerSettlementId.isBlank() || providerSettlementId.length() > 128) {
+            throw new IllegalArgumentException("providerSettlementId must be non-blank and <= 128 characters");
+        }
+        Objects.requireNonNull(providerStatus, "providerStatus must not be null");
+        if (providerStatus.isBlank() || providerStatus.length() > 64) {
+            throw new IllegalArgumentException("providerStatus must be non-blank and <= 64 characters");
+        }
+        Objects.requireNonNull(recoveryTime, "recoveryTime must not be null");
+
+        this.status = SettlementExecutionAttemptStatus.ACKNOWLEDGED;
+        this.providerSettlementId = providerSettlementId;
+        this.providerStatus = providerStatus;
+        if (this.responseReceivedAt == null) {
+            this.responseReceivedAt = recoveryTime;
+        }
+        this.retryable = false;
+        this.errorCode = null;
+        this.updatedAt = recoveryTime;
+    }
+
     public void markUnknown(String safeErrorCode, Instant observedAt) {
         if (this.status != SettlementExecutionAttemptStatus.SENDING) {
             throw new IllegalStateException("Cannot mark UNKNOWN from status: " + this.status);

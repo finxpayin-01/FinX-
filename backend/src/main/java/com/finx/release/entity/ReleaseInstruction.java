@@ -172,7 +172,7 @@ public class ReleaseInstruction {
     }
 
     public void markPendingSettlement() {
-        if (this.status != ReleaseInstructionStatus.DISPATCHING) {
+        if (this.status != ReleaseInstructionStatus.DISPATCHING && this.status != ReleaseInstructionStatus.UNKNOWN_RECON_REQUIRED) {
             throw new IllegalStateException("Cannot mark pending settlement on ReleaseInstruction in status " + this.status);
         }
         this.status = ReleaseInstructionStatus.PENDING_SETTLEMENT;

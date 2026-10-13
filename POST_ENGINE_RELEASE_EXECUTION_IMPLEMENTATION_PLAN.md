@@ -169,18 +169,33 @@ This document outlines the strict 12-phase engineering roadmap (E1 through E12) 
 
 ---
 
-### Phase E6 — Trusted Settlement Observation Inbox & Polling Recovery
-- **Scope**: Implement multi-channel settlement observation via HMAC-verified webhooks and status polling.
+### Phase E6 — Trusted Settlement Observation Inbox & Provider Status Recovery [COMPLETE]
+- **Scope**: Durable immutable trusted settlement observation inbox (`settlement_observations` table V33), authenticated outbound-settlement webhooks with raw-body signature validation and replay defense, read-only status query by providerSettlementId, crash recovery via stable operation-key (`FINX-REL-{id}`) lookup, status normalization, and safe acknowledgement identity binding.
+- **Status**: **COMPLETE**.
 - **Flyway Migration**: `V33__create_settlement_observations.sql`.
 - **Classes**:
-  - `com.finx.webhook.controller.BankingWebhookController` (Hardened)
-  - `com.finx.release.service.SettlementObservationService`
-  - `com.finx.release.worker.SettlementStatusPollingWorker`
-- **Tests**: `BankingWebhookHmacVerificationTest`, `SettlementStatusPollingWorkerTest`.
-- **Financial Side Effects Allowed**: Ingestion of verified observation evidence only.
-- **Bank Calls Allowed**: Mock / Status query APIs only.
-- **Acceptance Criteria**: Webhook signature verification, replay protection, and polling recovery verified under high concurrency.
-- **Commit Message**: `feat(observation): implement trusted settlement observation inbox and status poller`
+  - `com.finx.release.observation.entity.SettlementObservation`
+  - `com.finx.release.observation.model.SettlementObservationSource`
+  - `com.finx.release.observation.model.SettlementObservationFinality`
+  - `com.finx.release.observation.model.SettlementObservationReasonCodes`
+  - `com.finx.release.observation.model.SettlementObservationFingerprint`
+  - `com.finx.release.observation.repository.SettlementObservationRepository`
+  - `com.finx.release.observation.service.SettlementStatusNormalizer`
+  - `com.finx.release.observation.service.SettlementObservationService`
+  - `com.finx.release.observation.service.SettlementStatusRecoveryService`
+  - `com.finx.release.observation.service.SettlementObservationEvidenceReader`
+  - `com.finx.release.observation.service.RecordObservationCommand`
+  - `com.finx.release.observation.service.SettlementRecoveryResult`
+  - `com.finx.banking.BankingProvider` (Extended with default `lookupSettlementByOperationKey`)
+  - `com.finx.banking.BankingDtos.SettlementLookupResult`
+  - `com.finx.banking.controller.BankingWebhookController` (Extended for settlement events with B02 replay & HMAC)
+  - `com.finx.banking.provider.mock.MockBankingProvider` (Hardened against fabricated SETTLED; operation-key lookup implemented)
+- **Tests**: `SettlementStatusNormalizerTest`, `SettlementObservationEntityTest`, `SettlementObservationServiceTest`, `MockBankSettlementStatusSafetyTest`, `SettlementStatusRecoveryServiceTest`, `SettlementObservationEvidenceReaderTest`, `BankingWebhookControllerTest`, `ReleaseExecutionE6ArchitectureTest`, `PostgresSettlementObservationSchemaTest`, `PostgresSettlementWebhookObservationTest`, `PostgresSettlementStatusRecoveryTest`, `FlywayCleanMigrationTest`.
+- **Financial Side Effects Allowed**: None. E6 observes external truth only. ZERO ledger postings, ZERO escrow mutations, ZERO reservation consumption (`ReleaseReservation` strictly remains `ACTIVE`), ZERO `ReleaseInstruction` transitions to `SETTLED`, ZERO milestone completions, ZERO `SettlementInstruction` writes.
+- **Bank Calls Allowed**: Read-only status calls (`getSettlementStatus`, `lookupSettlementByOperationKey`) and webhook signature verification (`verifyWebhookSignature`) only. `initiateSettlement` calls in E6: 0. Production payout: DISABLED.
+- **Acceptance Criteria**: Immutable observations with deterministic SHA-256 evidence fingerprint; exact duplicate webhook replay deduplicated; conflicting payload rejected; `MockBankingProvider` returns `NOT_FOUND` (no fake UTR/status) for unknown IDs; crash recovery resolves existing settlement by stable operation key; crash before provider call blocks blind retries; PostgreSQL schema and Flyway V1->V33 verified.
+- **Next**: **Phase E7 — Atomic Trusted Settlement Finalizer (Ledger + Escrow + Reservation + Milestone)**. (Do NOT preassign V34 unless E7 audit proves migration required).
+- **Commit Message**: `feat(settlement): add trusted observation and recovery`
 
 ---
 

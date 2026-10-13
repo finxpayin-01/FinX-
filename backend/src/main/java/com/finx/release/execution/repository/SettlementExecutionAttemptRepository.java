@@ -23,6 +23,8 @@ public interface SettlementExecutionAttemptRepository extends JpaRepository<Sett
 
     Optional<SettlementExecutionAttempt> findByProviderAndProviderSettlementId(String provider, String providerSettlementId);
 
+    Optional<SettlementExecutionAttempt> findFirstByProviderOperationKeyOrderByAttemptNumberDesc(String providerOperationKey);
+
     long countByOutboxMessageId(UUID outboxMessageId);
 
     @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)

@@ -21,6 +21,10 @@ public interface BankingProvider {
 
     SettlementStatusResult getSettlementStatus(String providerSettlementId);
 
+    default SettlementLookupResult lookupSettlementByOperationKey(String providerOperationKey) {
+        return SettlementLookupResult.unsupported();
+    }
+
     List<BankTransactionRecord> fetchTransactions(LocalDate fromDate, LocalDate toDate);
 
     com.finx.banking.dto.BankStatementPage fetchStatementPage(com.finx.banking.dto.BankStatementQuery query);
