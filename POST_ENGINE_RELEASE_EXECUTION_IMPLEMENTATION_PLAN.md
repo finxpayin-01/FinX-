@@ -128,18 +128,24 @@ This document outlines the strict 12-phase engineering roadmap (E1 through E12) 
 
 ---
 
-### Phase E4 — Worker Leasing Framework & Execution Attempt Model
-- **Scope**: Build PostgreSQL worker leasing engine (`SELECT ... FOR UPDATE SKIP LOCKED`) and `SettlementExecutionAttempt` tracking.
+### Phase E4 — Worker Leasing Framework & Execution Attempt Model [COMPLETE]
+- **Scope**: Build PostgreSQL worker leasing engine (`SELECT ... FOR UPDATE SKIP LOCKED`), pre-dispatch lease lifecycle/recovery, and durable `SettlementExecutionAttempt` tracking with stable provider operation identity.
+- **Status**: **COMPLETE**.
 - **Flyway Migration**: `V32__create_settlement_execution_attempts.sql`.
 - **Classes**:
+  - `com.finx.outbox.service.FinancialOutboxLeaseService`
   - `com.finx.outbox.worker.FinancialOutboxWorker`
-  - `com.finx.release.domain.SettlementExecutionAttempt`
-  - `com.finx.release.repository.SettlementExecutionAttemptRepository`
-- **Tests**: `OutboxWorkerLeasingConcurrencyTest`, `ExecutionAttemptLoggingTest`.
-- **Financial Side Effects Allowed**: None.
-- **Bank Calls Allowed**: None (Mock handler returns stubbed lease completion).
-- **Acceptance Criteria**: Multiple parallel worker nodes claim non-overlapping job partitions without deadlock.
-- **Commit Message**: `feat(worker): build outbox leasing framework and attempt logging`
+  - `com.finx.release.execution.entity.SettlementExecutionAttempt`
+  - `com.finx.release.execution.model.SettlementExecutionAttemptStatus`
+  - `com.finx.release.execution.model.ProviderSettlementOperationKey`
+  - `com.finx.release.execution.model.PreparedSettlementWorkItem`
+  - `com.finx.release.execution.repository.SettlementExecutionAttemptRepository`
+  - `com.finx.release.execution.service.SettlementExecutionAttemptService`
+- **Tests**: `ProviderSettlementOperationKeyTest`, `SettlementExecutionAttemptEntityTest`, `SettlementExecutionAttemptServiceTest`, `FinancialOutboxLeaseServiceTest`, `FinancialOutboxWorkerTest`, `ReleaseExecutionE4ArchitectureTest`, `PostgresSettlementExecutionAttemptSchemaTest`, `PostgresOutboxWorkerLeasingConcurrencyTest`.
+- **Financial Side Effects Allowed**: None. Outbox leasing (`PENDING/RETRY -> LEASED`) and attempt preparation (`PREPARED`) only. Zero ledger writes, zero escrow balance deductions, zero settlement instructions.
+- **Bank Calls Allowed**: None (0 bank calls; zero BankingProvider dependencies in worker/lease/attempt services).
+- **Acceptance Criteria**: Parallel worker threads claim non-overlapping job partitions using `SELECT ... FOR UPDATE SKIP LOCKED`; durable PREPARED execution attempts created; stable deterministic provider operation key `FINX-REL-{id}`; network-started attempts strictly blocked from retry recovery; ReleaseInstruction remains QUEUED; ReleaseReservation remains ACTIVE.
+- **Commit Message**: `feat(worker): build outbox leasing and execution attempt framework`
 
 ---
 

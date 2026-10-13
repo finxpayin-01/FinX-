@@ -262,13 +262,39 @@ public class FlywayCleanMigrationTest {
             assertTrue(outboxColumns.contains("created_at"), "V31 column 'created_at' on 'financial_outbox' must exist");
             assertTrue(outboxColumns.contains("updated_at"), "V31 column 'updated_at' on 'financial_outbox' must exist");
 
-            // Verify highest migration is V31 and V32 is absent
+            // V32 settlement execution attempts table
+            assertTrue(tables.contains("settlement_execution_attempts"), "V32 table 'settlement_execution_attempts' must exist");
+
+            List<String> attemptColumns = new ArrayList<>();
+            try (ResultSet rs = conn.getMetaData().getColumns(null, null, "%", "%")) {
+                while (rs.next()) {
+                    if ("settlement_execution_attempts".equalsIgnoreCase(rs.getString("TABLE_NAME"))) {
+                        attemptColumns.add(rs.getString("COLUMN_NAME").toLowerCase());
+                    }
+                }
+            }
+            assertTrue(attemptColumns.contains("release_instruction_id"), "V32 column 'release_instruction_id' must exist");
+            assertTrue(attemptColumns.contains("outbox_message_id"), "V32 column 'outbox_message_id' must exist");
+            assertTrue(attemptColumns.contains("attempt_number"), "V32 column 'attempt_number' must exist");
+            assertTrue(attemptColumns.contains("operation_key"), "V32 column 'operation_key' must exist");
+            assertTrue(attemptColumns.contains("provider_operation_key"), "V32 column 'provider_operation_key' must exist");
+            assertTrue(attemptColumns.contains("provider"), "V32 column 'provider' must exist");
+            assertTrue(attemptColumns.contains("provider_account_id"), "V32 column 'provider_account_id' must exist");
+            assertTrue(attemptColumns.contains("beneficiary_bank_account_id"), "V32 column 'beneficiary_bank_account_id' must exist");
+            assertTrue(attemptColumns.contains("amount"), "V32 column 'amount' must exist");
+            assertTrue(attemptColumns.contains("currency"), "V32 column 'currency' must exist");
+            assertTrue(attemptColumns.contains("request_hash"), "V32 column 'request_hash' must exist");
+            assertTrue(attemptColumns.contains("status"), "V32 column 'status' must exist");
+            assertTrue(attemptColumns.contains("worker_id"), "V32 column 'worker_id' must exist");
+
+            // Verify highest migration is V32 and V33 is absent
             boolean v27Found = false;
             boolean v28Found = false;
             boolean v29Found = false;
             boolean v30Found = false;
             boolean v31Found = false;
             boolean v32Found = false;
+            boolean v33Found = false;
             for (MigrationInfo info : infoList) {
                 if ("27".equals(info.getVersion().getVersion())) {
                     v27Found = true;
@@ -288,15 +314,19 @@ public class FlywayCleanMigrationTest {
                 if ("32".equals(info.getVersion().getVersion())) {
                     v32Found = true;
                 }
+                if ("33".equals(info.getVersion().getVersion())) {
+                    v33Found = true;
+                }
             }
             assertTrue(v27Found, "Migration V27 must be present and executed");
             assertTrue(v28Found, "Migration V28 must be present and executed");
             assertTrue(v29Found, "Migration V29 must be present and executed");
             assertTrue(v30Found, "Migration V30 must be present and executed");
             assertTrue(v31Found, "Migration V31 must be present and executed");
-            assertFalse(v32Found, "Migration V32 must NOT exist in E3 phase");
+            assertTrue(v32Found, "Migration V32 must be present and executed");
+            assertFalse(v33Found, "Migration V33 must NOT exist in E4 phase");
 
-            System.out.println("ALL V1 - V31 TABLES AND COLUMNS VERIFIED IN SEQUENTIAL CLEAN ORDER!\n");
+            System.out.println("ALL V1 - V32 TABLES AND COLUMNS VERIFIED IN SEQUENTIAL CLEAN ORDER!\n");
         }
     }
 }

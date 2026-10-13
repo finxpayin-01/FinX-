@@ -28,11 +28,15 @@ public class ReleaseStartupSideEffectTest {
     @Autowired
     private FinancialOutboxRepository outboxRepository;
 
+    @Autowired
+    private com.finx.release.execution.repository.SettlementExecutionAttemptRepository attemptRepository;
+
     @Test
-    @DisplayName("Spring context startup produces zero outbox messages, reservations, or instructions")
+    @DisplayName("Spring context startup produces zero outbox messages, reservations, instructions, or execution attempts")
     void testStartupCreatesZeroSideEffects() {
         assertThat(outboxRepository.count()).isEqualTo(0);
         assertThat(reservationRepository.count()).isEqualTo(0);
         assertThat(instructionRepository.count()).isEqualTo(0);
+        assertThat(attemptRepository.count()).isEqualTo(0);
     }
 }

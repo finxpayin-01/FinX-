@@ -25,4 +25,26 @@ public interface FinancialOutboxRepository extends JpaRepository<FinancialOutbox
             UUID releaseInstructionId,
             FinancialOutboxEventType eventType
     );
+
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("SELECT m FROM FinancialOutboxMessage m WHERE m.id = :id")
+    Optional<FinancialOutboxMessage> findByIdForUpdate(@org.springframework.data.repository.query.Param("id") UUID id);
+
+    @org.springframework.data.jpa.repository.Query(value = "SELECT * FROM financial_outbox " +
+            "WHERE status IN ('PENDING', 'RETRY') AND available_at <= CAST(:now AS TIMESTAMP WITH TIME ZONE) " +
+            "ORDER BY available_at ASC, created_at ASC, id ASC " +
+            "LIMIT :limit FOR UPDATE SKIP LOCKED", nativeQuery = true)
+    java.util.List<FinancialOutboxMessage> claimEligibleMessages(
+            @org.springframework.data.repository.query.Param("now") java.time.Instant now,
+            @org.springframework.data.repository.query.Param("limit") int limit
+    );
+
+    @org.springframework.data.jpa.repository.Query(value = "SELECT * FROM financial_outbox " +
+            "WHERE status = 'LEASED' AND locked_at < CAST(:expiredThreshold AS TIMESTAMP WITH TIME ZONE) " +
+            "ORDER BY locked_at ASC, id ASC " +
+            "LIMIT :limit FOR UPDATE SKIP LOCKED", nativeQuery = true)
+    java.util.List<FinancialOutboxMessage> findExpiredLeasedMessages(
+            @org.springframework.data.repository.query.Param("expiredThreshold") java.time.Instant expiredThreshold,
+            @org.springframework.data.repository.query.Param("limit") int limit
+    );
 }

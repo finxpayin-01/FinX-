@@ -134,6 +134,48 @@ public class FinancialOutboxMessage {
         );
     }
 
+    /**
+     * Marks the outbox message as LEASED by a worker.
+     * Allowed only from PENDING or RETRY.
+     */
+    public void markLeased(String workerId, Instant now) {
+        Objects.requireNonNull(workerId, "workerId must not be null");
+        if (workerId.trim().isEmpty() || workerId.length() > 128) {
+            throw new IllegalArgumentException("workerId must be non-blank and <= 128 characters");
+        }
+        Objects.requireNonNull(now, "now must not be null");
+
+        if (this.status != FinancialOutboxStatus.PENDING && this.status != FinancialOutboxStatus.RETRY) {
+            throw new IllegalStateException("Cannot lease outbox message in status: " + this.status);
+        }
+
+        this.status = FinancialOutboxStatus.LEASED;
+        this.lockedBy = workerId;
+        this.lockedAt = now;
+        this.attemptCount = this.attemptCount + 1;
+        this.updatedAt = now;
+    }
+
+    /**
+     * Releases an active lease and returns the message to RETRY status.
+     * Allowed only from LEASED.
+     */
+    public void releaseLeaseForRetry(Instant availableAt, String safeErrorCode, Instant now) {
+        Objects.requireNonNull(availableAt, "availableAt must not be null");
+        Objects.requireNonNull(now, "now must not be null");
+
+        if (this.status != FinancialOutboxStatus.LEASED) {
+            throw new IllegalStateException("Cannot release lease for retry when status is: " + this.status);
+        }
+
+        this.status = FinancialOutboxStatus.RETRY;
+        this.lockedBy = null;
+        this.lockedAt = null;
+        this.availableAt = availableAt;
+        this.lastErrorCode = safeErrorCode;
+        this.updatedAt = now;
+    }
+
     // Getters
     public UUID getId() { return id; }
     public UUID getReleaseInstructionId() { return releaseInstructionId; }
