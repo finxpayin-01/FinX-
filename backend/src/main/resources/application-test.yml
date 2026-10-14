@@ -39,6 +39,8 @@ finx:
   release:
     sandbox-dispatch:
       enabled: false
+    sandbox-finalization:
+      enabled: false
 
 mailersend:
   api-key: mock-mailersend-key

@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
@@ -222,6 +223,118 @@ public class LedgerService {
 
         log.info("Posted balanced journal entry: ref={} type={} amount={} currency={}",
                 entryReference, request.transactionType(), totalDebit, normalizedCurrency);
+
+        return savedEntry;
+    }
+
+    /**
+     * Posts an atomic, balanced milestone settlement journal entry.
+     * Reverses the funding journal by:
+     *   DEBIT  2010-ESCROW-LIABILITY (reduces liability)
+     *   CREDIT 1010-ESCROW-POOL      (reduces pool asset)
+     * Enforces deterministic sorted account locking (1010 then 2010),
+     * sufficient balance validation on both accounts, and source effect uniqueness.
+     */
+    @Transactional
+    public JournalEntry postMilestoneSettlement(
+            UUID releaseInstructionId,
+            UUID dealId,
+            UUID milestoneId,
+            BigDecimal amount,
+            String currency,
+            UUID postedBy,
+            String narration
+    ) {
+        Objects.requireNonNull(releaseInstructionId, "releaseInstructionId must not be null");
+        Objects.requireNonNull(dealId, "dealId must not be null");
+        Objects.requireNonNull(milestoneId, "milestoneId must not be null");
+        Objects.requireNonNull(amount, "amount must not be null");
+        if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BadRequestException("Settlement amount must be greater than zero: " + amount);
+        }
+        String normalizedCurrency = (currency != null && !currency.isBlank()) ? currency.trim().toUpperCase(java.util.Locale.ROOT) : SUPPORTED_CURRENCY;
+        if (!SUPPORTED_CURRENCY.equals(normalizedCurrency)) {
+            throw new BadRequestException("Unsupported currency: '" + currency + "'. FinX currently supports " + SUPPORTED_CURRENCY + " only.");
+        }
+
+        // Check-before-write idempotency (backed by DB partial unique index on transactionType + referenceId)
+        Optional<JournalEntry> existing = entryRepository.findByTransactionTypeAndReferenceId(
+                com.finx.ledger.enums.LedgerEnums.LedgerTransactionType.MILESTONE_SETTLEMENT,
+                releaseInstructionId
+        );
+        if (existing.isPresent()) {
+            throw new BadRequestException("Duplicate journal entry: Entry already exists for MILESTONE_SETTLEMENT and reference " + releaseInstructionId);
+        }
+
+        // Deterministic account lock ordering: "1010-ESCROW-POOL" sorted before "2010-ESCROW-LIABILITY"
+        LedgerAccount escrowPool = accountRepository.findByAccountNumberForUpdate(ACC_ESCROW_POOL)
+                .orElseThrow(() -> new ResourceNotFoundException("LedgerAccount", "accountNumber", ACC_ESCROW_POOL));
+        LedgerAccount escrowLiability = accountRepository.findByAccountNumberForUpdate(ACC_ESCROW_LIABILITY)
+                .orElseThrow(() -> new ResourceNotFoundException("LedgerAccount", "accountNumber", ACC_ESCROW_LIABILITY));
+
+        // Part Z: Balance safety check within locked accounts
+        if (escrowPool.getBalance().compareTo(amount) < 0) {
+            throw new BadRequestException("Insufficient escrow pool balance: available " + escrowPool.getBalance() + ", required " + amount);
+        }
+        if (escrowLiability.getBalance().compareTo(amount) < 0) {
+            throw new BadRequestException("Insufficient escrow liability balance: available " + escrowLiability.getBalance() + ", required " + amount);
+        }
+
+        String entryReference = String.format("FINX-JRN-%d-%s",
+                java.time.Year.now().getValue(),
+                UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase());
+
+        JournalEntry entry = new JournalEntry(
+                entryReference,
+                com.finx.ledger.enums.LedgerEnums.LedgerTransactionType.MILESTONE_SETTLEMENT,
+                releaseInstructionId,
+                dealId,
+                milestoneId,
+                amount.setScale(4, java.math.RoundingMode.HALF_UP),
+                normalizedCurrency,
+                narration,
+                postedBy
+        );
+        JournalEntry savedEntry = entryRepository.save(entry);
+
+        // Line 1: DEBIT 2010-ESCROW-LIABILITY (reduces liability)
+        escrowLiability.setBalance(escrowLiability.getBalance().subtract(amount));
+        accountRepository.save(escrowLiability);
+        JournalLine line1 = new JournalLine(
+                savedEntry.getId(),
+                escrowLiability.getId(),
+                EntryType.DEBIT,
+                amount,
+                "Debit Escrow Liability on milestone settlement",
+                1
+        );
+        lineRepository.save(line1);
+
+        // Line 2: CREDIT 1010-ESCROW-POOL (reduces pool asset)
+        escrowPool.setBalance(escrowPool.getBalance().subtract(amount));
+        accountRepository.save(escrowPool);
+        JournalLine line2 = new JournalLine(
+                savedEntry.getId(),
+                escrowPool.getId(),
+                EntryType.CREDIT,
+                amount,
+                "Credit Escrow Pool on milestone settlement",
+                2
+        );
+        lineRepository.save(line2);
+
+        if (postedBy != null) {
+            auditService.logEvent(
+                    postedBy,
+                    "JOURNAL_ENTRY_POSTED",
+                    "LEDGER",
+                    savedEntry.getId().toString(),
+                    "Posted balanced journal entry " + entryReference + " (" + amount + " " + normalizedCurrency + ") for MILESTONE_SETTLEMENT"
+            );
+        }
+
+        log.info("Posted milestone settlement journal entry: ref={} amount={} currency={} releaseInstruction={}",
+                entryReference, amount, normalizedCurrency, releaseInstructionId);
 
         return savedEntry;
     }

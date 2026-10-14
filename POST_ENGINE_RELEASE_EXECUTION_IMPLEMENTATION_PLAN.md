@@ -199,17 +199,23 @@ This document outlines the strict 12-phase engineering roadmap (E1 through E12) 
 
 ---
 
-### Phase E7 — Settlement Finalizer (Ledger + Escrow + Milestone)
-- **Scope**: Implement `SettlementFinalizerService` coordinating TX6 (Ledger posting, Escrow deduction, Reservation consumption, Milestone completion).
+### Phase E7 — Settlement Finalizer (Ledger + Escrow + Reservation + Milestone) [COMPLETE]
+- **Scope**: Implement `TrustedSettlementFinalizer` coordinating atomic single-transaction local financial finalization based on trusted authoritative `FINAL_SUCCESS` observations (`V34__bind_release_finalization_to_observation.sql`).
+- **Status**: **COMPLETE**.
+- **Flyway Migration**: `V34__bind_release_finalization_to_observation.sql`.
 - **Classes**:
-  - `com.finx.release.service.SettlementFinalizerService`
-  - `com.finx.escrow.service.EscrowService` (Integrate hardened finalizer)
-  - `com.finx.ledger.service.LedgerService`
-- **Tests**: `SettlementFinalizerServiceTest`, `PostgresDoubleEntrySettlementTest`.
-- **Financial Side Effects Allowed**: Authorized ledger and escrow state updates.
-- **Bank Calls Allowed**: None (Triggered by trusted observations).
-- **Acceptance Criteria**: Idempotent finalizer execution; exact GL balanced lines (`DEBIT 2010`, `CREDIT 1020`); milestone marked `COMPLETED` only after trusted finality.
-- **Commit Message**: `feat(finalizer): implement atomic double-entry settlement finalizer`
+  - `com.finx.release.finalizer.service.TrustedSettlementFinalizer`
+  - `com.finx.release.finalizer.gate.SandboxSettlementFinalizationGate`
+  - `com.finx.release.finalizer.model.SettlementFinalizationResult`
+  - `com.finx.release.entity.ReleaseInstruction` (Extended with `finalSettlementObservationId`, `finalizedBy`, and hardened `markSettledFromObservation`)
+  - `com.finx.release.repository.ReleaseReservationRepository` (Added pessimistic lock `findByReleaseInstructionIdForUpdate`)
+  - `com.finx.ledger.service.LedgerService` (Added atomic double-entry `postMilestoneSettlement`)
+- **Tests**: `SandboxSettlementFinalizationGateTest`, `ReleaseInstructionLifecycleTest`, `ReleaseExecutionE7ArchitectureTest`, `TrustedSettlementFinalizerTest`, `FlywayCleanMigrationTest`, `PostgresTrustedSettlementFinalizationSchemaTest`, `PostgresTrustedSettlementFinalizerTest`.
+- **Financial Side Effects Allowed**: Authorized ledger and escrow state updates. Strict balanced double-entry: `DEBIT 2010-ESCROW-LIABILITY`, `CREDIT 1010-ESCROW-POOL` with transaction type `MILESTONE_SETTLEMENT` and referenceId `releaseInstructionId`. (Account `2020-VENDOR-PAYABLE` and `1020-BANK-NODAL` are NOT touched). Escrow balance decremented by exact release amount; totalReleased incremented; single `RELEASE` row in `escrow_ledger`. Reservation `ACTIVE -> CONSUMED`. ReleaseInstruction `SETTLED`. Milestone `COMPLETED`. Deal completed if all milestones complete and deal not disputed/cancelled/rejected.
+- **Bank Calls Allowed**: None (Zero network calls, zero banking provider calls; finalizer reflects already completed external bank truth).
+- **Acceptance Criteria**: Strict fail-closed sandbox gate (`finx.release.sandbox-finalization.enabled: false` by default); canonical lock hierarchy (`Deal -> Milestone -> EscrowAccount -> ReleaseInstruction -> ReleaseReservation -> sorted LedgerAccounts`); immutable snapshot identity validation (amount, currency, direction=DEBIT, provider settlement ID, UTR); post-dispatch milestone mutations and disputes do not block accounting of already executed bank payouts; idempotent replay produces 0 additional ledger/escrow writes; atomic rollback leaves zero partial writes; 0 SettlementInstruction entities created; 0 bank calls; 1613 tests passing in full Maven build.
+- **Next**: **Phase E8 — Deterministic Reconciliation Closed-Loop Integration**. (Do NOT preallocate V35 unless E8 audit proves required).
+- **Commit Message**: `feat(settlement): finalize trusted settlement atomically`
 
 ---
 

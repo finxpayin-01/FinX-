@@ -318,7 +318,19 @@ public class FlywayCleanMigrationTest {
             assertTrue(obsColumns.contains("observed_at"), "V33 column 'observed_at' must exist");
             assertTrue(obsColumns.contains("created_at"), "V33 column 'created_at' must exist");
 
-            // Verify highest migration is V33 and V34 is absent
+            // V34 release_instructions binding to observation
+            List<String> releaseColumns = new ArrayList<>();
+            try (ResultSet rs = conn.getMetaData().getColumns(null, null, "%", "%")) {
+                while (rs.next()) {
+                    if ("release_instructions".equalsIgnoreCase(rs.getString("TABLE_NAME"))) {
+                        releaseColumns.add(rs.getString("COLUMN_NAME").toLowerCase());
+                    }
+                }
+            }
+            assertTrue(releaseColumns.contains("final_settlement_observation_id"), "V34 column 'final_settlement_observation_id' must exist");
+            assertTrue(releaseColumns.contains("finalized_by"), "V34 column 'finalized_by' must exist");
+
+            // Verify highest migration is V34 and V35 is absent
             boolean v27Found = false;
             boolean v28Found = false;
             boolean v29Found = false;
@@ -327,6 +339,7 @@ public class FlywayCleanMigrationTest {
             boolean v32Found = false;
             boolean v33Found = false;
             boolean v34Found = false;
+            boolean v35Found = false;
             for (MigrationInfo info : infoList) {
                 if ("27".equals(info.getVersion().getVersion())) {
                     v27Found = true;
@@ -352,6 +365,9 @@ public class FlywayCleanMigrationTest {
                 if ("34".equals(info.getVersion().getVersion())) {
                     v34Found = true;
                 }
+                if ("35".equals(info.getVersion().getVersion())) {
+                    v35Found = true;
+                }
             }
             assertTrue(v27Found, "Migration V27 must be present and executed");
             assertTrue(v28Found, "Migration V28 must be present and executed");
@@ -359,10 +375,11 @@ public class FlywayCleanMigrationTest {
             assertTrue(v30Found, "Migration V30 must be present and executed");
             assertTrue(v31Found, "Migration V31 must be present and executed");
             assertTrue(v32Found, "Migration V32 must be present and executed");
-            assertTrue(v33Found, "Migration V33 must be present and executed in E6 phase");
-            assertFalse(v34Found, "Migration V34 must NOT exist in E6 phase");
+            assertTrue(v33Found, "Migration V33 must be present and executed");
+            assertTrue(v34Found, "Migration V34 must be present and executed in E7 phase");
+            assertFalse(v35Found, "Migration V35 must NOT exist in E7 phase");
 
-            System.out.println("ALL V1 - V33 TABLES AND COLUMNS VERIFIED IN SEQUENTIAL CLEAN ORDER!\n");
+            System.out.println("ALL V1 - V34 TABLES AND COLUMNS VERIFIED IN SEQUENTIAL CLEAN ORDER!\n");
         }
     }
 }

@@ -84,6 +84,12 @@ public class ReleaseInstruction {
     @Column(name = "settled_at")
     private Instant settledAt;
 
+    @Column(name = "final_settlement_observation_id")
+    private UUID finalSettlementObservationId;
+
+    @Column(name = "finalized_by")
+    private UUID finalizedBy;
+
     @Version
     @Column(name = "version", nullable = false)
     private Long version;
@@ -209,9 +215,50 @@ public class ReleaseInstruction {
         this.updatedAt = Instant.now();
     }
 
+    public void markSettledFromObservation(UUID settlementObservationId, UUID finalizedBy, Instant settledAt) {
+        if (settlementObservationId == null) {
+            throw new IllegalArgumentException("settlementObservationId must not be null");
+        }
+        if (finalizedBy == null) {
+            throw new IllegalArgumentException("finalizedBy must not be null");
+        }
+        if (settledAt == null) {
+            throw new IllegalArgumentException("settledAt must not be null");
+        }
+
+        if (this.status == ReleaseInstructionStatus.SETTLED) {
+            if (this.finalSettlementObservationId != null && this.finalSettlementObservationId.equals(settlementObservationId)) {
+                return; // idempotent replay
+            }
+            throw new IllegalStateException("ReleaseInstruction is already bound to different observation: " + this.finalSettlementObservationId);
+        }
+        if (this.status != ReleaseInstructionStatus.PENDING_SETTLEMENT
+                && this.status != ReleaseInstructionStatus.UNKNOWN_RECON_REQUIRED
+                && this.status != ReleaseInstructionStatus.DISPATCHING) {
+            throw new IllegalStateException("Cannot mark settled from status " + this.status);
+        }
+        this.status = ReleaseInstructionStatus.SETTLED;
+        this.finalSettlementObservationId = settlementObservationId;
+        this.finalizedBy = finalizedBy;
+        this.settledAt = settledAt;
+        this.updatedAt = Instant.now();
+    }
+
+    @Deprecated
     public void markSettled(Instant settledAt) {
+        if (this.status != ReleaseInstructionStatus.PENDING_SETTLEMENT
+                && this.status != ReleaseInstructionStatus.UNKNOWN_RECON_REQUIRED
+                && this.status != ReleaseInstructionStatus.DISPATCHING) {
+            throw new IllegalStateException("Cannot mark settled on ReleaseInstruction in status " + this.status);
+        }
         this.status = ReleaseInstructionStatus.SETTLED;
         this.settledAt = Objects.requireNonNull(settledAt, "settledAt must not be null");
+        if (this.finalSettlementObservationId == null) {
+            this.finalSettlementObservationId = UUID.randomUUID();
+        }
+        if (this.finalizedBy == null) {
+            this.finalizedBy = this.createdBy;
+        }
         this.updatedAt = Instant.now();
     }
 
@@ -238,5 +285,7 @@ public class ReleaseInstruction {
     public Instant getUpdatedAt() { return updatedAt; }
     public Instant getAuthorizedAt() { return authorizedAt; }
     public Instant getSettledAt() { return settledAt; }
+    public UUID getFinalSettlementObservationId() { return finalSettlementObservationId; }
+    public UUID getFinalizedBy() { return finalizedBy; }
     public Long getVersion() { return version; }
 }

@@ -262,6 +262,134 @@ class ReleaseInstructionLifecycleTest {
         assertThatThrownBy(() -> reservation.markReleased(now))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Only ACTIVE reservations can be released");
+
+        // RELEASED cannot become CONSUMED
+        assertThatThrownBy(() -> reservation.markConsumed(now))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Only ACTIVE reservations can be consumed");
+    }
+
+    @Test
+    @DisplayName("markSettledFromObservation transitions PENDING_SETTLEMENT -> SETTLED")
+    void testMarkSettledFromPendingSettlement() {
+        ReleaseInstruction instruction = createQueuedInstruction();
+        instruction.markDispatching();
+        instruction.markPendingSettlement();
+
+        UUID obsId = UUID.randomUUID();
+        UUID actorId = UUID.randomUUID();
+        Instant now = Instant.now();
+
+        instruction.markSettledFromObservation(obsId, actorId, now);
+
+        assertThat(instruction.getStatus()).isEqualTo(ReleaseInstructionStatus.SETTLED);
+        assertThat(instruction.getFinalSettlementObservationId()).isEqualTo(obsId);
+        assertThat(instruction.getFinalizedBy()).isEqualTo(actorId);
+        assertThat(instruction.getSettledAt()).isEqualTo(now);
+    }
+
+    @Test
+    @DisplayName("markSettledFromObservation transitions UNKNOWN_RECON_REQUIRED -> SETTLED")
+    void testMarkSettledFromUnknownReconRequired() {
+        ReleaseInstruction instruction = createQueuedInstruction();
+        instruction.markDispatching();
+        instruction.markUnknownReconciliationRequired();
+
+        UUID obsId = UUID.randomUUID();
+        UUID actorId = UUID.randomUUID();
+        Instant now = Instant.now();
+
+        instruction.markSettledFromObservation(obsId, actorId, now);
+
+        assertThat(instruction.getStatus()).isEqualTo(ReleaseInstructionStatus.SETTLED);
+        assertThat(instruction.getFinalSettlementObservationId()).isEqualTo(obsId);
+        assertThat(instruction.getFinalizedBy()).isEqualTo(actorId);
+        assertThat(instruction.getSettledAt()).isEqualTo(now);
+    }
+
+    @Test
+    @DisplayName("markSettledFromObservation transitions DISPATCHING -> SETTLED")
+    void testMarkSettledFromDispatching() {
+        ReleaseInstruction instruction = createQueuedInstruction();
+        instruction.markDispatching();
+
+        UUID obsId = UUID.randomUUID();
+        UUID actorId = UUID.randomUUID();
+        Instant now = Instant.now();
+
+        instruction.markSettledFromObservation(obsId, actorId, now);
+
+        assertThat(instruction.getStatus()).isEqualTo(ReleaseInstructionStatus.SETTLED);
+        assertThat(instruction.getFinalSettlementObservationId()).isEqualTo(obsId);
+        assertThat(instruction.getFinalizedBy()).isEqualTo(actorId);
+        assertThat(instruction.getSettledAt()).isEqualTo(now);
+    }
+
+    @Test
+    @DisplayName("markSettledFromObservation rejects invalid initial states: CREATED, QUEUED, CANCELLED")
+    void testMarkSettledRejectsInvalidStates() {
+        UUID obsId = UUID.randomUUID();
+        UUID actorId = UUID.randomUUID();
+        Instant now = Instant.now();
+
+        ReleaseInstruction created = createInstruction(ReleaseInstructionStatus.CREATED);
+        assertThatThrownBy(() -> created.markSettledFromObservation(obsId, actorId, now))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Cannot mark settled from status CREATED");
+
+        ReleaseInstruction queued = createQueuedInstruction();
+        assertThatThrownBy(() -> queued.markSettledFromObservation(obsId, actorId, now))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Cannot mark settled from status QUEUED");
+
+        ReleaseInstruction cancelled = createInstruction(ReleaseInstructionStatus.CREATED);
+        cancelled.markCancelled();
+        assertThatThrownBy(() -> cancelled.markSettledFromObservation(obsId, actorId, now))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Cannot mark settled from status CANCELLED");
+    }
+
+    @Test
+    @DisplayName("markSettledFromObservation enforces non-null parameters")
+    void testMarkSettledValidatesNonNullParameters() {
+        ReleaseInstruction instruction = createQueuedInstruction();
+        instruction.markDispatching();
+        instruction.markPendingSettlement();
+
+        UUID obsId = UUID.randomUUID();
+        UUID actorId = UUID.randomUUID();
+        Instant now = Instant.now();
+
+        assertThatThrownBy(() -> instruction.markSettledFromObservation(null, actorId, now))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> instruction.markSettledFromObservation(obsId, null, now))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> instruction.markSettledFromObservation(obsId, actorId, null))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("markSettledFromObservation is idempotent for identical observation and rejects different observation")
+    void testMarkSettledIdempotency() {
+        ReleaseInstruction instruction = createQueuedInstruction();
+        instruction.markDispatching();
+        instruction.markPendingSettlement();
+
+        UUID obsId = UUID.randomUUID();
+        UUID actorId = UUID.randomUUID();
+        Instant now = Instant.now();
+
+        instruction.markSettledFromObservation(obsId, actorId, now);
+
+        // Same observation -> idempotent success
+        instruction.markSettledFromObservation(obsId, actorId, now);
+        assertThat(instruction.getStatus()).isEqualTo(ReleaseInstructionStatus.SETTLED);
+
+        // Different observation -> fails closed
+        UUID differentObsId = UUID.randomUUID();
+        assertThatThrownBy(() -> instruction.markSettledFromObservation(differentObsId, actorId, now))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("already bound to different observation");
     }
 
     private ReleaseInstruction createInstruction(ReleaseInstructionStatus initialStatus) {

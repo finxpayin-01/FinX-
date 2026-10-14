@@ -140,3 +140,5 @@ finx:
   release:
     sandbox-dispatch:
       enabled: ${FINX_RELEASE_SANDBOX_DISPATCH_ENABLED:false}
+    sandbox-finalization:
+      enabled: ${FINX_RELEASE_SANDBOX_FINALIZATION_ENABLED:false}

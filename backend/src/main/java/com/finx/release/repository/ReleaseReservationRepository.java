@@ -17,6 +17,10 @@ public interface ReleaseReservationRepository extends JpaRepository<ReleaseReser
 
     Optional<ReleaseReservation> findByReleaseInstructionId(UUID releaseInstructionId);
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT r FROM ReleaseReservation r WHERE r.releaseInstructionId = :releaseInstructionId")
+    Optional<ReleaseReservation> findByReleaseInstructionIdForUpdate(@Param("releaseInstructionId") UUID releaseInstructionId);
+
     Optional<ReleaseReservation> findFirstByMilestoneIdAndStatus(UUID milestoneId, ReleaseReservationStatus status);
 
     List<ReleaseReservation> findByEscrowAccountIdAndStatus(UUID escrowAccountId, ReleaseReservationStatus status);

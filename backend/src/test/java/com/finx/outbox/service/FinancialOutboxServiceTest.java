@@ -95,7 +95,9 @@ public class FinancialOutboxServiceTest {
             instruction.markAuthorized(UUID.randomUUID(), Instant.now());
             instruction.markReserved();
             instruction.markQueued();
-            instruction.markSettled(Instant.now());
+            instruction.markDispatching();
+            instruction.markPendingSettlement();
+            instruction.markSettledFromObservation(UUID.randomUUID(), UUID.randomUUID(), Instant.now());
         } else if (status == ReleaseInstructionStatus.CANCELLED) {
             instruction.markCancelled();
         }
