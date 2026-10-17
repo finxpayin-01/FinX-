@@ -1,6 +1,7 @@
 package com.finx.release.observation.repository;
 
 import com.finx.release.observation.entity.SettlementObservation;
+import com.finx.release.observation.model.SettlementObservationFinality;
 import com.finx.release.observation.model.SettlementObservationSource;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
@@ -31,4 +32,11 @@ public interface SettlementObservationRepository extends JpaRepository<Settlemen
             SettlementObservationSource source,
             String evidenceHash
     );
+
+    long countByFinality(SettlementObservationFinality finality);
+
+    @org.springframework.data.jpa.repository.Query("SELECT COUNT(so) FROM SettlementObservation so WHERE so.reasonCode LIKE '%CONFLICT%'")
+    long countConflictingObservations();
+
+    List<SettlementObservation> findByFinalityOrderByObservedAtDesc(SettlementObservationFinality finality);
 }

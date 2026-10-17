@@ -22,6 +22,11 @@ public enum FinancialOutboxStatus {
     RETRY,
 
     /**
+     * Administratively placed on hold by ADMIN/FINANCE prior to network dispatch.
+     */
+    HELD,
+
+    /**
      * Dispatch completed and terminal result observed.
      */
     PROCESSED,

@@ -201,6 +201,28 @@ public class ReleaseInstruction {
         this.updatedAt = Instant.now();
     }
 
+    /**
+     * Pre-dispatch administrative hold: allowed only when QUEUED.
+     */
+    public void markPreDispatchManualReview() {
+        if (this.status != ReleaseInstructionStatus.QUEUED) {
+            throw new IllegalStateException("Cannot place pre-dispatch hold on ReleaseInstruction in status " + this.status);
+        }
+        this.status = ReleaseInstructionStatus.MANUAL_REVIEW;
+        this.updatedAt = Instant.now();
+    }
+
+    /**
+     * Resumes from pre-dispatch administrative hold: allowed only when MANUAL_REVIEW.
+     */
+    public void resumeFromPreDispatchManualReview() {
+        if (this.status != ReleaseInstructionStatus.MANUAL_REVIEW) {
+            throw new IllegalStateException("Cannot resume ReleaseInstruction from status " + this.status);
+        }
+        this.status = ReleaseInstructionStatus.QUEUED;
+        this.updatedAt = Instant.now();
+    }
+
     public void markCancelled() {
         if (this.status == ReleaseInstructionStatus.SETTLED || this.status == ReleaseInstructionStatus.CANCELLED) {
             throw new IllegalStateException("Cannot cancel instruction in " + this.status + " status");

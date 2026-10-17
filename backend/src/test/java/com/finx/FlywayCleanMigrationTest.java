@@ -341,6 +341,7 @@ public class FlywayCleanMigrationTest {
             boolean v34Found = false;
             boolean v35Found = false;
             boolean v36Found = false;
+            boolean v37Found = false;
             for (MigrationInfo info : infoList) {
                 if ("27".equals(info.getVersion().getVersion())) {
                     v27Found = true;
@@ -372,6 +373,9 @@ public class FlywayCleanMigrationTest {
                 if ("36".equals(info.getVersion().getVersion())) {
                     v36Found = true;
                 }
+                if ("37".equals(info.getVersion().getVersion())) {
+                    v37Found = true;
+                }
             }
             assertTrue(v27Found, "Migration V27 must be present and executed");
             assertTrue(v28Found, "Migration V28 must be present and executed");
@@ -382,9 +386,10 @@ public class FlywayCleanMigrationTest {
             assertTrue(v33Found, "Migration V33 must be present and executed");
             assertTrue(v34Found, "Migration V34 must be present and executed");
             assertTrue(v35Found, "Migration V35 must be present and executed in E8 phase");
-            assertFalse(v36Found, "Migration V36 must NOT exist in E8 phase");
+            assertTrue(v36Found, "Migration V36 must be present and executed in E11 phase");
+            assertFalse(v37Found, "Migration V37 must NOT exist");
 
-            System.out.println("ALL V1 - V35 TABLES, COLUMNS AND CONSTRAINTS VERIFIED IN SEQUENTIAL CLEAN ORDER!\n");
+            System.out.println("ALL V1 - V36 TABLES, COLUMNS AND CONSTRAINTS VERIFIED IN SEQUENTIAL CLEAN ORDER!\n");
         }
     }
 }

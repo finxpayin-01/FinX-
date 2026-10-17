@@ -219,6 +219,67 @@ public class FinancialOutboxMessage {
         this.updatedAt = now;
     }
 
+    /**
+     * Administratively places outbox message on HOLD.
+     * Allowed only from PENDING or RETRY (pre-dispatch).
+     */
+    public void markAdministrativelyHeld(Instant now, String safeReason) {
+        Objects.requireNonNull(now, "now must not be null");
+        if (this.status != FinancialOutboxStatus.PENDING && this.status != FinancialOutboxStatus.RETRY) {
+            throw new IllegalStateException("Cannot hold outbox message in status: " + this.status);
+        }
+        if (safeReason != null && safeReason.length() > 100) {
+            throw new IllegalArgumentException("safeReason length must be <= 100 characters");
+        }
+
+        this.status = FinancialOutboxStatus.HELD;
+        this.lockedBy = null;
+        this.lockedAt = null;
+        this.lastErrorCode = safeReason;
+        this.updatedAt = now;
+    }
+
+    /**
+     * Resumes outbox message from administrative HOLD back to PENDING.
+     * Allowed only from HELD.
+     */
+    public void resumeFromAdministrativeHold(Instant availableAt, Instant now) {
+        Objects.requireNonNull(availableAt, "availableAt must not be null");
+        Objects.requireNonNull(now, "now must not be null");
+        if (this.status != FinancialOutboxStatus.HELD) {
+            throw new IllegalStateException("Cannot resume outbox message when status is: " + this.status);
+        }
+
+        this.status = FinancialOutboxStatus.PENDING;
+        this.availableAt = availableAt;
+        this.lockedBy = null;
+        this.lockedAt = null;
+        this.updatedAt = now;
+    }
+
+    /**
+     * Administratively cancels outbox message prior to network dispatch.
+     * Allowed only from PENDING, RETRY, or HELD.
+     */
+    public void markAdministrativelyCancelled(Instant now, String safeReason) {
+        Objects.requireNonNull(now, "now must not be null");
+        if (this.status != FinancialOutboxStatus.PENDING 
+                && this.status != FinancialOutboxStatus.RETRY 
+                && this.status != FinancialOutboxStatus.HELD) {
+            throw new IllegalStateException("Cannot administratively cancel outbox message in status: " + this.status);
+        }
+        if (safeReason != null && safeReason.length() > 100) {
+            throw new IllegalArgumentException("safeReason length must be <= 100 characters");
+        }
+
+        this.status = FinancialOutboxStatus.DEAD_LETTER;
+        this.deadLetteredAt = now;
+        this.lockedBy = null;
+        this.lockedAt = null;
+        this.lastErrorCode = safeReason;
+        this.updatedAt = now;
+    }
+
     // Getters
     public UUID getId() { return id; }
     public UUID getReleaseInstructionId() { return releaseInstructionId; }

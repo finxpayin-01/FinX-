@@ -26,4 +26,17 @@ public interface ReconciliationItemRepository extends JpaRepository<Reconciliati
 
     List<ReconciliationItem> findByInternalEffectTypeAndInternalEffectId(
             ReconciliationEffectType internalEffectType, UUID internalEffectId);
+
+    long countByStatus(com.finx.reconciliation.enums.ReconciliationEnums.ReconciliationItemStatus status);
+
+    long countByReasonCode(com.finx.reconciliation.enums.ReconciliationReasonCode reasonCode);
+
+    @org.springframework.data.jpa.repository.Query("SELECT COUNT(ri) FROM ReconciliationItem ri WHERE ri.status <> com.finx.reconciliation.enums.ReconciliationEnums.ReconciliationItemStatus.MATCHED AND ri.resolutionStatus = com.finx.reconciliation.enums.ReconciliationEnums.ResolutionStatus.UNRESOLVED")
+    long countBlockedReconciliationItems();
+
+    List<ReconciliationItem> findByStatusAndResolutionStatus(
+            com.finx.reconciliation.enums.ReconciliationEnums.ReconciliationItemStatus status,
+            com.finx.reconciliation.enums.ReconciliationEnums.ResolutionStatus resolutionStatus);
+
+    List<ReconciliationItem> findByReasonCode(com.finx.reconciliation.enums.ReconciliationReasonCode reasonCode);
 }

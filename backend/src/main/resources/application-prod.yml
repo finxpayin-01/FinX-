@@ -108,4 +108,23 @@ finx:
       enabled: ${FINX_RELEASE_SANDBOX_FINALIZATION_ENABLED:false}
     production-execution:
       enabled: ${FINX_RELEASE_PRODUCTION_EXECUTION_ENABLED:false}
+    observability:
+      outbox-backlog-warning: ${FINX_OUTBOX_BACKLOG_WARNING:50}
+      dead-letter-warning: ${FINX_DEAD_LETTER_WARNING:1}
+      unknown-outcome-warning: ${FINX_UNKNOWN_OUTCOME_WARNING:1}
+      lease-stale-seconds: ${FINX_LEASE_STALE_SECONDS:300}
+      pending-settlement-stale-seconds: ${FINX_PENDING_SETTLEMENT_STALE_SECONDS:900}
+
+# Actuator Exposure
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when_authorized
+    prometheus:
+      enabled: true
+
 

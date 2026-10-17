@@ -1,0 +1,312 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 100,
+      "title": "Platform Production Gate & Readiness",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "green",
+                  "text": "CLOSED (SAFE)"
+                },
+                "1": {
+                  "color": "red",
+                  "text": "OPEN (LIVE)"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "expr": "finx_release_production_gate_open",
+          "refId": "A"
+        }
+      ],
+      "title": "Production Gate Status",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "red",
+                  "text": "NOT READY"
+                },
+                "1": {
+                  "color": "green",
+                  "text": "READY"
+                }
+              },
+              "type": "value"
+            }
+          ]
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 1
+      },
+      "id": 2,
+      "targets": [
+        {
+          "expr": "finx_release_provider_ready_sandbox",
+          "refId": "A"
+        }
+      ],
+      "title": "Sandbox Provider Readiness",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "orange",
+                  "text": "DISABLED (E10/E12)"
+                },
+                "1": {
+                  "color": "green",
+                  "text": "CERTIFIED"
+                }
+              },
+              "type": "value"
+            }
+          ]
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 1
+      },
+      "id": 3,
+      "targets": [
+        {
+          "expr": "finx_release_provider_ready_production",
+          "refId": "A"
+        }
+      ],
+      "title": "Production Technical Readiness",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
+      "id": 4,
+      "targets": [
+        {
+          "expr": "finx_release_instructions_total",
+          "refId": "A"
+        }
+      ],
+      "title": "Total Release Instructions",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "id": 101,
+      "title": "Financial Outbox State",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 0,
+        "y": 6
+      },
+      "id": 5,
+      "targets": [
+        { "expr": "finx_release_outbox_pending", "legendFormat": "Pending", "refId": "A" },
+        { "expr": "finx_release_outbox_leased", "legendFormat": "Leased", "refId": "B" },
+        { "expr": "finx_release_outbox_retry", "legendFormat": "Retry", "refId": "C" },
+        { "expr": "finx_release_outbox_held", "legendFormat": "Held (Admin)", "refId": "D" },
+        { "expr": "finx_release_outbox_dead_letter", "legendFormat": "Dead Letter", "refId": "E" }
+      ],
+      "title": "Financial Outbox Lifecycle Queues",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 6
+      },
+      "id": 6,
+      "targets": [
+        { "expr": "finx_release_outbox_oldest_pending_age_seconds", "legendFormat": "Oldest Pending Outbox Age", "refId": "A" },
+        { "expr": "finx_release_pending_settlement_oldest_age_seconds", "legendFormat": "Oldest Pending Settlement Age", "refId": "B" }
+      ],
+      "title": "Queue Age & Settlement Latency",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
+      "id": 102,
+      "title": "Execution Attempts & Network Boundaries",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 15
+      },
+      "id": 7,
+      "targets": [
+        { "expr": "finx_release_attempts_prepared", "legendFormat": "Prepared (Pre-Network)", "refId": "A" },
+        { "expr": "finx_release_attempts_sending", "legendFormat": "Sending (In-Flight)", "refId": "B" },
+        { "expr": "finx_release_attempts_acknowledged", "legendFormat": "Acknowledged", "refId": "C" },
+        { "expr": "finx_release_attempts_unknown", "legendFormat": "UNKNOWN Outcome", "refId": "D" }
+      ],
+      "title": "Provider Settlement Execution Attempts",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 15
+      },
+      "id": 8,
+      "targets": [
+        { "expr": "finx_release_observations_conflict", "legendFormat": "Conflict Evidence", "refId": "A" },
+        { "expr": "finx_release_observations_reversed", "legendFormat": "Reversed Observations", "refId": "B" },
+        { "expr": "finx_release_reconciliation_review", "legendFormat": "Reconciliation Review", "refId": "C" },
+        { "expr": "finx_release_reconciliation_blocked", "legendFormat": "Reconciliation Blocked", "refId": "D" },
+        { "expr": "finx_release_reconciliation_reversal_required", "legendFormat": "Reversal Action Required", "refId": "E" }
+      ],
+      "title": "Observation Integrity & Reconciliation Mismatches",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["finx", "release-execution", "observability"],
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "FinX Post-Engine Release Execution Dashboard",
+  "uid": "finx-release-execution",
+  "version": 1
+}

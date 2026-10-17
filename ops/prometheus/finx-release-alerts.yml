@@ -1,0 +1,84 @@
+# Prometheus Alerting Rules for FinX Release Execution Platform
+# Operational Invariant Monitoring & Production Safety Guards
+groups:
+  - name: finx-release-execution-alerts
+    rules:
+      - alert: FinxReleaseOutboxBacklogHigh
+        expr: finx_release_outbox_pending > 50
+        for: 5m
+        labels:
+          severity: warning
+          component: release-outbox
+        annotations:
+          summary: "FinX financial outbox pending backlog is high"
+          description: "Outbox pending count has exceeded 50 messages for more than 5 minutes."
+
+      - alert: FinxReleaseDeadLetterPresent
+        expr: finx_release_outbox_dead_letter > 0
+        for: 1m
+        labels:
+          severity: critical
+          component: release-outbox
+        annotations:
+          summary: "FinX financial outbox messages have entered DEAD_LETTER"
+          description: "One or more release outbox messages reached dead-letter status, requiring manual operator investigation."
+
+      - alert: FinxReleaseUnknownOutcomePresent
+        expr: finx_release_attempts_unknown > 0
+        for: 2m
+        labels:
+          severity: critical
+          component: release-execution
+        annotations:
+          summary: "FinX settlement attempt in UNKNOWN state"
+          description: "A banking provider execution attempt resulted in an UNKNOWN outcome across network boundary; recovery polling or reconciliation required."
+
+      - alert: FinxReleaseLeaseStale
+        expr: finx_release_outbox_leased > 0 and finx_release_outbox_oldest_pending_age_seconds > 300
+        for: 3m
+        labels:
+          severity: warning
+          component: release-worker
+        annotations:
+          summary: "FinX outbox leased message is stale"
+          description: "An outbox lease has exceeded the staleness threshold without completing processing or releasing the lease."
+
+      - alert: FinxReleasePendingSettlementStale
+        expr: finx_release_pending_settlement_oldest_age_seconds > 900
+        for: 5m
+        labels:
+          severity: warning
+          component: release-settlement
+        annotations:
+          summary: "FinX release instruction stuck in PENDING_SETTLEMENT"
+          description: "Release instruction has remained in PENDING_SETTLEMENT for longer than 900 seconds without final settlement observation."
+
+      - alert: FinxReleaseReconciliationBlocked
+        expr: finx_release_reconciliation_blocked > 0
+        for: 5m
+        labels:
+          severity: warning
+          component: release-reconciliation
+        annotations:
+          summary: "FinX reconciliation items blocking automated closure"
+          description: "One or more discrepancies or un-reconciled items require finance review."
+
+      - alert: FinxReleaseReversalRecoveryRequired
+        expr: finx_release_reconciliation_reversal_required > 0 or finx_release_observations_reversed > 0
+        for: 1m
+        labels:
+          severity: critical
+          component: release-settlement
+        annotations:
+          summary: "FinX bank settlement reversal detected"
+          description: "A bank settlement reversal was detected via statement reconciliation or webhook observation; containment protocol active."
+
+      - alert: FinxReleaseProductionGateUnexpectedlyOpen
+        expr: finx_release_production_gate_open == 1 and finx_release_provider_ready_production == 0
+        for: 10s
+        labels:
+          severity: page
+          component: release-safety-gate
+        annotations:
+          summary: "CRITICAL: FinX production gate open while provider is not certified"
+          description: "Production settlement dispatch gate is open despite provider failing technical readiness criteria."

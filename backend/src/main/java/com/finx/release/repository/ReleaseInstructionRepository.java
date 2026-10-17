@@ -25,6 +25,18 @@ public interface ReleaseInstructionRepository extends JpaRepository<ReleaseInstr
 
     Optional<ReleaseInstruction> findByIdAndOrganizationId(UUID id, UUID organizationId);
 
+    long countByStatus(ReleaseInstructionStatus status);
+
+    @org.springframework.data.jpa.repository.Query("SELECT MIN(ri.createdAt) FROM ReleaseInstruction ri WHERE ri.status = :status")
+    Optional<java.time.Instant> findOldestCreatedAtByStatus(@org.springframework.data.repository.query.Param("status") ReleaseInstructionStatus status);
+
+    List<ReleaseInstruction> findByStatusOrderByCreatedAtAsc(ReleaseInstructionStatus status);
+
+    List<ReleaseInstruction> findByStatusInOrderByCreatedAtAsc(Collection<ReleaseInstructionStatus> statuses);
+
+    @org.springframework.data.jpa.repository.Query("SELECT ri FROM ReleaseInstruction ri WHERE ri.status = com.finx.release.model.ReleaseInstructionStatus.PENDING_SETTLEMENT AND ri.updatedAt < :staleThreshold ORDER BY ri.updatedAt ASC")
+    List<ReleaseInstruction> findStalePendingSettlement(@org.springframework.data.repository.query.Param("staleThreshold") java.time.Instant staleThreshold);
+
     interface ScopeProjection {
         UUID getDealId();
         UUID getMilestoneId();

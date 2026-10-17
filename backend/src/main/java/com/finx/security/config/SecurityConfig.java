@@ -74,8 +74,11 @@ public class SecurityConfig {
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/actuator/health",
+                                "/actuator/info",
                                 "/error"
                         ).permitAll()
+                        .requestMatchers("/actuator/prometheus", "/actuator/metrics/**", "/actuator/metrics").hasAnyRole("ADMIN", "FINANCE")
+                        .requestMatchers("/actuator/**").hasRole("ADMIN")
                         .requestMatchers("/api/admin/**", "/api/v1/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/finance/**", "/api/v1/finance/**").hasAnyRole("ADMIN", "FINANCE")
                         .anyRequest().authenticated()

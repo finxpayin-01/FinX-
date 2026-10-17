@@ -308,15 +308,36 @@ This document outlines the strict 12-phase engineering roadmap (E1 through E12) 
 
 ---
 
-### Phase E11 — Observability, Metrics & Operational Controls
-- **Scope**: Micrometer metrics, Prometheus scrapers, Grafana dashboards, and audit log streams for release execution.
+### Phase E11 — Observability, Metrics & Operational Controls [COMPLETE]
+- **Scope**: Micrometer metrics, Prometheus scrapers, Grafana dashboards, health indicators, alert rules, and administrative operational controls (hold/resume/cancel) for release execution.
+- **Status**: **COMPLETE**.
+- **Flyway Migration**: `V36__add_financial_outbox_admin_hold.sql` (Authorized for E11; `V37` is strictly ABSENT).
 - **Classes**:
-  - `com.finx.release.metrics.ReleaseExecutionMetrics`
+  - `com.finx.release.observability.ReleaseObservabilityProperties`
+  - `com.finx.release.observability.ReleaseExecutionMetrics`
+  - `com.finx.release.observability.ReleaseExecutionHealthIndicator`
+  - `com.finx.release.control.ReleaseOperationalControlService`
   - `com.finx.release.controller.AdminReleaseManagementController`
-- **Tests**: `ReleaseExecutionMetricsTest`.
-- **Financial Side Effects Allowed**: None.
-- **Bank Calls Allowed**: None.
-- **Acceptance Criteria**: Real-time alerts configured for outbox backlog, unknown outcomes, and reconciliation discrepancies.
+  - `com.finx.release.dto.ReleaseOperationalSummaryDto`
+  - `com.finx.release.dto.SafeReleaseOperationDto`
+  - `com.finx.release.dto.OperationalActionRequest`
+  - `com.finx.outbox.model.FinancialOutboxStatus` (extended with `HELD`)
+  - `com.finx.outbox.entity.FinancialOutboxMessage` (explicit hold, resume, cancel methods)
+  - `com.finx.release.entity.ReleaseInstruction` (explicit pre-dispatch manual review methods)
+- **Artifacts**:
+  - `ops/prometheus/finx-release-alerts.yml` (8 production alert rules)
+  - `ops/grafana/finx-release-execution-dashboard.json` (comprehensive dark-mode operational dashboard)
+- **Tests**:
+  - `ReleaseExecutionMetricsTest`
+  - `ReleaseExecutionE11ArchitectureTest`
+  - `ReleaseOperationalControlServiceTest`
+  - `AdminReleaseManagementControllerSecurityTest`
+  - `PostgresReleaseOperationalControlTest`
+  - `FlywayCleanMigrationTest`
+- **Financial Side Effects Allowed**: None (0 money movement, 0 ledger modifications, 0 escrow balance alterations).
+- **Bank Calls Allowed**: None (0 bank calls).
+- **Acceptance Criteria**: 22 low-cardinality Gauges registered; zero high-cardinality tags; safe endpoints protected by `ADMIN`/`FINANCE` roles; atomic pre-dispatch hold/resume/cancel transactions; cancel strictly blocked once network dispatch has started; full PostgreSQL tests pass 100%; Flyway clean migration V1->V36 verified; V37 strictly absent.
+- **Next**: **Phase E12 — Final Certification & Controlled Production Gate Verification**.
 - **Commit Message**: `feat(observability): add release execution metrics and admin controls`
 
 ---

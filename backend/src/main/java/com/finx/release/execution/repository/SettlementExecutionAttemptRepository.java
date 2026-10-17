@@ -1,6 +1,7 @@
 package com.finx.release.execution.repository;
 
 import com.finx.release.execution.entity.SettlementExecutionAttempt;
+import com.finx.release.execution.model.SettlementExecutionAttemptStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -26,6 +27,10 @@ public interface SettlementExecutionAttemptRepository extends JpaRepository<Sett
     Optional<SettlementExecutionAttempt> findFirstByProviderOperationKeyOrderByAttemptNumberDesc(String providerOperationKey);
 
     long countByOutboxMessageId(UUID outboxMessageId);
+
+    long countByStatus(SettlementExecutionAttemptStatus status);
+
+    List<SettlementExecutionAttempt> findByStatusOrderByCreatedAtDesc(SettlementExecutionAttemptStatus status);
 
     @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     @org.springframework.data.jpa.repository.Query("SELECT a FROM SettlementExecutionAttempt a WHERE a.id = :id")

@@ -26,6 +26,22 @@ public interface FinancialOutboxRepository extends JpaRepository<FinancialOutbox
             FinancialOutboxEventType eventType
     );
 
+    Optional<FinancialOutboxMessage> findByReleaseInstructionId(UUID releaseInstructionId);
+
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("SELECT m FROM FinancialOutboxMessage m WHERE m.releaseInstructionId = :releaseInstructionId")
+    Optional<FinancialOutboxMessage> findByReleaseInstructionIdForUpdate(@org.springframework.data.repository.query.Param("releaseInstructionId") UUID releaseInstructionId);
+
+    long countByStatus(com.finx.outbox.model.FinancialOutboxStatus status);
+
+    @org.springframework.data.jpa.repository.Query("SELECT MIN(m.createdAt) FROM FinancialOutboxMessage m WHERE m.status = com.finx.outbox.model.FinancialOutboxStatus.PENDING")
+    Optional<java.time.Instant> findOldestPendingCreatedAt();
+
+    @org.springframework.data.jpa.repository.Query("SELECT COUNT(m) FROM FinancialOutboxMessage m WHERE m.status = com.finx.outbox.model.FinancialOutboxStatus.LEASED AND m.lockedAt < :staleThreshold")
+    long countStaleLeasedMessages(@org.springframework.data.repository.query.Param("staleThreshold") java.time.Instant staleThreshold);
+
+    java.util.List<FinancialOutboxMessage> findByStatusOrderByCreatedAtDesc(com.finx.outbox.model.FinancialOutboxStatus status);
+
     @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     @org.springframework.data.jpa.repository.Query("SELECT m FROM FinancialOutboxMessage m WHERE m.id = :id")
     Optional<FinancialOutboxMessage> findByIdForUpdate(@org.springframework.data.repository.query.Param("id") UUID id);
