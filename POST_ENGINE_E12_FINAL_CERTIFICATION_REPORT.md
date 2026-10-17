@@ -105,4 +105,4 @@ Suite Components:
 
 - **E10 Commit SHA**: `7339e30` (`feat(banking): introduce dynamic banking provider architecture and production settlement gate`)
 - **E11 Commit SHA**: `211e711` (`feat(observability): add release execution metrics and admin controls`)
-- **E12 Commit SHA**: *To be recorded upon final commit and push*
+- **E12 Commit SHA**: `4af2bc5` (`chore(release): certify post-engine execution platform`)
