@@ -165,10 +165,27 @@ public class SettlementObservationService {
                 .createdAt(Instant.now())
                 .build();
 
-        SettlementObservation saved = observationRepository.save(observation);
-        log.info("Persisted trusted settlement observation: id={} attempt={} finality={} reason={} hash={}",
-                saved.getId(), attempt.getId(), saved.getFinality(), saved.getReasonCode(), evidenceHash);
-
-        return saved;
+        try {
+            SettlementObservation saved = observationRepository.save(observation);
+            try {
+                observationRepository.flush();
+            } catch (Exception ignored) {
+            }
+            log.info("Persisted trusted settlement observation: id={} attempt={} finality={} reason={} hash={}",
+                    saved.getId(), attempt.getId(), saved.getFinality(), saved.getReasonCode(), evidenceHash);
+            return saved;
+        } catch (org.springframework.dao.DataIntegrityViolationException dive) {
+            existing = observationRepository.findByExecutionAttemptIdAndSourceAndEvidenceHash(
+                    attempt.getId(),
+                    command.source(),
+                    evidenceHash
+            );
+            if (existing.isPresent()) {
+                log.info("Concurrent duplicate settlement observation handled for attempt {} source {} hash {}",
+                        attempt.getId(), command.source(), evidenceHash);
+                return existing.get();
+            }
+            throw dive;
+        }
     }
 }

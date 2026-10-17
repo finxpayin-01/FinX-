@@ -241,17 +241,26 @@ This document outlines the strict 12-phase engineering roadmap (E1 through E12) 
 
 ---
 
-### Phase E9 — Concurrency, Crash Recovery & Adversarial Testing
-- **Scope**: Comprehensive adversarial and chaos test suite under real PostgreSQL.
-- **Tests**:
-  - `ConcurrentAuthorizationConflictTest`
-  - `DisputeRaisedDuringDispatchRaceTest`
-  - `WorkerKilledMidHttpCallRecoveryTest`
-  - `DuplicateWebhookAndPollRaceTest`
-  - `ReconciliationMismatchAlertTest`
-- **Financial Side Effects Allowed**: Test suites only.
-- **Bank Calls Allowed**: MockBankingProvider.
-- **Acceptance Criteria**: Zero double-spends, zero duplicate finalizations, zero deadlocks across all chaos scenarios.
+### Phase E9 — Concurrency, Crash Recovery & Adversarial Testing [COMPLETE]
+- **Scope**: Comprehensive adversarial, concurrency, and chaos test suite under real PostgreSQL 16 (`finx_postgres` container on 5432, database `finx_release_e9_test`).
+- **Status**: **COMPLETE**.
+- **Flyway Migration**: None (Highest Flyway migration is `V35__add_release_instruction_reconciliation_effect.sql`; `V36` is strictly ABSENT).
+- **Test Suites (11 Dedicated E9 Test Classes)**:
+  - `com.finx.release.ReleaseLifecycleEscapeHatchArchitectureTest` (7 tests PASS)
+  - `com.finx.release.ReleaseExecutionE9ArchitectureTest` (9 tests PASS)
+  - `com.finx.release.ConcurrentAuthorizationConflictTest` (4 tests PASS)
+  - `com.finx.outbox.WorkerClaimStormAndCrashRecoveryTest` (3 tests PASS)
+  - `com.finx.release.WorkerKilledMidHttpCallRecoveryTest` (5 tests PASS)
+  - `com.finx.release.DisputeRaisedDuringDispatchRaceTest` (2 tests PASS)
+  - `com.finx.release.DuplicateWebhookAndPollRaceTest` (4 tests PASS)
+  - `com.finx.release.finalizer.FinalizationConcurrencyAndRollbackMatrixTest` (5 tests PASS)
+  - `com.finx.release.PostgresReleaseExecutionChaosCertificationTest` (1 test with 50 deterministic chaos loop iterations PASS)
+  - `com.finx.release.ReleaseSecurityAndConstraintTest` (6 tests PASS)
+  - `com.finx.reconciliation.ReconciliationMismatchAlertTest` (6 tests PASS)
+- **Financial Side Effects Allowed**: None outside controlled test isolation. Zero double-spend, zero double-debit, zero double-reservation, zero double-release, zero ghost ledger postings.
+- **Bank Calls Allowed**: `MockBankingProvider` sandbox simulation only. Real production bank adapters: 0. Production payout: DISABLED. Legacy B04 fail-closed gate: ACTIVE.
+- **Acceptance Criteria**: 3 consecutive successful runs of critical 34-test concurrency suite (102/102 PASS, 0 failures, 0 errors); 50 chaos iterations with zero deadlocks and zero invariant violations; strict PostgreSQL foreign key teardown ordering validated; Flyway clean migration V1->V35 verified; V36 absent; full suite regression passing.
+- **Next**: **Phase E10 — Production Bank Provider Capability Adapters**.
 - **Commit Message**: `test(release): add comprehensive adversarial and crash recovery test suite`
 
 ---

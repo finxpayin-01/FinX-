@@ -144,7 +144,7 @@ public class MockBankingProvider implements BankingProvider {
     }
 
     @Override
-    public SettlementResult initiateSettlement(SettlementRequest request) {
+    public synchronized SettlementResult initiateSettlement(SettlementRequest request) {
         String idempotencyKey = request.idempotencyKey();
         if (idempotencyKey != null && !idempotencyKey.isBlank()) {
             MockSettlementFingerprint currentFp = MockSettlementFingerprint.from(request);

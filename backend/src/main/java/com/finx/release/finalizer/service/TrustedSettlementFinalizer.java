@@ -312,8 +312,11 @@ public class TrustedSettlementFinalizer {
 
         if (obsResult.latestObservation() != null
                 && !instruction.getFinalSettlementObservationId().equals(obsResult.latestObservation().getId())) {
-            throw new IllegalStateException("FINALIZATION_INTEGRITY_ERROR: ReleaseInstruction is already settled with a different observation: expected "
-                    + instruction.getFinalSettlementObservationId() + ", latest " + obsResult.latestObservation().getId());
+            if (obsResult.status() != SettlementObservationEvidenceReader.AuthoritativeStatus.FINAL_SUCCESS
+                    || obsResult.latestObservation().getFinality() != SettlementObservationFinality.FINAL_SUCCESS) {
+                throw new IllegalStateException("FINALIZATION_INTEGRITY_ERROR: ReleaseInstruction is already settled with a different observation: expected "
+                        + instruction.getFinalSettlementObservationId() + ", latest " + obsResult.latestObservation().getId());
+            }
         }
 
         if (reservation.getStatus() != ReleaseReservationStatus.CONSUMED) {

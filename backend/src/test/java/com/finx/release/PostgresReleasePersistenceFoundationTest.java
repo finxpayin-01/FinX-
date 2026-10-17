@@ -373,7 +373,7 @@ public class PostgresReleasePersistenceFoundationTest {
                 .isInstanceOf(DataIntegrityViolationException.class);
 
         // Cancel first instruction (terminal state)
-        inst1.updateStatus(ReleaseInstructionStatus.CANCELLED);
+        inst1.markCancelled();
         instructionRepo.saveAndFlush(inst1);
 
         // Now a new active instruction for the same milestone is allowed

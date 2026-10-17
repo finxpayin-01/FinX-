@@ -171,9 +171,9 @@ public class BankingWebhookController {
                 throw new BadRequestException("Payload hash mismatch for event ID: " + eventId);
             }
 
-            // Check if already processed
-            if ("PROCESSED".equalsIgnoreCase(event.getProcessingStatus())) {
-                log.info("Duplicate banking webhook event already processed: provider={} eventId={}", normalizedProvider, eventId);
+            // Check if already processed or in-flight
+            if ("PROCESSED".equalsIgnoreCase(event.getProcessingStatus()) || "PROCESSING".equalsIgnoreCase(event.getProcessingStatus())) {
+                log.info("Duplicate banking webhook event already processed or in-flight: provider={} eventId={}", normalizedProvider, eventId);
                 return ResponseEntity.ok(Map.of(
                         "status", "already_processed",
                         "provider", normalizedProvider,

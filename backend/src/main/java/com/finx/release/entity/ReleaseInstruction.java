@@ -209,12 +209,6 @@ public class ReleaseInstruction {
         this.updatedAt = Instant.now();
     }
 
-    @Deprecated
-    public void updateStatus(ReleaseInstructionStatus newStatus) {
-        this.status = Objects.requireNonNull(newStatus, "status must not be null");
-        this.updatedAt = Instant.now();
-    }
-
     public void markSettledFromObservation(UUID settlementObservationId, UUID finalizedBy, Instant settledAt) {
         if (settlementObservationId == null) {
             throw new IllegalArgumentException("settlementObservationId must not be null");
@@ -241,24 +235,6 @@ public class ReleaseInstruction {
         this.finalSettlementObservationId = settlementObservationId;
         this.finalizedBy = finalizedBy;
         this.settledAt = settledAt;
-        this.updatedAt = Instant.now();
-    }
-
-    @Deprecated
-    public void markSettled(Instant settledAt) {
-        if (this.status != ReleaseInstructionStatus.PENDING_SETTLEMENT
-                && this.status != ReleaseInstructionStatus.UNKNOWN_RECON_REQUIRED
-                && this.status != ReleaseInstructionStatus.DISPATCHING) {
-            throw new IllegalStateException("Cannot mark settled on ReleaseInstruction in status " + this.status);
-        }
-        this.status = ReleaseInstructionStatus.SETTLED;
-        this.settledAt = Objects.requireNonNull(settledAt, "settledAt must not be null");
-        if (this.finalSettlementObservationId == null) {
-            this.finalSettlementObservationId = UUID.randomUUID();
-        }
-        if (this.finalizedBy == null) {
-            this.finalizedBy = this.createdBy;
-        }
         this.updatedAt = Instant.now();
     }
 
