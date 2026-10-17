@@ -25,8 +25,17 @@ import com.finx.reconciliation.repository.BankStatementLineRepository;
 import com.finx.reconciliation.repository.ReconciliationItemRepository;
 import com.finx.reconciliation.repository.ReconciliationRunRepository;
 import com.finx.security.service.UserPrincipal;
+import com.finx.release.entity.ReleaseInstruction;
+import com.finx.release.execution.model.ProviderSettlementOperationKey;
+import com.finx.release.model.ReleaseInstructionStatus;
+import com.finx.release.observation.entity.SettlementObservation;
+import com.finx.release.observation.model.SettlementObservationFinality;
+import com.finx.release.observation.repository.SettlementObservationRepository;
+import com.finx.release.observation.service.SettlementObservationEvidenceReader;
+import com.finx.release.repository.ReleaseInstructionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,15 +49,47 @@ import java.util.*;
 public class DeterministicReconciliationMatcher {
 
     private static final Logger log = LoggerFactory.getLogger(DeterministicReconciliationMatcher.class);
-    public static final String MATCHER_VERSION = "FINX_RECONCILIATION_MATCHER_V1";
+    public static final String MATCHER_VERSION_V1 = "FINX_RECONCILIATION_MATCHER_V1";
+    public static final String MATCHER_VERSION_V2 = "FINX_RECONCILIATION_MATCHER_V2";
+    public static final String MATCHER_VERSION = MATCHER_VERSION_V2;
+
+    public static boolean isAuthoritativeFundingMatcherVersion(String version) {
+        return MATCHER_VERSION_V1.equals(version) || MATCHER_VERSION_V2.equals(version);
+    }
 
     private final BankStatementImportRepository importRepository;
     private final BankStatementLineRepository lineRepository;
     private final PaymentTransactionRepository paymentTransactionRepository;
     private final PaymentInstructionRepository paymentInstructionRepository;
     private final SettlementInstructionRepository settlementInstructionRepository;
+    private final ReleaseInstructionRepository releaseInstructionRepository;
+    private final SettlementObservationRepository settlementObservationRepository;
+    private final SettlementObservationEvidenceReader settlementObservationEvidenceReader;
     private final ReconciliationRunRepository runRepository;
     private final ReconciliationItemRepository itemRepository;
+
+    @Autowired
+    public DeterministicReconciliationMatcher(BankStatementImportRepository importRepository,
+                                             BankStatementLineRepository lineRepository,
+                                             PaymentTransactionRepository paymentTransactionRepository,
+                                             PaymentInstructionRepository paymentInstructionRepository,
+                                             SettlementInstructionRepository settlementInstructionRepository,
+                                             ReleaseInstructionRepository releaseInstructionRepository,
+                                             SettlementObservationRepository settlementObservationRepository,
+                                             SettlementObservationEvidenceReader settlementObservationEvidenceReader,
+                                             ReconciliationRunRepository runRepository,
+                                             ReconciliationItemRepository itemRepository) {
+        this.importRepository = importRepository;
+        this.lineRepository = lineRepository;
+        this.paymentTransactionRepository = paymentTransactionRepository;
+        this.paymentInstructionRepository = paymentInstructionRepository;
+        this.settlementInstructionRepository = settlementInstructionRepository;
+        this.releaseInstructionRepository = releaseInstructionRepository;
+        this.settlementObservationRepository = settlementObservationRepository;
+        this.settlementObservationEvidenceReader = settlementObservationEvidenceReader;
+        this.runRepository = runRepository;
+        this.itemRepository = itemRepository;
+    }
 
     public DeterministicReconciliationMatcher(BankStatementImportRepository importRepository,
                                              BankStatementLineRepository lineRepository,
@@ -57,13 +98,8 @@ public class DeterministicReconciliationMatcher {
                                              SettlementInstructionRepository settlementInstructionRepository,
                                              ReconciliationRunRepository runRepository,
                                              ReconciliationItemRepository itemRepository) {
-        this.importRepository = importRepository;
-        this.lineRepository = lineRepository;
-        this.paymentTransactionRepository = paymentTransactionRepository;
-        this.paymentInstructionRepository = paymentInstructionRepository;
-        this.settlementInstructionRepository = settlementInstructionRepository;
-        this.runRepository = runRepository;
-        this.itemRepository = itemRepository;
+        this(importRepository, lineRepository, paymentTransactionRepository, paymentInstructionRepository,
+                settlementInstructionRepository, null, null, null, runRepository, itemRepository);
     }
 
     @Transactional
@@ -126,7 +162,16 @@ public class DeterministicReconciliationMatcher {
                 statementImport.getWindowEnd()
         );
 
-        int totalInternalCount = inboundCandidates.size() + outboundCandidates.size();
+        List<ReleaseInstruction> releaseCandidates = releaseInstructionRepository != null
+                ? releaseInstructionRepository.findOutboundReconciliationCandidates(
+                        statementImport.getProvider(),
+                        statementImport.getProviderAccountId(),
+                        statementImport.getWindowStart(),
+                        statementImport.getWindowEnd()
+                )
+                : Collections.emptyList();
+
+        int totalInternalCount = inboundCandidates.size() + outboundCandidates.size() + releaseCandidates.size();
         List<ReconciliationItem> items = new ArrayList<>();
 
         // Maps to hold candidate matches for global one-to-one conflict resolution
@@ -258,6 +303,105 @@ public class DeterministicReconciliationMatcher {
                         ReconciliationItemStatus.MISSING_EXTERNAL, ReconciliationReasonCode.MISSING_EXTERNAL,
                         "Internal settlement missing in bank statement evidence", ReconciliationEffectType.SETTLEMENT_INSTRUCTION,
                         si.getId(), si.getCurrency(), FinancialDirection.DEBIT, null);
+                items.add(item);
+            }
+        }
+
+        // 8.5. Evaluate Modern Outbound (ReleaseInstruction) candidates
+        for (ReleaseInstruction release : releaseCandidates) {
+            UUID finalObsId = release.getFinalSettlementObservationId();
+            if (finalObsId == null) {
+                ReconciliationItem item = createItem(runId, ProviderSettlementOperationKey.release(release.getId()), null, release.getAmount(), null,
+                        ReconciliationItemStatus.REQUIRES_REVIEW, ReconciliationReasonCode.INTERNAL_LINEAGE_MISMATCH,
+                        "Settled release instruction has null finalSettlementObservationId",
+                        ReconciliationEffectType.RELEASE_INSTRUCTION, release.getId(), release.getCurrency(), FinancialDirection.DEBIT, null);
+                items.add(item);
+                continue;
+            }
+
+            SettlementObservation observation = settlementObservationRepository != null
+                    ? settlementObservationRepository.findById(finalObsId).orElse(null)
+                    : null;
+            if (observation == null) {
+                ReconciliationItem item = createItem(runId, ProviderSettlementOperationKey.release(release.getId()), null, release.getAmount(), null,
+                        ReconciliationItemStatus.REQUIRES_REVIEW, ReconciliationReasonCode.INTERNAL_LINEAGE_MISMATCH,
+                        "Final settlement observation not found: id=" + finalObsId,
+                        ReconciliationEffectType.RELEASE_INSTRUCTION, release.getId(), release.getCurrency(), FinancialDirection.DEBIT, null);
+                items.add(item);
+                continue;
+            }
+
+            // Internal Lineage Check (Part I)
+            boolean lineageValid = release.getStatus() == ReleaseInstructionStatus.SETTLED
+                    && release.getSettledAt() != null
+                    && release.getProvider() != null && !release.getProvider().isBlank()
+                    && release.getProviderAccountId() != null && !release.getProviderAccountId().isBlank()
+                    && release.getAmount() != null && release.getAmount().compareTo(BigDecimal.ZERO) > 0
+                    && release.getCurrency() != null && !release.getCurrency().isBlank()
+                    && release.getId().equals(observation.getReleaseInstructionId())
+                    && observation.getFinality() == SettlementObservationFinality.FINAL_SUCCESS
+                    && observation.getProviderSettlementId() != null && !observation.getProviderSettlementId().isBlank()
+                    && observation.getUtrNumber() != null && !observation.getUtrNumber().isBlank()
+                    && release.getProvider().equals(observation.getProvider())
+                    && observation.getProviderOperationKey() != null
+                    && observation.getProviderOperationKey().equals(ProviderSettlementOperationKey.release(release.getId()))
+                    && (observation.getProviderAccountId() == null || release.getProviderAccountId().equals(observation.getProviderAccountId()))
+                    && (observation.getObservedAmount() == null || release.getAmount().compareTo(observation.getObservedAmount()) == 0)
+                    && (observation.getObservedCurrency() == null || release.getCurrency().equalsIgnoreCase(observation.getObservedCurrency()))
+                    && (observation.getObservedDirection() == null || "DEBIT".equalsIgnoreCase(observation.getObservedDirection()));
+
+            if (!lineageValid) {
+                ReconciliationItem item = createItem(runId, ProviderSettlementOperationKey.release(release.getId()), null, release.getAmount(), null,
+                        ReconciliationItemStatus.REQUIRES_REVIEW, ReconciliationReasonCode.INTERNAL_LINEAGE_MISMATCH,
+                        "Internal lineage mismatch between release instruction and final settlement observation",
+                        ReconciliationEffectType.RELEASE_INSTRUCTION, release.getId(), release.getCurrency(), FinancialDirection.DEBIT, null);
+                items.add(item);
+                continue;
+            }
+
+            // Current Observation Conflict Check (Part H)
+            if (settlementObservationEvidenceReader != null) {
+                SettlementObservationEvidenceReader.AuthoritativeObservationResult authObs =
+                        settlementObservationEvidenceReader.getLatestAuthoritativeFinalObservation(release.getId());
+                if (authObs.status() == SettlementObservationEvidenceReader.AuthoritativeStatus.REVERSED
+                        || authObs.status() == SettlementObservationEvidenceReader.AuthoritativeStatus.CONFLICT) {
+                    ReconciliationItem item = createItem(runId, observation.getProviderOperationKey(), null, release.getAmount(), null,
+                            ReconciliationItemStatus.STATUS_MISMATCH, ReconciliationReasonCode.BANK_FINALITY_REVERSED,
+                            "Settlement observation evidence indicates finality reversal or conflict: status=" + authObs.status(),
+                            ReconciliationEffectType.RELEASE_INSTRUCTION, release.getId(), release.getCurrency(), FinancialDirection.DEBIT, null);
+                    items.add(item);
+                    continue;
+                }
+            }
+
+            // Reference resolution priority: 1. UTR, 2. Provider Settlement ID, 3. Provider Operation Key (Part J)
+            ReferenceMatchResult refResult = resolveReleaseOutboundReference(release, observation, lines);
+            if (refResult.isAmbiguous()) {
+                ReconciliationItem item = createItem(runId, observation.getProviderOperationKey(), null, release.getAmount(), null,
+                        ReconciliationItemStatus.DUPLICATE, ReconciliationReasonCode.REFERENCE_AMBIGUOUS,
+                        "Ambiguous reference matches multiple bank statement lines: count=" + refResult.getMatchCount(),
+                        ReconciliationEffectType.RELEASE_INSTRUCTION, release.getId(), release.getCurrency(), FinancialDirection.DEBIT, null);
+                items.add(item);
+            } else if (refResult.hasMatch()) {
+                BankStatementLine matchedLine = refResult.getMatchedLine();
+                InternalCandidate candidate = new InternalCandidate(
+                        ReconciliationEffectType.RELEASE_INSTRUCTION,
+                        release.getId(),
+                        observation.getProviderOperationKey(),
+                        release.getProvider(),
+                        release.getProviderAccountId(),
+                        release.getAmount(),
+                        release.getCurrency(),
+                        FinancialDirection.DEBIT,
+                        matchedLine,
+                        observation.getUtrNumber()
+                );
+                lineToCandidateMap.computeIfAbsent(matchedLine.getId(), k -> new ArrayList<>()).add(candidate);
+            } else {
+                ReconciliationItem item = createItem(runId, observation.getProviderOperationKey(), null, release.getAmount(), null,
+                        ReconciliationItemStatus.MISSING_EXTERNAL, ReconciliationReasonCode.MISSING_EXTERNAL,
+                        "Internal release settlement missing in bank statement evidence",
+                        ReconciliationEffectType.RELEASE_INSTRUCTION, release.getId(), release.getCurrency(), FinancialDirection.DEBIT, null);
                 items.add(item);
             }
         }
@@ -526,6 +670,53 @@ public class DeterministicReconciliationMatcher {
         return ReferenceMatchResult.noMatch();
     }
 
+    private ReferenceMatchResult resolveReleaseOutboundReference(
+            ReleaseInstruction release,
+            SettlementObservation observation,
+            List<BankStatementLine> lines
+    ) {
+        // Priority 1: UTR
+        if (observation.getUtrNumber() != null && !observation.getUtrNumber().isBlank()) {
+            String utr = observation.getUtrNumber().trim();
+            List<BankStatementLine> matches = lines.stream()
+                    .filter(l -> l.getUtrNumber() != null && l.getUtrNumber().trim().equalsIgnoreCase(utr))
+                    .toList();
+            if (matches.size() == 1) {
+                return ReferenceMatchResult.matched(matches.get(0));
+            } else if (matches.size() > 1) {
+                return ReferenceMatchResult.ambiguous(matches.size());
+            }
+        }
+
+        // Priority 2: Provider Settlement ID
+        if (observation.getProviderSettlementId() != null && !observation.getProviderSettlementId().isBlank()) {
+            String provSettlementId = observation.getProviderSettlementId().trim().toUpperCase();
+            List<BankStatementLine> matches = lines.stream()
+                    .filter(l -> l.getTransactionReference() != null && l.getTransactionReference().trim().equalsIgnoreCase(provSettlementId))
+                    .toList();
+            if (matches.size() == 1) {
+                return ReferenceMatchResult.matched(matches.get(0));
+            } else if (matches.size() > 1) {
+                return ReferenceMatchResult.ambiguous(matches.size());
+            }
+        }
+
+        // Priority 3: Provider Operation Key
+        if (observation.getProviderOperationKey() != null && !observation.getProviderOperationKey().isBlank()) {
+            String opKey = observation.getProviderOperationKey().trim().toUpperCase();
+            List<BankStatementLine> matches = lines.stream()
+                    .filter(l -> l.getTransactionReference() != null && l.getTransactionReference().trim().equalsIgnoreCase(opKey))
+                    .toList();
+            if (matches.size() == 1) {
+                return ReferenceMatchResult.matched(matches.get(0));
+            } else if (matches.size() > 1) {
+                return ReferenceMatchResult.ambiguous(matches.size());
+            }
+        }
+
+        return ReferenceMatchResult.noMatch();
+    }
+
     private ReconciliationItem validateAndCreateAssociatedItem(UUID runId, InternalCandidate c, BankStatementLine line, String importProvider) {
         List<String> discrepancies = new ArrayList<>();
         List<ReconciliationReasonCode> reasons = new ArrayList<>();
@@ -576,6 +767,21 @@ public class DeterministicReconciliationMatcher {
             reasons.add(ReconciliationReasonCode.AMOUNT_MISMATCH);
         }
 
+        // 7. UTR check for ReleaseInstruction
+        if (c.effectType == ReconciliationEffectType.RELEASE_INSTRUCTION) {
+            if (c.expectedUtr != null && !c.expectedUtr.isBlank()) {
+                if (line.getUtrNumber() != null && !line.getUtrNumber().isBlank()) {
+                    if (!line.getUtrNumber().trim().equalsIgnoreCase(c.expectedUtr.trim())) {
+                        discrepancies.add(String.format("UTR mismatch: internal=%s vs bank=%s", c.expectedUtr, line.getUtrNumber()));
+                        reasons.add(ReconciliationReasonCode.UTR_MISMATCH);
+                    }
+                } else {
+                    discrepancies.add("Bank statement line lacks UTR evidence required for confirmed release payout matching");
+                    reasons.add(ReconciliationReasonCode.UTR_MISMATCH);
+                }
+            }
+        }
+
         // Determine primary status and reason based on fixed precedence
         ReconciliationItemStatus itemStatus;
         ReconciliationReasonCode primaryReason;
@@ -589,7 +795,8 @@ public class DeterministicReconciliationMatcher {
             if (primaryReason == ReconciliationReasonCode.AMOUNT_MISMATCH && reasons.size() == 1) {
                 itemStatus = ReconciliationItemStatus.AMOUNT_MISMATCH;
             } else if (primaryReason == ReconciliationReasonCode.BANK_FINALITY_PENDING
-                    || primaryReason == ReconciliationReasonCode.BANK_FINALITY_UNKNOWN) {
+                    || primaryReason == ReconciliationReasonCode.BANK_FINALITY_UNKNOWN
+                    || primaryReason == ReconciliationReasonCode.UTR_MISMATCH) {
                 itemStatus = ReconciliationItemStatus.REQUIRES_REVIEW;
             } else {
                 itemStatus = ReconciliationItemStatus.STATUS_MISMATCH;
@@ -612,17 +819,21 @@ public class DeterministicReconciliationMatcher {
         // 3. INTERNAL_LINEAGE_MISMATCH
         // 4. DIRECTION_MISMATCH
         // 5. CURRENCY_MISMATCH
-        // 6. BANK_FINALITY_FAILED
-        // 7. BANK_FINALITY_REVERSED
-        // 8. AMOUNT_MISMATCH
-        // 9. BANK_FINALITY_PENDING
-        // 10. BANK_FINALITY_UNKNOWN
+        // 6. UTR_MISMATCH
+        // 7. REFERENCE_MISMATCH
+        // 8. BANK_FINALITY_FAILED
+        // 9. BANK_FINALITY_REVERSED
+        // 10. AMOUNT_MISMATCH
+        // 11. BANK_FINALITY_PENDING
+        // 12. BANK_FINALITY_UNKNOWN
         List<ReconciliationReasonCode> priorityList = List.of(
                 ReconciliationReasonCode.INTERNAL_PROVIDER_MISMATCH,
                 ReconciliationReasonCode.ACCOUNT_SCOPE_MISMATCH,
                 ReconciliationReasonCode.INTERNAL_LINEAGE_MISMATCH,
                 ReconciliationReasonCode.DIRECTION_MISMATCH,
                 ReconciliationReasonCode.CURRENCY_MISMATCH,
+                ReconciliationReasonCode.UTR_MISMATCH,
+                ReconciliationReasonCode.REFERENCE_MISMATCH,
                 ReconciliationReasonCode.BANK_FINALITY_FAILED,
                 ReconciliationReasonCode.BANK_FINALITY_REVERSED,
                 ReconciliationReasonCode.AMOUNT_MISMATCH,
@@ -716,10 +927,17 @@ public class DeterministicReconciliationMatcher {
         final String currency;
         final FinancialDirection expectedDirection;
         final BankStatementLine matchedLine;
+        final String expectedUtr;
 
         InternalCandidate(ReconciliationEffectType effectType, UUID effectId, String finxReference, String provider,
                           String providerAccountId, BigDecimal amount, String currency,
                           FinancialDirection expectedDirection, BankStatementLine matchedLine) {
+            this(effectType, effectId, finxReference, provider, providerAccountId, amount, currency, expectedDirection, matchedLine, null);
+        }
+
+        InternalCandidate(ReconciliationEffectType effectType, UUID effectId, String finxReference, String provider,
+                          String providerAccountId, BigDecimal amount, String currency,
+                          FinancialDirection expectedDirection, BankStatementLine matchedLine, String expectedUtr) {
             this.effectType = effectType;
             this.effectId = effectId;
             this.finxReference = finxReference;
@@ -729,6 +947,7 @@ public class DeterministicReconciliationMatcher {
             this.currency = currency;
             this.expectedDirection = expectedDirection;
             this.matchedLine = matchedLine;
+            this.expectedUtr = expectedUtr;
         }
     }
 

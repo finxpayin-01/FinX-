@@ -219,16 +219,25 @@ This document outlines the strict 12-phase engineering roadmap (E1 through E12) 
 
 ---
 
-### Phase E8 — Reconciliation (R3/R5) Closed-Loop Integration
-- **Scope**: Integrate settled instructions with `DeterministicReconciliationMatcher` and statement parsing feeds.
+### Phase E8 — Reconciliation (R3/R5) Closed-Loop Integration [COMPLETE]
+- **Scope**: Reconcile modern settled release instructions (`ReleaseInstruction` + `SettlementObservation` `FINAL_SUCCESS`) against durable bank statement debit lines in `DeterministicReconciliationMatcher` V2 via `RELEASE_INSTRUCTION` effect type. Add read-only `ReleaseReconciliationEvidenceReader` for authoritative closed-loop audit status.
+- **Status**: **COMPLETE**.
+- **Flyway Migration**: `V35__add_release_instruction_reconciliation_effect.sql` (Drops and recreates `chk_recon_items_internal_effect_type` to allow `PAYMENT_TRANSACTION`, `SETTLEMENT_INSTRUCTION`, `RELEASE_INSTRUCTION`, and `NULL`).
 - **Classes**:
-  - `com.finx.reconciliation.matcher.DeterministicReconciliationMatcher`
-  - `com.finx.reconciliation.service.ReconciliationProcessingService`
-- **Tests**: `PostgresOutboundSettlementReconciliationTest`.
-- **Financial Side Effects Allowed**: Reconciliation status updates.
-- **Bank Calls Allowed**: Statement fetch APIs.
-- **Acceptance Criteria**: Outbound settlements automatically matched with 100% precision against nodal debit statement lines.
-- **Commit Message**: `feat(reconciliation): integrate outbound settlement matching and statement feedback`
+  - `com.finx.reconciliation.matcher.DeterministicReconciliationMatcher` (Upgraded to `FINX_RECONCILIATION_MATCHER_V2`, modern outbound candidate matching, lineage validation, UTR resolution priority, V1/V2 funding compatibility)
+  - `com.finx.reconciliation.model.ReconciliationEffectType` (Added `RELEASE_INSTRUCTION`)
+  - `com.finx.reconciliation.model.ReconciliationReasonCode` (Added `UTR_MISMATCH`, `REFERENCE_MISMATCH`)
+  - `com.finx.release.repository.ReleaseInstructionRepository` (Added bounded native query `findOutboundReconciliationCandidates` joining `release_instructions` to `settlement_observations` on `ri.final_settlement_observation_id = so.id` within observation window)
+  - `com.finx.reconciliation.model.ReleaseReconciliationStatus`
+  - `com.finx.reconciliation.dto.ReleaseReconciliationResult`
+  - `com.finx.reconciliation.service.ReleaseReconciliationEvidenceReader` (Read-only authoritative closed-loop evidence verification)
+  - `com.finx.reconciliation.adapter.ReconciliationDecisionAdapter` (Updated to accept both V1 and V2 authoritative funding runs)
+- **Tests**: `ReleaseOutboundReconciliationCandidateTest`, `DeterministicReleaseReconciliationMatcherTest`, `ReleaseReconciliationEvidenceReaderTest`, `PostgresReleaseReconciliationEffectSchemaTest`, `PostgresReleaseClosedLoopReconciliationTest`, `PostgresMockReleaseClosedLoopTest`, `FlywayCleanMigrationTest`, `ReconciliationDecisionAdapterTest`, `DeterministicReconciliationMatcherTest`, `PostgresDeterministicReconciliationMatcherTest`.
+- **Financial Side Effects Allowed**: None. 0 mutations to ReleaseInstruction, ReleaseReservation, EscrowAccount, EscrowLedger, JournalEntry, JournalLine, Milestone, or Deal. 0 `SettlementInstruction` entities created.
+- **Bank Calls Allowed**: None (0 network calls, 0 initiateSettlement calls). Production payout remains disabled. Legacy B04 gate remains active.
+- **Acceptance Criteria**: Settled releases matched with exact 1-to-1 precision against statement debits via UTR -> providerSettlementId -> providerOperationKey; ambiguous references and duplicate claims detected; UTR mismatches flagged; observation reversals flagged as REVERSAL_RECOVERY_REQUIRED; V1/V2 funding backward compatibility maintained; full PostgreSQL schema and Flyway V1->V35 verified; V36 absent.
+- **Next**: **Phase E9 — Concurrency, Crash Recovery & Adversarial Testing**. (Do NOT preallocate V36 unless E9 proves a schema requirement).
+- **Commit Message**: `feat(reconciliation): close release settlement reconciliation loop`
 
 ---
 

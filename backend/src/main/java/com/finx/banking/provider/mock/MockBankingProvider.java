@@ -59,6 +59,8 @@ public class MockBankingProvider implements BankingProvider {
     private final Map<String, MockSettlementFingerprint> settlementFingerprintMap = new ConcurrentHashMap<>();
     private final List<BankTransactionRecord> simulatedBankFeed = Collections.synchronizedList(new ArrayList<>());
     private final List<BankStatementEntry> durableStatementEntries = Collections.synchronizedList(new ArrayList<>());
+    private BigDecimal durableOpeningBalance = BigDecimal.valueOf(50000000);
+    private BigDecimal durableClosingBalance = BigDecimal.valueOf(50000000);
 
     public MockBankingProvider(@Value("${finx.banking.webhook-secret:mock-banking-webhook-secret-key-32chars}") String webhookSecret) {
         this.webhookSecret = webhookSecret;
@@ -356,11 +358,16 @@ public class MockBankingProvider implements BankingProvider {
                 .providerAccountId(query.getProviderAccountId())
                 .providerImportReference("MOCK-IMP-REF-" + query.getProviderAccountId())
                 .currency(currency)
-                .openingBalance(BigDecimal.valueOf(50000000))
-                .closingBalance(BigDecimal.valueOf(50000000))
+                .openingBalance(durableOpeningBalance != null ? durableOpeningBalance : BigDecimal.valueOf(50000000))
+                .closingBalance(durableClosingBalance != null ? durableClosingBalance : BigDecimal.valueOf(50000000))
                 .entries(pageEntries)
                 .nextCursor(nextCursor)
                 .build();
+    }
+
+    public void setDurableBalances(BigDecimal opening, BigDecimal closing) {
+        this.durableOpeningBalance = opening;
+        this.durableClosingBalance = closing;
     }
 
     public void addDurableStatementEntry(BankStatementEntry entry) {
@@ -371,6 +378,8 @@ public class MockBankingProvider implements BankingProvider {
 
     public void clearDurableStatementEntries() {
         durableStatementEntries.clear();
+        this.durableOpeningBalance = BigDecimal.valueOf(50000000);
+        this.durableClosingBalance = BigDecimal.valueOf(50000000);
     }
 
     public List<BankStatementEntry> getDurableStatementEntries() {

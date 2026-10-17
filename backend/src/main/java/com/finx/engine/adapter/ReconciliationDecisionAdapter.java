@@ -184,7 +184,7 @@ public class ReconciliationDecisionAdapter implements ReadOnlyDecisionAdapter {
                     continue;
                 }
 
-                if (!DeterministicReconciliationMatcher.MATCHER_VERSION.equals(run.getMatcherVersion())
+                if (!DeterministicReconciliationMatcher.isAuthoritativeFundingMatcherVersion(run.getMatcherVersion())
                         || run.getStatus() != ReconciliationRunStatus.COMPLETED
                         || run.getBankStatementImportId() == null
                         || run.getStatementSourceHash() == null) {
