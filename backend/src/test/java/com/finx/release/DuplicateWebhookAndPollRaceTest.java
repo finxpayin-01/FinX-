@@ -218,6 +218,13 @@ public class DuplicateWebhookAndPollRaceTest {
         jdbc.execute("DELETE FROM deliverables");
         jdbc.execute("DELETE FROM milestones");
         jdbc.execute("DELETE FROM deals");
+        try {
+            jdbc.execute("UPDATE risk_scores SET organization_id = NULL");
+            jdbc.execute("ALTER TABLE risk_assessments DISABLE TRIGGER ALL");
+            jdbc.execute("UPDATE risk_assessments SET organization_id = NULL");
+            jdbc.execute("ALTER TABLE risk_assessments ENABLE TRIGGER ALL");
+        } catch (Exception ignored) {
+        }
         jdbc.execute("DELETE FROM organization_bank_accounts");
         jdbc.execute("DELETE FROM organizations");
 

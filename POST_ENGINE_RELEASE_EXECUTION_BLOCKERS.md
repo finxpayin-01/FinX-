@@ -44,7 +44,7 @@ This document inventories and categorizes all architectural and implementation b
 
 | ID | Blocker Description | Current State | Target Resolution Phase |
 | :--- | :--- | :--- | :--- |
-| **P2-1** | **Production Provider Adapter (Axis / ICICI / HDFC)** | Only `MockBankingProvider` currently exists; production provider adapters with mTLS and request signing are absent. | **Phase E10** |
+| **P2-1** | **Production Provider Adapter (Axis / ICICI / HDFC)** | **FRAMEWORK RESOLVED; BANK-SPECIFIC UAT PENDING EXTERNAL PARTNER SPEC/CREDENTIALS**. Generic secure provider capability framework, type-safe partner configuration, mTLS WebClient factory, canonical HMAC-SHA256 request signing, fail-closed `UnsupportedBankApiContract`, capability guards, provider readiness service, and fail-closed `ProductionSettlementDispatchGate` implemented. Zero official partner API contracts invented; zero live bank calls; production payout remains disabled. | **RESOLVED E10 (Framework) / PENDING E12 (Partner UAT)** |
 | **P2-2** | **Granular Execution Attempt Logging** | Table `settlement_execution_attempts` (V32), immutable snapshot fields, attempt ordering, and retry recovery tracking implemented. | **RESOLVED E4** (Migration `V32__create_settlement_execution_attempts.sql`). |
 | **P2-3** | **Release Execution Metrics & Prometheus Dashboards** | No Micrometer metrics tracking outbox queue depth, lease expiration, or settlement latency. | **Phase E11** |
 | **P2-4** | **Admin Release Management UI / API** | Platform Finance team lacks dedicated manual review, hold, and cancel endpoints for stuck release instructions. | **Phase E11** |

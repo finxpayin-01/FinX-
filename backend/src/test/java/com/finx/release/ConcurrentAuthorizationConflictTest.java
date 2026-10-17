@@ -214,6 +214,13 @@ public class ConcurrentAuthorizationConflictTest {
         jdbcTemplate.execute("DELETE FROM milestones");
         jdbcTemplate.execute("DELETE FROM escrow_accounts");
         jdbcTemplate.execute("DELETE FROM deals");
+        try {
+            jdbcTemplate.execute("UPDATE risk_scores SET organization_id = NULL");
+            jdbcTemplate.execute("ALTER TABLE risk_assessments DISABLE TRIGGER ALL");
+            jdbcTemplate.execute("UPDATE risk_assessments SET organization_id = NULL");
+            jdbcTemplate.execute("ALTER TABLE risk_assessments ENABLE TRIGGER ALL");
+        } catch (Exception ignored) {
+        }
         jdbcTemplate.execute("DELETE FROM organization_bank_accounts");
         jdbcTemplate.execute("DELETE FROM organization_members");
         jdbcTemplate.execute("DELETE FROM organizations");

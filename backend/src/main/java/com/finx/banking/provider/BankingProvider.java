@@ -9,6 +9,12 @@ public interface BankingProvider {
 
     String getProviderName();
 
+    com.finx.banking.capability.BankingProviderCapabilities getCapabilities();
+
+    default boolean supports(com.finx.banking.capability.BankingProviderCapability capability) {
+        return getCapabilities() != null && getCapabilities().supports(capability);
+    }
+
     PaymentInstructionResult createPaymentInstruction(PaymentInstructionRequest request);
 
     PaymentStatusResult getPaymentStatus(String providerInstructionId);

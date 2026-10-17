@@ -66,9 +66,28 @@ public class MockBankingProvider implements BankingProvider {
         this.webhookSecret = webhookSecret;
     }
 
+    private static final com.finx.banking.capability.BankingProviderCapabilities CAPABILITIES =
+            com.finx.banking.capability.BankingProviderCapabilities.of(
+                    com.finx.banking.capability.BankingProviderCapability.PAYMENT_INSTRUCTION_CREATE,
+                    com.finx.banking.capability.BankingProviderCapability.PAYMENT_STATUS_QUERY,
+                    com.finx.banking.capability.BankingProviderCapability.ACCOUNT_DETAILS_QUERY,
+                    com.finx.banking.capability.BankingProviderCapability.BENEFICIARY_VERIFICATION,
+                    com.finx.banking.capability.BankingProviderCapability.SETTLEMENT_INITIATE,
+                    com.finx.banking.capability.BankingProviderCapability.SETTLEMENT_STATUS_QUERY,
+                    com.finx.banking.capability.BankingProviderCapability.SETTLEMENT_OPERATION_LOOKUP,
+                    com.finx.banking.capability.BankingProviderCapability.TRANSACTION_FEED,
+                    com.finx.banking.capability.BankingProviderCapability.STATEMENT_PAGING,
+                    com.finx.banking.capability.BankingProviderCapability.WEBHOOK_SIGNATURE_VERIFICATION
+            );
+
     @Override
     public String getProviderName() {
         return "MOCK";
+    }
+
+    @Override
+    public com.finx.banking.capability.BankingProviderCapabilities getCapabilities() {
+        return CAPABILITIES;
     }
 
     @Override

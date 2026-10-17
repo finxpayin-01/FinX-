@@ -265,16 +265,46 @@ This document outlines the strict 12-phase engineering roadmap (E1 through E12) 
 
 ---
 
-### Phase E10 — Production Bank Provider Capability Adapters
-- **Scope**: Implement production bank adapters (e.g., Axis/ICICI) conforming to the provider capability matrix.
+### Phase E10 — Production Bank Provider Capability Adapters [COMPLETE]
+- **Scope**: Implement production bank provider capability framework, type-safe partner configuration, mTLS WebClient factory, canonical HMAC-SHA256 request signing abstraction, fail-closed `UnsupportedBankApiContract`, capability guards, provider readiness service, and fail-closed production execution dispatch gate.
+- **Status**: **COMPLETE**.
+- **Flyway Migration**: None (Highest Flyway migration is `V35__add_release_instruction_reconciliation_effect.sql`; `V36` is strictly ABSENT).
 - **Classes**:
-  - `com.finx.banking.provider.ProductionBankingProvider`
-  - `com.finx.banking.config.BankingProviderSecurityConfig` (mTLS / Keystore)
-- **Tests**: `ProductionBankAdapterContractTest`.
-- **Financial Side Effects Allowed**: None (Production credentials secured; sandboxed endpoints only).
-- **Bank Calls Allowed**: Bank sandbox test endpoints.
-- **Acceptance Criteria**: Mutual TLS, request signing, and response normalization fully validated.
-- **Commit Message**: `feat(banking): implement production banking provider adapters and security config`
+  - `com.finx.banking.capability.BankingProviderCapability` (10 capabilities)
+  - `com.finx.banking.capability.BankingProviderCapabilities`
+  - `com.finx.banking.capability.BankingProviderCapabilityGuard`
+  - `com.finx.banking.capability.BankingCapabilityNotSupportedException`
+  - `com.finx.banking.capability.BankingCapabilityNotConfiguredException`
+  - `com.finx.banking.config.BankingPartnerProperties`
+  - `com.finx.banking.config.BankingProviderAutoConfiguration`
+  - `com.finx.banking.contract.BankApiContract` (SPI)
+  - `com.finx.banking.contract.UnsupportedBankApiContract` (Fail-closed default)
+  - `com.finx.banking.signing.BankRequestSigner`
+  - `com.finx.banking.signing.BankSigningRequest`
+  - `com.finx.banking.signing.BankSigningResult`
+  - `com.finx.banking.signing.HmacSha256BankRequestSigner`
+  - `com.finx.banking.transport.BankingWebClientFactory`
+  - `com.finx.banking.transport.BankHttpTransport`
+  - `com.finx.banking.transport.BankTransportException` hierarchy
+  - `com.finx.banking.provider.partner.PartnerBankingProvider`
+  - `com.finx.banking.readiness.BankingProviderReadinessService`
+  - `com.finx.release.execution.gate.ProductionSettlementDispatchGate`
+- **Tests**:
+  - `com.finx.banking.provider.BankingProviderContractTest`
+  - `com.finx.banking.provider.mock.MockBankingProviderContractTest`
+  - `com.finx.banking.provider.partner.PartnerBankingProviderFailClosedContractTest`
+  - `com.finx.banking.signing.BankRequestSignerTest`
+  - `com.finx.banking.transport.BankingWebClientFactoryTest`
+  - `com.finx.banking.transport.BankHttpTransportTest`
+  - `com.finx.release.execution.gate.ProductionSettlementDispatchGateTest`
+  - `com.finx.banking.readiness.BankingProviderReadinessServiceTest`
+  - `com.finx.banking.security.NoRealCredentialTest`
+  - `com.finx.banking.BankingProviderE10ArchitectureTest`
+- **Financial Side Effects Allowed**: None. 0 mutations to financial ledger, escrow balances, release instructions, or reservations.
+- **Bank Calls Allowed**: None (0 real bank network calls, 0 invented partner endpoints, 0 fabricated payloads).
+- **Acceptance Criteria**: Strict capability model with 10 capabilities; `MockBankingProvider` declares genuine capabilities; `PartnerBankingProvider` loads conditionally under `finx.banking.provider=partner` without fallback; mTLS client factory enforces TLS 1.2+ and hostname verification; HMAC-SHA256 canonical signing abstraction; zero credentials logged or persisted; stable `FINX-REL-{id}` identity enforced; automatic settlement POST retry permanently disabled; `ProductionSettlementDispatchGate` fails closed; full test suite passes under real PostgreSQL 16; Flyway clean migration V1->V35 verified; V36 absent.
+- **Next**: **Phase E11 — Observability, Metrics & Operational Controls**.
+- **Commit Message**: `feat(banking): add production provider capability framework`
 
 ---
 

@@ -126,10 +126,39 @@ finx:
     mock:
       auto-settle: ${BANK_MOCK_AUTO_SETTLE:false}
       simulate-latency-ms: ${BANK_MOCK_LATENCY_MS:50}
+    # Legacy generic fields (retained for backward compatibility)
     api-base-url: ${BANK_API_BASE_URL:}
     client-id: ${BANK_CLIENT_ID:}
     client-secret: ${BANK_CLIENT_SECRET:}
     webhook-secret: ${BANK_WEBHOOK_SECRET:finx-banking-webhook-secret-key-32chars}
+    partner:
+      enabled: ${BANK_PARTNER_ENABLED:false}
+      provider-name: ${BANK_PARTNER_NAME:}
+      base-url: ${BANK_PARTNER_BASE_URL:}
+      client-id: ${BANK_PARTNER_CLIENT_ID:}
+      client-secret: ${BANK_PARTNER_CLIENT_SECRET:}
+      sandbox: ${BANK_PARTNER_SANDBOX:true}
+      production-execution-enabled: ${BANK_PARTNER_PRODUCTION_EXECUTION_ENABLED:false}
+      connect-timeout-ms: ${BANK_PARTNER_CONNECT_TIMEOUT_MS:5000}
+      read-timeout-ms: ${BANK_PARTNER_READ_TIMEOUT_MS:15000}
+      mtls:
+        enabled: ${BANK_PARTNER_MTLS_ENABLED:false}
+        key-store-path: ${BANK_PARTNER_KEYSTORE_PATH:}
+        key-store-password: ${BANK_PARTNER_KEYSTORE_PASSWORD:}
+        key-store-type: ${BANK_PARTNER_KEYSTORE_TYPE:PKCS12}
+        trust-store-path: ${BANK_PARTNER_TRUSTSTORE_PATH:}
+        trust-store-password: ${BANK_PARTNER_TRUSTSTORE_PASSWORD:}
+        trust-store-type: ${BANK_PARTNER_TRUSTSTORE_TYPE:PKCS12}
+      signing:
+        enabled: ${BANK_PARTNER_SIGNING_ENABLED:false}
+        algorithm: ${BANK_PARTNER_SIGNING_ALGORITHM:HMAC-SHA256}
+        key-id: ${BANK_PARTNER_SIGNING_KEY_ID:}
+        private-key-path: ${BANK_PARTNER_SIGNING_PRIVATE_KEY_PATH:}
+        secret: ${BANK_PARTNER_SIGNING_SECRET:}
+      webhook:
+        signature-algorithm: ${BANK_PARTNER_WEBHOOK_SIG_ALGORITHM:HMAC-SHA256}
+        secret: ${BANK_PARTNER_WEBHOOK_SECRET:}
+        public-key-path: ${BANK_PARTNER_WEBHOOK_PUBLIC_KEY_PATH:}
   verification:
     provider: ${VERIFICATION_PROVIDER:mock}
     setu:
@@ -142,3 +171,5 @@ finx:
       enabled: ${FINX_RELEASE_SANDBOX_DISPATCH_ENABLED:false}
     sandbox-finalization:
       enabled: ${FINX_RELEASE_SANDBOX_FINALIZATION_ENABLED:false}
+    production-execution:
+      enabled: ${FINX_RELEASE_PRODUCTION_EXECUTION_ENABLED:false}
