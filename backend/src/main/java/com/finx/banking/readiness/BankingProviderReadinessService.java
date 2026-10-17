@@ -93,9 +93,13 @@ public class BankingProviderReadinessService {
             boolean mtlsConfigured = props != null && props.getMtls() != null && props.getMtls().isEnabled();
             boolean signingConfigured = props != null && props.getSigning() != null && props.getSigning().isEnabled();
 
+            boolean contractSupported = !(partner.getContract() instanceof UnsupportedBankApiContract);
+
             // Validate critical capabilities
+            boolean hasCapabilities = true;
             for (BankingProviderCapability required : MINIMUM_PRODUCTION_CAPABILITIES) {
                 if (!caps.contains(required)) {
+                    hasCapabilities = false;
                     blockers.add("Missing required payout capability: " + required);
                 }
             }
@@ -106,7 +110,7 @@ public class BankingProviderReadinessService {
             if (!signingConfigured) {
                 blockers.add("Cryptographic request signing is not configured.");
             }
-            if (partner.getContract() instanceof UnsupportedBankApiContract) {
+            if (!contractSupported) {
                 blockers.add("Official partner bank API contract is not present in repository. Endpoints are fail-closed.");
             }
             if (!masterProductionExecutionEnabled) {
@@ -115,14 +119,23 @@ public class BankingProviderReadinessService {
             if (!productionExecution) {
                 blockers.add("Partner properties 'production-execution-enabled' is false.");
             }
-
-            // Phase E10 strict rule: readyForProduction is ALWAYS false
-            blockers.add("Phase E10 strictly disallows live money movement; Phase E12 controls final production enablement.");
+            if (sandbox) {
+                blockers.add("Partner properties 'sandbox' is true. Production requires live endpoint mode.");
+            }
 
             boolean readyForSandbox = configured
                     && sandbox
                     && mtlsConfigured
-                    && !(partner.getContract() instanceof UnsupportedBankApiContract);
+                    && contractSupported;
+
+            boolean readyForProduction = configured
+                    && !sandbox
+                    && productionExecution
+                    && masterProductionExecutionEnabled
+                    && mtlsConfigured
+                    && signingConfigured
+                    && contractSupported
+                    && hasCapabilities;
 
             return new BankingProviderReadiness(
                     providerName,
@@ -133,7 +146,7 @@ public class BankingProviderReadinessService {
                     signingConfigured,
                     caps,
                     readyForSandbox,
-                    false, // STRICT INVARIANT: Always false in E10
+                    readyForProduction,
                     blockers
             );
         }

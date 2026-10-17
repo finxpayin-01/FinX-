@@ -73,4 +73,12 @@ class AdminReleaseManagementControllerSecurityTest {
                     assertThat(status).isIn(401, 403);
                 });
     }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("ADMIN role is authorized to access platform certification status")
+    void adminCanAccessCertification() throws Exception {
+        mockMvc.perform(get("/api/v1/finance/release-operations/certification"))
+                .andExpect(status().isOk());
+    }
 }

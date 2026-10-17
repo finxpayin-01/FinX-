@@ -173,8 +173,18 @@ finx:
       enabled: ${FINX_RELEASE_SANDBOX_DISPATCH_ENABLED:false}
     sandbox-finalization:
       enabled: ${FINX_RELEASE_SANDBOX_FINALIZATION_ENABLED:false}
+    e12-certified: ${FINX_RELEASE_E12_CERTIFIED:false}
     production-execution:
       enabled: ${FINX_RELEASE_PRODUCTION_EXECUTION_ENABLED:false}
+    certification:
+      technical-certified: ${FINX_RELEASE_TECHNICAL_CERTIFIED:false}
+      bank-contract-certified: ${FINX_BANK_CONTRACT_CERTIFIED:false}
+      bank-uat-certified: ${FINX_BANK_UAT_CERTIFIED:false}
+      security-certified: ${FINX_SECURITY_CERTIFIED:false}
+      compliance-certified: ${FINX_COMPLIANCE_CERTIFIED:false}
+      executive-signoff: ${FINX_EXECUTIVE_SIGNOFF:false}
+      incident-runbook-certified: ${FINX_INCIDENT_RUNBOOK_CERTIFIED:false}
+      reconciliation-certified: ${FINX_RECONCILIATION_CERTIFIED:false}
     observability:
       outbox-backlog-warning: ${FINX_OUTBOX_BACKLOG_WARNING:50}
       dead-letter-warning: ${FINX_DEAD_LETTER_WARNING:1}

@@ -62,6 +62,7 @@ public class AdminReleaseManagementController {
     private final ReleaseOperationalControlService operationalControlService;
     private final ReleaseExecutionMetrics metrics;
     private final ReleaseObservabilityProperties observabilityProperties;
+    private final com.finx.release.certification.ProductionReadinessCertificationService certificationService;
 
     public AdminReleaseManagementController(
             ReleaseInstructionRepository instructionRepository,
@@ -73,7 +74,8 @@ public class AdminReleaseManagementController {
             ProductionSettlementDispatchGate dispatchGate,
             ReleaseOperationalControlService operationalControlService,
             ReleaseExecutionMetrics metrics,
-            ReleaseObservabilityProperties observabilityProperties
+            ReleaseObservabilityProperties observabilityProperties,
+            com.finx.release.certification.ProductionReadinessCertificationService certificationService
     ) {
         this.instructionRepository = instructionRepository;
         this.outboxRepository = outboxRepository;
@@ -85,6 +87,12 @@ public class AdminReleaseManagementController {
         this.operationalControlService = operationalControlService;
         this.metrics = metrics;
         this.observabilityProperties = observabilityProperties;
+        this.certificationService = certificationService;
+    }
+
+    @GetMapping("/certification")
+    public ResponseEntity<com.finx.release.certification.ProductionCertificationResult> getProductionCertification() {
+        return ResponseEntity.ok(certificationService.evaluateCertification());
     }
 
     @GetMapping("/summary")

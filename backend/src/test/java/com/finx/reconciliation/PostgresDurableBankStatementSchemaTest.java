@@ -50,6 +50,12 @@ public class PostgresDurableBankStatementSchemaTest {
         testJdbcUrl = System.getProperty("spring.datasource.url",
                 System.getenv().getOrDefault("SPRING_DATASOURCE_URL", "jdbc:postgresql://" + HOST + ":" + PORT + "/" + TEST_DB));
 
+        try (Connection conn = DriverManager.getConnection(testJdbcUrl, USER, PASS);
+             Statement stmt = conn.createStatement()) {
+            stmt.execute("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid()");
+        } catch (Exception ignored) {
+        }
+
         // Run Flyway clean & migrate V1 -> V26 on database
         Flyway flyway = Flyway.configure()
                 .dataSource(testJdbcUrl, USER, PASS)

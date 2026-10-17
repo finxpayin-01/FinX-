@@ -227,6 +227,8 @@ public class PostgresReleaseOperationalControlTest {
         jdbc.execute("DELETE FROM release_instructions");
         jdbc.execute("DELETE FROM engine_decisions");
         jdbc.execute("DELETE FROM engine_policy_versions");
+        jdbc.execute("DELETE FROM payment_transactions");
+        jdbc.execute("DELETE FROM payment_instructions");
         jdbc.execute("DELETE FROM milestones");
         jdbc.execute("DELETE FROM escrow_accounts");
         jdbc.execute("DELETE FROM deals");
