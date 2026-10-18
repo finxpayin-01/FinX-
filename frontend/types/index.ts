@@ -285,3 +285,24 @@ export interface AuditLog {
   timestamp: string;
   userId: string;
 }
+
+export interface FinanceSummary {
+  totalInflowVolume: number;
+  totalSettledVolume: number;
+  totalInstructionsCount: number;
+  pendingSettlementsCount: number;
+  totalReconciliationRuns: number;
+}
+
+export interface FinanceTransaction {
+  id: string;
+  type: 'FUNDING' | 'RELEASE' | string;
+  dealId?: string;
+  milestoneId?: string;
+  amount: number;
+  currency: string;
+  status: string;
+  provider?: string;
+  createdAt?: string;
+  settledAt?: string;
+}

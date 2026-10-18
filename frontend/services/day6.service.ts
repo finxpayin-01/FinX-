@@ -1,4 +1,5 @@
 import { api } from '@/lib/api';
+import { ApiResponse, FinanceSummary, FinanceTransaction } from '@/types';
 
 export const adminService = {
     getDashboard: async () => {
@@ -16,12 +17,12 @@ export const adminService = {
 };
 
 export const financeService = {
-    getDashboard: async () => {
-        const { data } = await api.get('/finance/dashboard');
-        return data.data || data;
+    getDashboard: async (): Promise<FinanceSummary> => {
+        const res = await api.get<ApiResponse<FinanceSummary>>('/v1/finance/summary');
+        return res.data.data || (res.data as unknown as FinanceSummary);
     },
-    getTransactions: async () => {
-        const { data } = await api.get('/finance/transactions');
-        return data.data || data;
+    getTransactions: async (): Promise<FinanceTransaction[]> => {
+        const res = await api.get<ApiResponse<FinanceTransaction[]>>('/v1/finance/transactions');
+        return res.data.data || (res.data as unknown as FinanceTransaction[]);
     }
 };

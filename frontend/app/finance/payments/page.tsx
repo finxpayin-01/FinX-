@@ -4,43 +4,84 @@ import { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/Card";
 import { financeService } from "@/services/day6.service";
-import { CreditCard, CheckCircle, AlertCircle, Clock, Search, Filter } from "lucide-react";
+import { FinanceTransaction } from "@/types";
+import { CreditCard, CheckCircle, AlertCircle, Clock, Search, Filter, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 
 export default function FinancePaymentsPage() {
-    const [payments, setPayments] = useState<any[]>([]);
+    const [payments, setPayments] = useState<FinanceTransaction[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState("");
     const [statusFilter, setStatusFilter] = useState("ALL");
 
-    useEffect(() => {
+    const loadPayments = () => {
+        setIsLoading(true);
+        setError(null);
         financeService.getTransactions()
-            .then(setPayments)
-            .catch(() => setPayments([]))
+            .then((data) => {
+                const list = Array.isArray(data) ? data : ((data as any)?.data || []);
+                setPayments(list);
+            })
+            .catch((err: any) => {
+                const status = err?.response?.status;
+                if (status === 403) {
+                    setError("Access Denied: You do not have permission to view payment records (ADMIN or FINANCE role required).");
+                } else if (status >= 500) {
+                    setError("Backend service unavailable. Please check the payment gateway connection.");
+                } else {
+                    setError("Failed to retrieve payment records.");
+                }
+                setPayments([]);
+            })
             .finally(() => setIsLoading(false));
+    };
+
+    useEffect(() => {
+        loadPayments();
     }, []);
 
-    const filtered = payments.filter((p: any) => {
+    const filtered = payments.filter((p: FinanceTransaction) => {
         const matchesSearch =
-            (p.id && p.id.toLowerCase().includes(searchTerm.toLowerCase())) ||
-            (p.providerOrderId && p.providerOrderId.toLowerCase().includes(searchTerm.toLowerCase())) ||
-            (p.providerPaymentId && p.providerPaymentId.toLowerCase().includes(searchTerm.toLowerCase()));
+            (p.id && String(p.id).toLowerCase().includes(searchTerm.toLowerCase())) ||
+            (p.dealId && String(p.dealId).toLowerCase().includes(searchTerm.toLowerCase()));
         const matchesStatus = statusFilter === "ALL" || p.status === statusFilter;
         return matchesSearch && matchesStatus;
     });
 
-    const successCount = payments.filter((p: any) => p.status === "SUCCESS").length;
-    const failedCount = payments.filter((p: any) => p.status === "FAILED").length;
+    const successCount = payments.filter((p: FinanceTransaction) => p.status === "SUCCESS").length;
+    const failedCount = payments.filter((p: FinanceTransaction) => p.status === "FAILED").length;
     const totalAmount = payments
-        .filter((p: any) => p.status === "SUCCESS")
-        .reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
+        .filter((p: FinanceTransaction) => p.status === "SUCCESS")
+        .reduce((sum: number, p: FinanceTransaction) => sum + (Number(p.amount) || 0), 0);
 
     return (
         <DashboardLayout>
             <div className="space-y-6">
-                <div>
-                    <h1 className="text-2xl font-bold text-slate-900">Fiat Payment Records</h1>
-                    <p className="text-sm text-slate-500 mt-1">Audit trail of all incoming gateway payment intents and verified escrow deposits.</p>
+                <div className="flex justify-between items-center">
+                    <div>
+                        <h1 className="text-2xl font-bold text-slate-900">Fiat Payment Records</h1>
+                        <p className="text-sm text-slate-500 mt-1">Audit trail of all incoming gateway payment intents and verified escrow deposits.</p>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={loadPayments} disabled={isLoading} className="gap-2">
+                        <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
+                        Refresh
+                    </Button>
                 </div>
+
+                {error && (
+                    <Card className="border-rose-200 bg-rose-50">
+                        <CardContent className="p-4 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <AlertCircle className="text-rose-500 shrink-0" size={20} />
+                                <span className="text-sm text-rose-700">{error}</span>
+                            </div>
+                            <Button variant="outline" size="sm" onClick={loadPayments} className="border-rose-300 text-rose-800 hover:bg-rose-100">
+                                Retry
+                            </Button>
+                        </CardContent>
+                    </Card>
+                )}
 
                 {/* Metrics */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -143,14 +184,14 @@ export default function FinancePaymentsPage() {
                                         </td>
                                     </tr>
                                 )}
-                                {!isLoading && filtered.length === 0 && (
+                                {!isLoading && !error && filtered.length === 0 && (
                                     <tr>
                                         <td colSpan={6} className="p-8 text-center text-slate-500">
                                             No payment records found.
                                         </td>
                                     </tr>
                                 )}
-                                {!isLoading && filtered.map((p: any) => (
+                                {!isLoading && filtered.map((p: FinanceTransaction) => (
                                     <tr key={p.id} className="hover:bg-slate-50 transition-colors">
                                         <td className="p-4 font-mono text-xs">
                                             <span className="font-semibold text-slate-900 block truncate max-w-[180px]" title={p.id}>
@@ -159,8 +200,8 @@ export default function FinancePaymentsPage() {
                                             <span className="text-slate-400 text-[10px]">Deal: {p.dealId ? p.dealId.slice(0, 8) + '...' : '—'}</span>
                                         </td>
                                         <td className="p-4 font-mono text-xs text-slate-600">
-                                            <p>{p.providerOrderId || '—'}</p>
-                                            <p className="text-slate-400 text-[10px]">{p.providerPaymentId || ''}</p>
+                                            <p>{p.type || 'FUNDING'}</p>
+                                            <p className="text-slate-400 text-[10px]">{p.milestoneId ? `Milestone: ${p.milestoneId.slice(0, 8)}...` : '—'}</p>
                                         </td>
                                         <td className="p-4 font-bold text-slate-900">
                                             {p.currency || 'INR'} {Number(p.amount || 0).toLocaleString()}

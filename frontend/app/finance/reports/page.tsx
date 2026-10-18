@@ -4,40 +4,79 @@ import { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/Card";
 import { financeService } from "@/services/day6.service";
-import { TrendingUp, ShieldCheck, PieChart, ArrowUpRight, CheckCircle2, FileSpreadsheet } from "lucide-react";
+import { FinanceSummary, FinanceTransaction } from "@/types";
+import { TrendingUp, ShieldCheck, PieChart, ArrowUpRight, CheckCircle2, FileSpreadsheet, AlertCircle, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 
 export default function FinanceReportsPage() {
-    const [stats, setStats] = useState<any>(null);
-    const [transactions, setTransactions] = useState<any[]>([]);
+    const [stats, setStats] = useState<FinanceSummary | null>(null);
+    const [transactions, setTransactions] = useState<FinanceTransaction[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => {
+    const loadReportsData = () => {
+        setIsLoading(true);
+        setError(null);
         Promise.all([
-            financeService.getDashboard().catch(() => ({})),
-            financeService.getTransactions().catch(() => [])
+            financeService.getDashboard(),
+            financeService.getTransactions()
         ])
             .then(([dashData, txData]) => {
                 setStats(dashData);
                 setTransactions(Array.isArray(txData) ? txData : []);
             })
+            .catch((err: any) => {
+                const status = err?.response?.status;
+                if (status === 403) {
+                    setError("Access Denied: You do not have permission to view financial reports (ADMIN or FINANCE role required).");
+                } else if (status >= 500) {
+                    setError("Backend service unavailable. Please check the ledger analytics service.");
+                } else {
+                    setError("Failed to load financial reports data.");
+                }
+            })
             .finally(() => setIsLoading(false));
+    };
+
+    useEffect(() => {
+        loadReportsData();
     }, []);
 
     const totalTx = transactions.length;
-    const successTx = transactions.filter((t: any) => t.status === "SUCCESS" || t.status === "PAYMENT_SUCCESS").length;
+    const successTx = transactions.filter((t: FinanceTransaction) => t.status === "SUCCESS" || t.status === "SETTLED").length;
     const successRate = totalTx > 0 ? Math.round((successTx / totalTx) * 100) : 100;
 
-    const escrowFunds = Number(stats?.escrowFunds || 0);
-    const releasedFunds = Number(stats?.releasedFunds || 0);
-    const totalVolume = escrowFunds + releasedFunds;
+    const totalVolume = Number(stats?.totalInflowVolume ?? 0);
+    const releasedFunds = Number(stats?.totalSettledVolume ?? 0);
+    const escrowFunds = totalVolume > releasedFunds ? totalVolume - releasedFunds : 0;
 
     return (
         <DashboardLayout>
             <div className="space-y-6">
-                <div>
-                    <h1 className="text-2xl font-bold text-slate-900">Financial Reports & Reconciliation</h1>
-                    <p className="text-sm text-slate-500 mt-1">Real-time ledger audit, balance reconciliation, and escrow throughput analysis.</p>
+                <div className="flex justify-between items-center">
+                    <div>
+                        <h1 className="text-2xl font-bold text-slate-900">Financial Reports & Reconciliation</h1>
+                        <p className="text-sm text-slate-500 mt-1">Real-time ledger audit, balance reconciliation, and escrow throughput analysis.</p>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={loadReportsData} disabled={isLoading} className="gap-2">
+                        <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
+                        Refresh
+                    </Button>
                 </div>
+
+                {error && (
+                    <Card className="border-rose-200 bg-rose-50">
+                        <CardContent className="p-4 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <AlertCircle className="text-rose-500 shrink-0" size={20} />
+                                <span className="text-sm text-rose-700">{error}</span>
+                            </div>
+                            <Button variant="outline" size="sm" onClick={loadReportsData} className="border-rose-300 text-rose-800 hover:bg-rose-100">
+                                Retry
+                            </Button>
+                        </CardContent>
+                    </Card>
+                )}
 
                 {/* Key Metrics */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">

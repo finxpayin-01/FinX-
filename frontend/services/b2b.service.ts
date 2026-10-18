@@ -19,7 +19,7 @@ import {
     ReconciliationItemResponse,
     RiskAssessmentResponse,
 } from "@/types/b2b";
-import { ApiResponse } from "@/types";
+import { ApiResponse, FinanceSummary } from "@/types";
 
 export const b2bService = {
     // Organizations
@@ -163,8 +163,8 @@ export const b2bService = {
     },
 
     // Finance
-    getFinanceOverview: async (): Promise<any> => {
-        const res = await api.get<ApiResponse<any>>("/v1/finance/overview");
+    getFinanceOverview: async (): Promise<FinanceSummary> => {
+        const res = await api.get<ApiResponse<FinanceSummary>>("/v1/finance/overview");
         return res.data.data;
     },
 };
