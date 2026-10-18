@@ -14,7 +14,7 @@ export default function AdminSettlementsPage() {
     const fetchSettlements = async () => {
         setLoading(true);
         try {
-            const res = await api.get("/api/v1/admin/settlements");
+            const res = await api.get("/v1/admin/settlements");
             setSettlements(res.data?.data || []);
         } catch (err) {
             console.error("Failed to load settlements", err);

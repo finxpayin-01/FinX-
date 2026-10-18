@@ -26,7 +26,7 @@ export default function AdminDealsPage() {
     const fetchDeals = async () => {
         setLoading(true);
         try {
-            const res = await api.get("/api/v1/deals");
+            const res = await api.get("/v1/deals");
             setDeals(res.data?.data || []);
         } catch (err) {
             console.error("Failed to load deals", err);
