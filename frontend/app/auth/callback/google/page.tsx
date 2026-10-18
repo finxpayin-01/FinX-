@@ -23,15 +23,28 @@ function GoogleCallbackContent() {
 
             if (error) {
                 setStatus("error");
-                setErrorMessage(errorDescription || error || "Google authentication was cancelled or failed.");
+                let friendlyMsg = errorDescription || "";
+                if (!friendlyMsg) {
+                    if (error === "invalid_state") {
+                        friendlyMsg = "OAuth state verification failed. Possible CSRF attempt or expired login session.";
+                    } else if (error === "missing_code") {
+                        friendlyMsg = "Google authorization code was missing. Sign-in cancelled.";
+                    } else if (error === "access_denied") {
+                        friendlyMsg = "Google authorization was cancelled by the user.";
+                    } else if (error === "oauth_failed") {
+                        friendlyMsg = "Google sign-in could not be completed. Please verify server OAuth configuration.";
+                    } else {
+                        friendlyMsg = error;
+                    }
+                }
+                setErrorMessage(friendlyMsg);
                 return;
             }
 
-            // 1. Extract tokens from URL hash fragment (secure: #accessToken=...) or searchParams (fallback)
+            // Extract tokens from URL hash fragment (secure: #accessToken=...) or searchParams (fallback)
             let accessToken = searchParams.get("accessToken");
             let refreshToken = searchParams.get("refreshToken");
             let role = searchParams.get("role") || "BUYER";
-            const code = searchParams.get("code");
 
             if (typeof window !== "undefined" && window.location.hash) {
                 const hash = window.location.hash.startsWith("#") ? window.location.hash.substring(1) : window.location.hash;
@@ -75,27 +88,8 @@ function GoogleCallbackContent() {
                 return;
             }
 
-            if (code) {
-                if (typeof window !== "undefined") {
-                    window.history.replaceState(null, "", window.location.pathname);
-                }
-                try {
-                    const response = await authService.googleLogin(code);
-                    setSession(response.accessToken, response.refreshToken, response.user);
-                    setStatus("success");
-
-                    if (response.user.role === "ADMIN") router.push("/admin");
-                    else if (response.user.role === "SELLER" || response.user.role === "VENDOR") router.push("/vendor");
-                    else router.push("/corporate");
-                } catch (e: any) {
-                    setStatus("error");
-                    setErrorMessage(e.message || "Failed to exchange Google authentication code.");
-                }
-                return;
-            }
-
             setStatus("error");
-            setErrorMessage("No authentication tokens or authorization code received from Google.");
+            setErrorMessage("No authentication session received from Google OAuth flow. Please try signing in again.");
         };
 
         processOAuth();

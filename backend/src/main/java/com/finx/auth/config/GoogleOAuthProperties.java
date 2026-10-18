@@ -25,142 +25,108 @@ public class GoogleOAuthProperties {
 
     @PostConstruct
     public void validateConfiguration() {
-        // Direct environment and property fallbacks
-        if (this.clientId == null || this.clientId.trim().isEmpty()) {
-            if (environment != null) {
-                String val = environment.getProperty("google.client-id");
-                if (val != null && !val.trim().isEmpty()) {
-                    this.clientId = val.trim();
-                } else {
-                    val = environment.getProperty("oauth.google.client-id");
-                    if (val != null && !val.trim().isEmpty()) {
-                        this.clientId = val.trim();
-                    }
-                }
-            }
-        }
+        // 1. Resolve Client ID: Injected property -> GOOGLE_CLIENT_ID env -> environment property aliases
         if (this.clientId == null || this.clientId.trim().isEmpty()) {
             String envId = System.getenv("GOOGLE_CLIENT_ID");
             if (envId != null && !envId.trim().isEmpty()) {
                 this.clientId = envId.trim();
-            } else {
-                String propId = System.getProperty("google.client-id");
-                if (propId != null && !propId.trim().isEmpty()) {
-                    this.clientId = propId.trim();
+            } else if (environment != null) {
+                String val = environment.getProperty("oauth.google.client-id");
+                if (val == null || val.trim().isEmpty()) {
+                    val = environment.getProperty("google.client-id");
                 }
-            }
-        }
-        if (this.clientSecret == null || this.clientSecret.trim().isEmpty()) {
-            if (environment != null) {
-                String val = environment.getProperty("google.client-secret");
                 if (val != null && !val.trim().isEmpty()) {
-                    this.clientSecret = val.trim();
-                } else {
-                    val = environment.getProperty("oauth.google.client-secret");
-                    if (val != null && !val.trim().isEmpty()) {
-                        this.clientSecret = val.trim();
-                    }
+                    this.clientId = val.trim();
                 }
             }
         }
+        if (this.clientId == null || this.clientId.trim().isEmpty()) {
+            String propId = System.getProperty("google.client-id");
+            if (propId != null && !propId.trim().isEmpty()) {
+                this.clientId = propId.trim();
+            }
+        }
+
+        // 2. Resolve Client Secret: Injected property -> GOOGLE_CLIENT_SECRET env -> environment property aliases
         if (this.clientSecret == null || this.clientSecret.trim().isEmpty()) {
             String envSecret = System.getenv("GOOGLE_CLIENT_SECRET");
             if (envSecret != null && !envSecret.trim().isEmpty()) {
                 this.clientSecret = envSecret.trim();
-            } else {
-                String propSecret = System.getProperty("google.client-secret");
-                if (propSecret != null && !propSecret.trim().isEmpty()) {
-                    this.clientSecret = propSecret.trim();
+            } else if (environment != null) {
+                String val = environment.getProperty("oauth.google.client-secret");
+                if (val == null || val.trim().isEmpty()) {
+                    val = environment.getProperty("google.client-secret");
                 }
-            }
-        }
-        if (this.redirectUri == null || this.redirectUri.trim().isEmpty() || this.redirectUri.contains("localhost")) {
-            if (environment != null) {
-                String val = environment.getProperty("google.redirect-uri");
                 if (val != null && !val.trim().isEmpty()) {
-                    this.redirectUri = val.trim();
-                } else {
-                    val = environment.getProperty("oauth.google.redirect-uri");
-                    if (val != null && !val.trim().isEmpty()) {
-                        this.redirectUri = val.trim();
-                    }
+                    this.clientSecret = val.trim();
                 }
             }
         }
-        if (this.redirectUri == null || this.redirectUri.trim().isEmpty()) {
-            String envRedirect = System.getenv("GOOGLE_REDIRECT_URI");
-            if (envRedirect != null && !envRedirect.trim().isEmpty()) {
-                this.redirectUri = envRedirect.trim();
-            }
-        }
-        if (this.frontendRedirectUrl == null || this.frontendRedirectUrl.trim().isEmpty() || this.frontendRedirectUrl.contains("localhost")) {
-            if (environment != null) {
-                String val = environment.getProperty("google.frontend-redirect-url");
-                if (val != null && !val.trim().isEmpty()) {
-                    this.frontendRedirectUrl = val.trim();
-                } else {
-                    val = environment.getProperty("oauth.google.frontend-redirect-url");
-                    if (val != null && !val.trim().isEmpty()) {
-                        this.frontendRedirectUrl = val.trim();
-                    }
-                }
-            }
-        }
-        if (this.frontendRedirectUrl == null || this.frontendRedirectUrl.trim().isEmpty()) {
-            String envFrontend = System.getenv("FRONTEND_OAUTH_CALLBACK_URL");
-            if (envFrontend != null && !envFrontend.trim().isEmpty()) {
-                this.frontendRedirectUrl = envFrontend.trim();
+        if (this.clientSecret == null || this.clientSecret.trim().isEmpty()) {
+            String propSecret = System.getProperty("google.client-secret");
+            if (propSecret != null && !propSecret.trim().isEmpty()) {
+                this.clientSecret = propSecret.trim();
             }
         }
 
-        // Dynamic resolution for Render and Production environments
+        // 3. Resolve Backend Redirect URI: GOOGLE_REDIRECT_URI env -> property -> default localhost
+        String envRedirect = System.getenv("GOOGLE_REDIRECT_URI");
+        if (envRedirect != null && !envRedirect.trim().isEmpty()) {
+            this.redirectUri = envRedirect.trim().replaceAll("/+$", "");
+        } else {
+            String propRedirect = null;
+            if (environment != null) {
+                propRedirect = environment.getProperty("oauth.google.redirect-uri");
+                if (propRedirect == null || propRedirect.trim().isEmpty()) {
+                    propRedirect = environment.getProperty("google.redirect-uri");
+                }
+            }
+            if (propRedirect != null && !propRedirect.trim().isEmpty()) {
+                this.redirectUri = propRedirect.trim().replaceAll("/+$", "");
+            } else if (this.redirectUri == null || this.redirectUri.trim().isEmpty()) {
+                this.redirectUri = "http://localhost:8080/api/auth/google/callback";
+            }
+        }
+
+        // Optional dynamic host fallback if deployed on Render without explicit GOOGLE_REDIRECT_URI
         String renderExternalUrl = System.getenv("RENDER_EXTERNAL_URL");
         if (renderExternalUrl != null && !renderExternalUrl.trim().isEmpty()) {
-            String baseUrl = renderExternalUrl.trim().replaceAll("/+$", "");
-            // If redirectUri is default localhost, override with Render's public URL
             if (this.redirectUri == null || this.redirectUri.trim().isEmpty() || this.redirectUri.contains("localhost")) {
-                this.redirectUri = baseUrl + "/api/auth/google/callback";
-                log.info("[OAUTH CONFIGURATION] Automatically resolved redirectUri from RENDER_EXTERNAL_URL: {}", this.redirectUri);
+                this.redirectUri = renderExternalUrl.trim().replaceAll("/+$", "") + "/api/auth/google/callback";
+                log.info("[OAUTH CONFIGURATION] Resolved redirectUri from RENDER_EXTERNAL_URL: {}", this.redirectUri);
             }
         }
 
-        String frontendUrl = System.getenv("FRONTEND_URL");
-        if (frontendUrl == null || frontendUrl.trim().isEmpty()) {
-            frontendUrl = System.getenv("FRONTEND_BASE_URL");
-        }
-        if (frontendUrl == null || frontendUrl.trim().isEmpty()) {
-            frontendUrl = System.getenv("CLIENT_URL");
-        }
-        if (frontendUrl == null || frontendUrl.trim().isEmpty()) {
-            frontendUrl = System.getenv("APP_URL");
-        }
-        if (frontendUrl != null && !frontendUrl.trim().isEmpty()) {
-            String baseFrontend = frontendUrl.trim().replaceAll("/+$", "");
-            if (this.frontendRedirectUrl == null || this.frontendRedirectUrl.trim().isEmpty() || this.frontendRedirectUrl.contains("localhost")) {
-                this.frontendRedirectUrl = baseFrontend + "/auth/callback/google";
-                log.info("[OAUTH CONFIGURATION] Automatically resolved frontendRedirectUrl from environment: {}", this.frontendRedirectUrl);
+        // 4. Resolve Frontend Redirect URL: FRONTEND_OAUTH_CALLBACK_URL -> FRONTEND_URL -> property -> default localhost
+        String envFrontendOauth = System.getenv("FRONTEND_OAUTH_CALLBACK_URL");
+        if (envFrontendOauth != null && !envFrontendOauth.trim().isEmpty()) {
+            this.frontendRedirectUrl = envFrontendOauth.trim().replaceAll("/+$", "");
+        } else {
+            String frontendBase = System.getenv("FRONTEND_URL");
+            if (frontendBase == null || frontendBase.trim().isEmpty()) {
+                frontendBase = System.getenv("FRONTEND_BASE_URL");
             }
-        }
-
-        String activeProfile = System.getProperty("spring.profiles.active", System.getenv("SPRING_PROFILES_ACTIVE"));
-        if (activeProfile != null && (activeProfile.contains("prod") || activeProfile.contains("production"))) {
-            if (this.redirectUri == null || this.redirectUri.trim().isEmpty() || this.redirectUri.contains("localhost") || 
-                (this.redirectUri.contains("finx-backend.onrender.com") && !this.redirectUri.contains("-vq5b"))) {
-                this.redirectUri = "https://finx-backend-vq5b.onrender.com/api/auth/google/callback";
-                log.info("[OAUTH CONFIGURATION] Production profile active: resolved redirectUri to canonical Render URL: {}", this.redirectUri);
+            if (frontendBase == null || frontendBase.trim().isEmpty()) {
+                frontendBase = System.getenv("CLIENT_URL");
             }
-
-            // Clean up obsolete production frontend fallbacks (e.g. suspended -i9an or -7ffv services)
-            if (this.frontendRedirectUrl != null && 
-                (this.frontendRedirectUrl.contains("finx-frontend-i9an.onrender.com") || 
-                 this.frontendRedirectUrl.contains("finx-frontend-7ffv.onrender.com"))) {
-                log.warn("[OAUTH CONFIGURATION] Obsolete frontend URL detected in configuration: {}. Overriding with canonical production frontend.", this.frontendRedirectUrl);
-                this.frontendRedirectUrl = "https://finx-frontend.onrender.com/auth/callback/google";
+            if (frontendBase == null || frontendBase.trim().isEmpty()) {
+                frontendBase = System.getenv("APP_URL");
             }
-
-            if (this.frontendRedirectUrl == null || this.frontendRedirectUrl.trim().isEmpty() || this.frontendRedirectUrl.contains("localhost")) {
-                this.frontendRedirectUrl = "https://finx-frontend.onrender.com/auth/callback/google";
-                log.info("[OAUTH CONFIGURATION] Production profile active: resolved frontendRedirectUrl to canonical Render frontend: {}", this.frontendRedirectUrl);
+            if (frontendBase != null && !frontendBase.trim().isEmpty()) {
+                this.frontendRedirectUrl = frontendBase.trim().replaceAll("/+$", "") + "/auth/callback/google";
+            } else {
+                String propFrontend = null;
+                if (environment != null) {
+                    propFrontend = environment.getProperty("oauth.google.frontend-redirect-url");
+                    if (propFrontend == null || propFrontend.trim().isEmpty()) {
+                        propFrontend = environment.getProperty("google.frontend-redirect-url");
+                    }
+                }
+                if (propFrontend != null && !propFrontend.trim().isEmpty()) {
+                    this.frontendRedirectUrl = propFrontend.trim().replaceAll("/+$", "");
+                } else if (this.frontendRedirectUrl == null || this.frontendRedirectUrl.trim().isEmpty()) {
+                    this.frontendRedirectUrl = "http://localhost:3000/auth/callback/google";
+                }
             }
         }
 

@@ -124,12 +124,15 @@ public class AuthController {
         }
 
         String state = UUID.randomUUID().toString().replace("-", "");
-        jakarta.servlet.http.Cookie stateCookie = new jakarta.servlet.http.Cookie("oauth_state", state);
-        stateCookie.setHttpOnly(true);
-        stateCookie.setSecure(googleOAuthProperties.getRedirectUri() != null && googleOAuthProperties.getRedirectUri().startsWith("https"));
-        stateCookie.setPath("/");
-        stateCookie.setMaxAge(300); // 5 minutes TTL
-        response.addCookie(stateCookie);
+        boolean isSecure = googleOAuthProperties.getRedirectUri() != null && googleOAuthProperties.getRedirectUri().startsWith("https");
+        ResponseCookie stateCookie = ResponseCookie.from("oauth_state", state)
+                .httpOnly(true)
+                .secure(isSecure)
+                .path("/")
+                .maxAge(Duration.ofSeconds(300))
+                .sameSite("Lax")
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, stateCookie.toString());
 
         String redirectUri = googleOAuthProperties.getRedirectUri();
         log.info("[GOOGLE OAUTH REDIRECT] Initiating authorization with state. Exact redirect_uri: '{}'", redirectUri);
@@ -180,7 +183,7 @@ public class AuthController {
             return;
         }
 
-        // Validate state parameter against oauth_state cookie if present
+        // Validate state parameter against oauth_state cookie
         String cookieState = null;
         if (request.getCookies() != null) {
             for (jakarta.servlet.http.Cookie c : request.getCookies()) {
@@ -191,20 +194,26 @@ public class AuthController {
             }
         }
 
-        if (cookieState != null && state != null && !cookieState.equals(state)) {
-            log.warn("[GOOGLE OAUTH CALLBACK] State mismatch! Possible CSRF attempt. Cookie: {}, Request: {}", cookieState, state);
+        if (cookieState == null || cookieState.trim().isEmpty() || state == null || !cookieState.equals(state)) {
+            log.warn("[GOOGLE OAUTH CALLBACK] State mismatch or missing! Possible CSRF attempt. Cookie: {}, Request: {}", cookieState, state);
             response.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
             response.setHeader("Pragma", "no-cache");
             response.setHeader("Referrer-Policy", "no-referrer");
-            response.sendRedirect(frontendRedirect + "?error=invalid_state");
+            response.sendRedirect(frontendRedirect + "?error=invalid_state&error_description=" +
+                    URLEncoder.encode("OAuth state verification failed. Please try again.", StandardCharsets.UTF_8));
             return;
         }
 
         // Clear state cookie
-        jakarta.servlet.http.Cookie clearCookie = new jakarta.servlet.http.Cookie("oauth_state", "");
-        clearCookie.setPath("/");
-        clearCookie.setMaxAge(0);
-        response.addCookie(clearCookie);
+        boolean isSecureOnCallback = googleOAuthProperties.getRedirectUri() != null && googleOAuthProperties.getRedirectUri().startsWith("https");
+        ResponseCookie clearCookie = ResponseCookie.from("oauth_state", "")
+                .httpOnly(true)
+                .secure(isSecureOnCallback)
+                .path("/")
+                .maxAge(Duration.ZERO)
+                .sameSite("Lax")
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, clearCookie.toString());
 
         try {
             GoogleOAuthRequest authRequest = new GoogleOAuthRequest(code, googleOAuthProperties.getRedirectUri(), null);

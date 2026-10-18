@@ -9,42 +9,22 @@ import { AuthResponse } from "@/types";
 export const getApiBaseUrl = (): string => {
     let url = process.env.NEXT_PUBLIC_API_URL;
 
-    // Normalize Render backend URL if missing the unique -vq5b instance slug
-    if (url && url.includes("finx-backend.onrender.com") && !url.includes("-vq5b")) {
-        url = url.replace("finx-backend.onrender.com", "finx-backend-vq5b.onrender.com");
-    }
-
-    if (typeof window !== "undefined") {
-        const isLocalHost = 
-            window.location.hostname === "localhost" || 
-            window.location.hostname === "127.0.0.1";
-
-        if (isLocalHost) {
-            // Running on local development
-            if (!url) {
+    if (!url || url.trim() === "") {
+        if (typeof window !== "undefined") {
+            const isLocal =
+                window.location.hostname === "localhost" ||
+                window.location.hostname === "127.0.0.1";
+            if (isLocal) {
                 url = "http://localhost:8080/api";
+            } else {
+                url = `${window.location.origin}/api`;
             }
         } else {
-            // Running in browser on production / Render:
-            // Point directly to the authoritative Render backend.
-            // Never return frontend-relative "/api" which fails on Next.js proxy rewrites.
-            if (!url || url.includes("localhost") || url.includes("127.0.0.1")) {
-                url = "https://finx-backend-vq5b.onrender.com/api";
-            }
-        }
-    } else {
-        // Server-side rendering fallback
-        if (!url || url.includes("localhost") || url.includes("127.0.0.1")) {
-            url = "https://finx-backend-vq5b.onrender.com/api";
+            url = "http://localhost:8080/api";
         }
     }
 
-    if (url && url.includes("finx-backend.onrender.com") && !url.includes("-vq5b")) {
-        url = url.replace("finx-backend.onrender.com", "finx-backend-vq5b.onrender.com");
-    }
-
-    // Normalize: remove trailing slash, ensure ends with /api
-    url = (url || "https://finx-backend-vq5b.onrender.com/api").trim().replace(/\/+$/, "");
+    url = url.trim().replace(/\/+$/, "");
     if (!url.endsWith("/api")) {
         url = `${url}/api`;
     }

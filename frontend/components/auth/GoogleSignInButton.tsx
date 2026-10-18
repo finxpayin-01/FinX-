@@ -49,15 +49,7 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
         setIsRedirecting(true);
         const backendBase = getApiBaseUrl();
         const fallbackLoginUrl = `${backendBase}/auth/google/login`;
-        let loginUrl = config.authUrl || fallbackLoginUrl;
-
-        // Ensure public environment NEVER redirects to localhost
-        if (typeof window !== "undefined") {
-            const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-            if (!isLocal && loginUrl.includes("localhost:8080")) {
-                loginUrl = loginUrl.replace(/http:\/\/localhost:8080(\/api)?/, "https://finx-backend-vq5b.onrender.com/api");
-            }
-        }
+        const loginUrl = config.authUrl || fallbackLoginUrl;
 
         window.location.href = loginUrl;
     };

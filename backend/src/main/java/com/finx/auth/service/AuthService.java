@@ -304,13 +304,14 @@ public class AuthService {
     }
 
     public GoogleOAuthConfigResponse getGoogleOAuthConfig() {
-        String authUrl = googleOAuthProperties.isConfigured()
-                ? googleOAuthProperties.buildBackendLoginUrl()
-                : null;
+        boolean configured = googleOAuthProperties.isConfigured();
+        String authUrl = configured ? googleOAuthProperties.buildBackendLoginUrl() : null;
+        String clientId = configured ? googleOAuthProperties.getClientId() : null;
+        String redirectUri = configured ? googleOAuthProperties.getRedirectUri() : null;
         return new GoogleOAuthConfigResponse(
-                googleOAuthProperties.isConfigured(),
-                googleOAuthProperties.isConfigured() ? googleOAuthProperties.getClientId() : null,
-                googleOAuthProperties.getRedirectUri(),
+                configured,
+                clientId,
+                redirectUri,
                 authUrl
         );
     }
