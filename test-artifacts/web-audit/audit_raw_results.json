@@ -1,0 +1,1490 @@
+{
+  "timestamp": "2026-10-18T06:22:24.488Z",
+  "summary": {
+    "routesDiscovered": 60,
+    "routesTested": 60,
+    "pagesPass": 50,
+    "pagesFail": 1,
+    "pagesPartial": 9,
+    "buttonsDiscovered": 537,
+    "buttonsTested": 537,
+    "buttonsWorking": 520,
+    "buttonsBroken": 17,
+    "formsDiscovered": 10,
+    "formsTested": 10,
+    "formsWorking": 10,
+    "formsBroken": 0,
+    "apiCallsIntercepted": 341,
+    "apiFailures": 22,
+    "consoleErrors": 31,
+    "networkFailures": 22,
+    "p0": 0,
+    "p1": 0,
+    "p2": 1,
+    "p3": 0
+  },
+  "defects": [
+    {
+      "id": "DEFECT-001",
+      "status": "OPEN",
+      "severity": "P2",
+      "area": "Authentication",
+      "role": "PUBLIC",
+      "route": "/login",
+      "component": "LoginForm",
+      "expected": "Clear user-friendly error message on invalid credentials",
+      "actual": "No visible error banner or alert shown to user on bad login",
+      "rootCause": "Error state not caught or rendered in UI",
+      "recommendedFix": "Display error alert with error message from backend 401 response"
+    }
+  ],
+  "routes": [
+    {
+      "route": "/",
+      "name": "Landing Page",
+      "role": "PUBLIC",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 5,
+      "formsCount": 0
+    },
+    {
+      "route": "/login",
+      "name": "Login Page",
+      "role": "PUBLIC",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 4,
+      "formsCount": 1
+    },
+    {
+      "route": "/register",
+      "name": "Register Page",
+      "role": "PUBLIC",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 5,
+      "formsCount": 1
+    },
+    {
+      "route": "/forgot-password",
+      "name": "Forgot Password Page",
+      "role": "PUBLIC",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 5,
+      "formsCount": 1
+    },
+    {
+      "route": "/contact",
+      "name": "Contact Page",
+      "role": "PUBLIC",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 4,
+      "formsCount": 1
+    },
+    {
+      "route": "/blockchain",
+      "name": "Blockchain Explorer",
+      "role": "PUBLIC",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 4,
+      "networkFailuresCount": 4,
+      "responsive": "PASS",
+      "status": "PARTIAL",
+      "notes": "4 console errors; 4 failed network calls",
+      "buttonsCount": 3,
+      "formsCount": 1
+    },
+    {
+      "route": "/kyc",
+      "name": "KYC Verification",
+      "role": "BUYER",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 8,
+      "formsCount": 0
+    },
+    {
+      "route": "/onboarding",
+      "name": "Onboarding Flow",
+      "role": "BUYER",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 4,
+      "networkFailuresCount": 2,
+      "responsive": "PASS",
+      "status": "PARTIAL",
+      "notes": "4 console errors; 2 failed network calls",
+      "buttonsCount": 10,
+      "formsCount": 0
+    },
+    {
+      "route": "/dashboard",
+      "name": "Generic Dashboard Router",
+      "role": "BUYER",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 2,
+      "formsCount": 0
+    },
+    {
+      "route": "/_not-found",
+      "name": "404 Page",
+      "role": "PUBLIC",
+      "loads": true,
+      "httpStatus": 404,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 1,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "FAIL",
+      "notes": "HTTP 404 load failure",
+      "buttonsCount": 5,
+      "formsCount": 1
+    },
+    {
+      "route": "/auth/callback/google",
+      "name": "Google OAuth Callback",
+      "role": "PUBLIC",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 2,
+      "formsCount": 0
+    },
+    {
+      "route": "/corporate",
+      "name": "Buyer Dashboard",
+      "role": "BUYER",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 7,
+      "formsCount": 0
+    },
+    {
+      "route": "/corporate/projects",
+      "name": "Buyer Projects",
+      "role": "BUYER",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 10,
+      "formsCount": 0
+    },
+    {
+      "route": "/corporate/milestones",
+      "name": "Buyer Milestones",
+      "role": "BUYER",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 10,
+      "formsCount": 0
+    },
+    {
+      "route": "/corporate/payments",
+      "name": "Buyer Payments",
+      "role": "BUYER",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 8,
+      "formsCount": 0
+    },
+    {
+      "route": "/corporate/escrow",
+      "name": "Buyer Escrow",
+      "role": "BUYER",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 8,
+      "formsCount": 0
+    },
+    {
+      "route": "/corporate/disputes",
+      "name": "Buyer Disputes",
+      "role": "BUYER",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 8,
+      "formsCount": 0
+    },
+    {
+      "route": "/corporate/settings",
+      "name": "Buyer Settings",
+      "role": "BUYER",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 14,
+      "formsCount": 0
+    },
+    {
+      "route": "/vendor",
+      "name": "Seller Dashboard",
+      "role": "SELLER",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 8,
+      "formsCount": 0
+    },
+    {
+      "route": "/vendor/projects",
+      "name": "Seller Projects",
+      "role": "SELLER",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 8,
+      "formsCount": 0
+    },
+    {
+      "route": "/vendor/milestones",
+      "name": "Seller Milestones",
+      "role": "SELLER",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 8,
+      "formsCount": 0
+    },
+    {
+      "route": "/vendor/deliverables",
+      "name": "Seller Deliverables",
+      "role": "SELLER",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 9,
+      "formsCount": 1
+    },
+    {
+      "route": "/vendor/payments",
+      "name": "Seller Payments",
+      "role": "SELLER",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 8,
+      "formsCount": 0
+    },
+    {
+      "route": "/vendor/escrow",
+      "name": "Seller Escrow",
+      "role": "SELLER",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 8,
+      "formsCount": 0
+    },
+    {
+      "route": "/vendor/settings",
+      "name": "Seller Settings",
+      "role": "SELLER",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 14,
+      "formsCount": 0
+    },
+    {
+      "route": "/project-manager",
+      "name": "PM Dashboard",
+      "role": "PROJECT_MANAGER",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 7,
+      "formsCount": 0
+    },
+    {
+      "route": "/project-manager/projects",
+      "name": "PM Projects",
+      "role": "PROJECT_MANAGER",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 7,
+      "formsCount": 0
+    },
+    {
+      "route": "/project-manager/reviews",
+      "name": "PM Milestone Reviews",
+      "role": "PROJECT_MANAGER",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 7,
+      "formsCount": 0
+    },
+    {
+      "route": "/project-manager/deliverables",
+      "name": "PM Deliverables",
+      "role": "PROJECT_MANAGER",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 7,
+      "formsCount": 0
+    },
+    {
+      "route": "/project-manager/reports",
+      "name": "PM Reports",
+      "role": "PROJECT_MANAGER",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 7,
+      "formsCount": 0
+    },
+    {
+      "route": "/project-manager/invitations",
+      "name": "PM Invitations",
+      "role": "PROJECT_MANAGER",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 10,
+      "formsCount": 0
+    },
+    {
+      "route": "/project-manager/settings",
+      "name": "PM Settings",
+      "role": "PROJECT_MANAGER",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 15,
+      "formsCount": 0
+    },
+    {
+      "route": "/admin",
+      "name": "Admin Dashboard",
+      "role": "ADMIN",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 9,
+      "formsCount": 0
+    },
+    {
+      "route": "/admin/deals",
+      "name": "Admin Deals",
+      "role": "ADMIN",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 8,
+      "formsCount": 0
+    },
+    {
+      "route": "/admin/projects",
+      "name": "Admin Projects",
+      "role": "ADMIN",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 7,
+      "formsCount": 0
+    },
+    {
+      "route": "/admin/escrow",
+      "name": "Admin Escrow",
+      "role": "ADMIN",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 7,
+      "formsCount": 0
+    },
+    {
+      "route": "/admin/settlements",
+      "name": "Admin Settlements",
+      "role": "ADMIN",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 4,
+      "networkFailuresCount": 2,
+      "responsive": "PASS",
+      "status": "PARTIAL",
+      "notes": "4 console errors; 2 failed network calls",
+      "buttonsCount": 16,
+      "formsCount": 0
+    },
+    {
+      "route": "/admin/disputes",
+      "name": "Admin Disputes",
+      "role": "ADMIN",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 7,
+      "formsCount": 0
+    },
+    {
+      "route": "/admin/reconciliation",
+      "name": "Admin Reconciliation",
+      "role": "ADMIN",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 4,
+      "networkFailuresCount": 2,
+      "responsive": "PASS",
+      "status": "PARTIAL",
+      "notes": "4 console errors; 2 failed network calls",
+      "buttonsCount": 20,
+      "formsCount": 0
+    },
+    {
+      "route": "/admin/risk",
+      "name": "Admin Risk Workspace",
+      "role": "ADMIN",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 8,
+      "formsCount": 0
+    },
+    {
+      "route": "/admin/risk/alerts",
+      "name": "Admin Risk Alerts",
+      "role": "ADMIN",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 10,
+      "formsCount": 0
+    },
+    {
+      "route": "/admin/risk/rules",
+      "name": "Admin Risk Rules",
+      "role": "ADMIN",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 11,
+      "formsCount": 1
+    },
+    {
+      "route": "/admin/risk/reviews",
+      "name": "Admin Risk Reviews",
+      "role": "ADMIN",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 10,
+      "formsCount": 0
+    },
+    {
+      "route": "/admin/risk/buyers",
+      "name": "Admin Buyer Risk",
+      "role": "ADMIN",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 11,
+      "formsCount": 1
+    },
+    {
+      "route": "/admin/risk/vendors",
+      "name": "Admin Vendor Risk",
+      "role": "ADMIN",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 11,
+      "formsCount": 1
+    },
+    {
+      "route": "/admin/organizations",
+      "name": "Admin Organizations",
+      "role": "ADMIN",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 4,
+      "networkFailuresCount": 2,
+      "responsive": "PASS",
+      "status": "PARTIAL",
+      "notes": "4 console errors; 2 failed network calls",
+      "buttonsCount": 19,
+      "formsCount": 0
+    },
+    {
+      "route": "/admin/users",
+      "name": "Admin User Directory",
+      "role": "ADMIN",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 12,
+      "formsCount": 0
+    },
+    {
+      "route": "/admin/verifications",
+      "name": "Admin Verifications",
+      "role": "ADMIN",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 12,
+      "formsCount": 0
+    },
+    {
+      "route": "/admin/invoices",
+      "name": "Admin Invoices",
+      "role": "ADMIN",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 10,
+      "formsCount": 0
+    },
+    {
+      "route": "/admin/audit",
+      "name": "Admin Audit Dashboard",
+      "role": "ADMIN",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 7,
+      "formsCount": 0
+    },
+    {
+      "route": "/admin/audit-logs",
+      "name": "Admin Audit Logs",
+      "role": "ADMIN",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 7,
+      "formsCount": 0
+    },
+    {
+      "route": "/admin/settings",
+      "name": "Admin Settings",
+      "role": "ADMIN",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 14,
+      "formsCount": 0
+    },
+    {
+      "route": "/finance",
+      "name": "Finance Dashboard",
+      "role": "FINANCE",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 2,
+      "networkFailuresCount": 2,
+      "responsive": "PASS",
+      "status": "PARTIAL",
+      "notes": "2 console errors; 2 failed network calls",
+      "buttonsCount": 15,
+      "formsCount": 0
+    },
+    {
+      "route": "/finance/projects",
+      "name": "Finance Projects",
+      "role": "FINANCE",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 7,
+      "formsCount": 0
+    },
+    {
+      "route": "/finance/payments",
+      "name": "Finance Payments",
+      "role": "FINANCE",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 2,
+      "networkFailuresCount": 2,
+      "responsive": "PASS",
+      "status": "PARTIAL",
+      "notes": "2 console errors; 2 failed network calls",
+      "buttonsCount": 7,
+      "formsCount": 0
+    },
+    {
+      "route": "/finance/transactions",
+      "name": "Finance Transactions",
+      "role": "FINANCE",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 2,
+      "networkFailuresCount": 2,
+      "responsive": "PASS",
+      "status": "PARTIAL",
+      "notes": "2 console errors; 2 failed network calls",
+      "buttonsCount": 15,
+      "formsCount": 0
+    },
+    {
+      "route": "/finance/invoices",
+      "name": "Finance Invoices",
+      "role": "FINANCE",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 7,
+      "formsCount": 0
+    },
+    {
+      "route": "/finance/reconciliation",
+      "name": "Finance Reconciliation",
+      "role": "FINANCE",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 7,
+      "formsCount": 0
+    },
+    {
+      "route": "/finance/reports",
+      "name": "Finance Reports",
+      "role": "FINANCE",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 4,
+      "networkFailuresCount": 4,
+      "responsive": "PASS",
+      "status": "PARTIAL",
+      "notes": "4 console errors; 4 failed network calls",
+      "buttonsCount": 8,
+      "formsCount": 0
+    },
+    {
+      "route": "/finance/settings",
+      "name": "Finance Settings",
+      "role": "FINANCE",
+      "loads": true,
+      "httpStatus": 200,
+      "rendering": "RENDERED",
+      "consoleErrorsCount": 0,
+      "networkFailuresCount": 0,
+      "responsive": "PASS",
+      "status": "PASS",
+      "notes": "OK",
+      "buttonsCount": 14,
+      "formsCount": 0
+    }
+  ],
+  "buttons": [
+    {
+      "page": "/",
+      "role": "PUBLIC",
+      "text": "Get Started",
+      "tag": "BUTTON",
+      "status": "DEAD_BUTTON"
+    },
+    {
+      "page": "/",
+      "role": "PUBLIC",
+      "text": "See Entire Detail",
+      "tag": "BUTTON",
+      "status": "DEAD_BUTTON"
+    },
+    {
+      "page": "/",
+      "role": "PUBLIC",
+      "text": "Create Account",
+      "tag": "BUTTON",
+      "status": "DEAD_BUTTON"
+    },
+    {
+      "page": "/",
+      "role": "PUBLIC",
+      "text": "Start Using FINX Today",
+      "tag": "BUTTON",
+      "status": "DEAD_BUTTON"
+    },
+    {
+      "page": "/blockchain",
+      "role": "PUBLIC",
+      "text": "Show password",
+      "tag": "BUTTON",
+      "status": "DEAD_BUTTON"
+    },
+    {
+      "page": "/auth/callback/google",
+      "role": "PUBLIC",
+      "text": "Return to Sign In",
+      "tag": "BUTTON",
+      "status": "DEAD_BUTTON"
+    },
+    {
+      "page": "/admin",
+      "role": "ADMIN",
+      "text": "Launch Escrow Command",
+      "tag": "BUTTON",
+      "status": "DEAD_BUTTON"
+    },
+    {
+      "page": "/admin",
+      "role": "ADMIN",
+      "text": "View Audit History",
+      "tag": "BUTTON",
+      "status": "DEAD_BUTTON"
+    },
+    {
+      "page": "/admin/deals",
+      "role": "ADMIN",
+      "text": "Sign Out",
+      "tag": "BUTTON",
+      "status": "DEAD_BUTTON"
+    },
+    {
+      "page": "/admin/deals",
+      "role": "ADMIN",
+      "text": "Refresh",
+      "tag": "BUTTON",
+      "status": "DEAD_BUTTON"
+    },
+    {
+      "page": "/admin/risk/buyers",
+      "role": "ADMIN",
+      "text": "Apply filters",
+      "tag": "BUTTON",
+      "status": "DEAD_BUTTON"
+    },
+    {
+      "page": "/admin/risk/vendors",
+      "role": "ADMIN",
+      "text": "Apply filters",
+      "tag": "BUTTON",
+      "status": "DEAD_BUTTON"
+    },
+    {
+      "page": "/admin/users",
+      "role": "ADMIN",
+      "text": "Suspend Identity",
+      "tag": "BUTTON",
+      "status": "DEAD_BUTTON"
+    },
+    {
+      "page": "/admin/users",
+      "role": "ADMIN",
+      "text": "Suspend Identity",
+      "tag": "BUTTON",
+      "status": "DEAD_BUTTON"
+    },
+    {
+      "page": "/admin/users",
+      "role": "ADMIN",
+      "text": "Suspend Identity",
+      "tag": "BUTTON",
+      "status": "DEAD_BUTTON"
+    },
+    {
+      "page": "/admin/users",
+      "role": "ADMIN",
+      "text": "Suspend Identity",
+      "tag": "BUTTON",
+      "status": "DEAD_BUTTON"
+    },
+    {
+      "page": "/admin/users",
+      "role": "ADMIN",
+      "text": "Suspend Identity",
+      "tag": "BUTTON",
+      "status": "DEAD_BUTTON"
+    }
+  ],
+  "forms": [
+    {
+      "page": "/login",
+      "role": "PUBLIC",
+      "formId": "",
+      "inputsCount": 3,
+      "status": "RENDERED"
+    },
+    {
+      "page": "/register",
+      "role": "PUBLIC",
+      "formId": "",
+      "inputsCount": 8,
+      "status": "RENDERED"
+    },
+    {
+      "page": "/forgot-password",
+      "role": "PUBLIC",
+      "formId": "",
+      "inputsCount": 3,
+      "status": "RENDERED"
+    },
+    {
+      "page": "/contact",
+      "role": "PUBLIC",
+      "formId": "",
+      "inputsCount": 3,
+      "status": "RENDERED"
+    },
+    {
+      "page": "/blockchain",
+      "role": "PUBLIC",
+      "formId": "",
+      "inputsCount": 3,
+      "status": "RENDERED"
+    },
+    {
+      "page": "/_not-found",
+      "role": "PUBLIC",
+      "formId": "",
+      "inputsCount": 3,
+      "status": "RENDERED"
+    },
+    {
+      "page": "/vendor/deliverables",
+      "role": "SELLER",
+      "formId": "",
+      "inputsCount": 2,
+      "status": "RENDERED"
+    },
+    {
+      "page": "/admin/risk/rules",
+      "role": "ADMIN",
+      "formId": "",
+      "inputsCount": 108,
+      "status": "RENDERED"
+    },
+    {
+      "page": "/admin/risk/buyers",
+      "role": "ADMIN",
+      "formId": "",
+      "inputsCount": 8,
+      "status": "RENDERED"
+    },
+    {
+      "page": "/admin/risk/vendors",
+      "role": "ADMIN",
+      "formId": "",
+      "inputsCount": 8,
+      "status": "RENDERED"
+    }
+  ],
+  "apiInteractions": [],
+  "consoleLogs": [
+    {
+      "route": "/blockchain",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "route": "/blockchain",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "route": "/blockchain",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "route": "/blockchain",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "route": "/onboarding",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 ()"
+    },
+    {
+      "route": "/onboarding",
+      "type": "error",
+      "text": "Failed to load onboarding initial data AxiosError: Request failed with status code 500\n    at settle (http://localhost:3000/_next/static/chunks/node_modules_1c0omf0._.js:4495:16)\n    at XMLHttpRequest.onloadend (http://localhost:3000/_next/static/chunks/node_modules_1c0omf0._.js:2809:174)\n    at Axios.request (http://localhost:3000/_next/static/chunks/node_modules_1c0omf0._.js:3236:53)\n    at async Object.getMyOrganizations (http://localhost:3000/_next/static/chunks/frontend_1a896v3._.js:3960:21)\n    at async init (http://localhost:3000/_next/static/chunks/frontend_1a896v3._.js:89:34)"
+    },
+    {
+      "route": "/onboarding",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 ()"
+    },
+    {
+      "route": "/onboarding",
+      "type": "error",
+      "text": "Failed to load onboarding initial data AxiosError: Request failed with status code 500\n    at settle (http://localhost:3000/_next/static/chunks/node_modules_1c0omf0._.js:4495:16)\n    at XMLHttpRequest.onloadend (http://localhost:3000/_next/static/chunks/node_modules_1c0omf0._.js:2809:174)\n    at Axios.request (http://localhost:3000/_next/static/chunks/node_modules_1c0omf0._.js:3236:53)\n    at async Object.getMyOrganizations (http://localhost:3000/_next/static/chunks/frontend_1a896v3._.js:3960:21)\n    at async init (http://localhost:3000/_next/static/chunks/frontend_1a896v3._.js:89:34)"
+    },
+    {
+      "route": "/_not-found",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "route": "/admin/settlements",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 ()"
+    },
+    {
+      "route": "/admin/settlements",
+      "type": "error",
+      "text": "Failed to load settlements AxiosError: Request failed with status code 500\n    at settle (http://localhost:3000/_next/static/chunks/node_modules_1c0omf0._.js:4495:16)\n    at XMLHttpRequest.onloadend (http://localhost:3000/_next/static/chunks/node_modules_1c0omf0._.js:2809:174)"
+    },
+    {
+      "route": "/admin/settlements",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 ()"
+    },
+    {
+      "route": "/admin/settlements",
+      "type": "error",
+      "text": "Failed to load settlements AxiosError: Request failed with status code 500\n    at settle (http://localhost:3000/_next/static/chunks/node_modules_1c0omf0._.js:4495:16)\n    at XMLHttpRequest.onloadend (http://localhost:3000/_next/static/chunks/node_modules_1c0omf0._.js:2809:174)"
+    },
+    {
+      "route": "/admin/reconciliation",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 ()"
+    },
+    {
+      "route": "/admin/reconciliation",
+      "type": "error",
+      "text": "Failed to load reconciliation runs AxiosError: Request failed with status code 500\n    at settle (http://localhost:3000/_next/static/chunks/node_modules_1c0omf0._.js:4495:16)\n    at XMLHttpRequest.onloadend (http://localhost:3000/_next/static/chunks/node_modules_1c0omf0._.js:2809:174)\n    at Axios.request (http://localhost:3000/_next/static/chunks/node_modules_1c0omf0._.js:3236:53)\n    at async Object.listReconciliationRuns (http://localhost:3000/_next/static/chunks/frontend_0jmvmhw._.js:1701:21)\n    at async fetchRuns (http://localhost:3000/_next/static/chunks/frontend_0jmvmhw._.js:34:26)"
+    },
+    {
+      "route": "/admin/reconciliation",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 ()"
+    },
+    {
+      "route": "/admin/reconciliation",
+      "type": "error",
+      "text": "Failed to load reconciliation runs AxiosError: Request failed with status code 500\n    at settle (http://localhost:3000/_next/static/chunks/node_modules_1c0omf0._.js:4495:16)\n    at XMLHttpRequest.onloadend (http://localhost:3000/_next/static/chunks/node_modules_1c0omf0._.js:2809:174)\n    at Axios.request (http://localhost:3000/_next/static/chunks/node_modules_1c0omf0._.js:3236:53)\n    at async Object.listReconciliationRuns (http://localhost:3000/_next/static/chunks/frontend_0jmvmhw._.js:1701:21)\n    at async fetchRuns (http://localhost:3000/_next/static/chunks/frontend_0jmvmhw._.js:34:26)"
+    },
+    {
+      "route": "/admin/organizations",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 ()"
+    },
+    {
+      "route": "/admin/organizations",
+      "type": "error",
+      "text": "Failed to load organizations AxiosError: Request failed with status code 500\n    at settle (http://localhost:3000/_next/static/chunks/node_modules_1c0omf0._.js:4495:16)\n    at XMLHttpRequest.onloadend (http://localhost:3000/_next/static/chunks/node_modules_1c0omf0._.js:2809:174)\n    at Axios.request (http://localhost:3000/_next/static/chunks/node_modules_1c0omf0._.js:3236:53)\n    at async Object.getAdminOrganizations (http://localhost:3000/_next/static/chunks/frontend_1ydmckg._.js:1647:21)\n    at async fetchOrgs (http://localhost:3000/_next/static/chunks/frontend_1ydmckg._.js:32:26)"
+    },
+    {
+      "route": "/admin/organizations",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 ()"
+    },
+    {
+      "route": "/admin/organizations",
+      "type": "error",
+      "text": "Failed to load organizations AxiosError: Request failed with status code 500\n    at settle (http://localhost:3000/_next/static/chunks/node_modules_1c0omf0._.js:4495:16)\n    at XMLHttpRequest.onloadend (http://localhost:3000/_next/static/chunks/node_modules_1c0omf0._.js:2809:174)\n    at Axios.request (http://localhost:3000/_next/static/chunks/node_modules_1c0omf0._.js:3236:53)\n    at async Object.getAdminOrganizations (http://localhost:3000/_next/static/chunks/frontend_1ydmckg._.js:1647:21)\n    at async fetchOrgs (http://localhost:3000/_next/static/chunks/frontend_1ydmckg._.js:32:26)"
+    },
+    {
+      "route": "/finance",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 ()"
+    },
+    {
+      "route": "/finance",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 ()"
+    },
+    {
+      "route": "/finance/payments",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 ()"
+    },
+    {
+      "route": "/finance/payments",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 ()"
+    },
+    {
+      "route": "/finance/transactions",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 ()"
+    },
+    {
+      "route": "/finance/transactions",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 ()"
+    },
+    {
+      "route": "/finance/reports",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 ()"
+    },
+    {
+      "route": "/finance/reports",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 ()"
+    },
+    {
+      "route": "/finance/reports",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 ()"
+    },
+    {
+      "route": "/finance/reports",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 ()"
+    }
+  ],
+  "networkErrors": [
+    {
+      "route": "/blockchain",
+      "url": "http://localhost:8080/api/notifications",
+      "status": 401,
+      "statusText": ""
+    },
+    {
+      "route": "/blockchain",
+      "url": "http://localhost:8080/api/deals",
+      "status": 401,
+      "statusText": ""
+    },
+    {
+      "route": "/blockchain",
+      "url": "http://localhost:8080/api/deals",
+      "status": 401,
+      "statusText": ""
+    },
+    {
+      "route": "/blockchain",
+      "url": "http://localhost:8080/api/notifications",
+      "status": 401,
+      "statusText": ""
+    },
+    {
+      "route": "/onboarding",
+      "url": "http://localhost:8080/api/api/v1/organizations/me",
+      "status": 500,
+      "statusText": ""
+    },
+    {
+      "route": "/onboarding",
+      "url": "http://localhost:8080/api/api/v1/organizations/me",
+      "status": 500,
+      "statusText": ""
+    },
+    {
+      "route": "/admin/settlements",
+      "url": "http://localhost:8080/api/api/v1/admin/settlements",
+      "status": 500,
+      "statusText": ""
+    },
+    {
+      "route": "/admin/settlements",
+      "url": "http://localhost:8080/api/api/v1/admin/settlements",
+      "status": 500,
+      "statusText": ""
+    },
+    {
+      "route": "/admin/reconciliation",
+      "url": "http://localhost:8080/api/api/v1/reconciliation/runs",
+      "status": 500,
+      "statusText": ""
+    },
+    {
+      "route": "/admin/reconciliation",
+      "url": "http://localhost:8080/api/api/v1/reconciliation/runs",
+      "status": 500,
+      "statusText": ""
+    },
+    {
+      "route": "/admin/organizations",
+      "url": "http://localhost:8080/api/api/v1/admin/organizations",
+      "status": 500,
+      "statusText": ""
+    },
+    {
+      "route": "/admin/organizations",
+      "url": "http://localhost:8080/api/api/v1/admin/organizations",
+      "status": 500,
+      "statusText": ""
+    },
+    {
+      "route": "/finance",
+      "url": "http://localhost:8080/api/finance/dashboard",
+      "status": 500,
+      "statusText": ""
+    },
+    {
+      "route": "/finance",
+      "url": "http://localhost:8080/api/finance/dashboard",
+      "status": 500,
+      "statusText": ""
+    },
+    {
+      "route": "/finance/payments",
+      "url": "http://localhost:8080/api/finance/transactions",
+      "status": 500,
+      "statusText": ""
+    },
+    {
+      "route": "/finance/payments",
+      "url": "http://localhost:8080/api/finance/transactions",
+      "status": 500,
+      "statusText": ""
+    },
+    {
+      "route": "/finance/transactions",
+      "url": "http://localhost:8080/api/finance/transactions",
+      "status": 500,
+      "statusText": ""
+    },
+    {
+      "route": "/finance/transactions",
+      "url": "http://localhost:8080/api/finance/transactions",
+      "status": 500,
+      "statusText": ""
+    },
+    {
+      "route": "/finance/reports",
+      "url": "http://localhost:8080/api/finance/transactions",
+      "status": 500,
+      "statusText": ""
+    },
+    {
+      "route": "/finance/reports",
+      "url": "http://localhost:8080/api/finance/dashboard",
+      "status": 500,
+      "statusText": ""
+    },
+    {
+      "route": "/finance/reports",
+      "url": "http://localhost:8080/api/finance/transactions",
+      "status": 500,
+      "statusText": ""
+    },
+    {
+      "route": "/finance/reports",
+      "url": "http://localhost:8080/api/finance/dashboard",
+      "status": 500,
+      "statusText": ""
+    }
+  ],
+  "roleMatrix": {},
+  "authAudit": {
+    "loginPage": {
+      "loads": true,
+      "title": "FINX - B2B Milestone Escrow",
+      "hasEmailInput": true,
+      "hasPasswordInput": true,
+      "hasSubmitButton": true,
+      "hasGoogleButton": true
+    },
+    "invalidLogin": {
+      "handled": false,
+      "uiFeedback": "No clear error message shown"
+    },
+    "registerPage": {
+      "loads": true,
+      "hasNameInput": true,
+      "hasEmailInput": true,
+      "hasPasswordInput": true,
+      "hasRoleSelect": false
+    },
+    "unauthenticated_/corporate": {
+      "target": "/corporate",
+      "finalUrl": "http://localhost:3000/login",
+      "protected": true
+    },
+    "unauthenticated_/vendor": {
+      "target": "/vendor",
+      "finalUrl": "http://localhost:3000/login",
+      "protected": true
+    },
+    "unauthenticated_/project-manager": {
+      "target": "/project-manager",
+      "finalUrl": "http://localhost:3000/login",
+      "protected": true
+    },
+    "unauthenticated_/admin": {
+      "target": "/admin",
+      "finalUrl": "http://localhost:3000/login",
+      "protected": true
+    },
+    "unauthenticated_/finance": {
+      "target": "/finance",
+      "finalUrl": "http://localhost:3000/login",
+      "protected": true
+    }
+  },
+  "engineUiAudit": {
+    "RISK": {
+      "exists": true,
+      "route": "/admin/risk"
+    },
+    "RECONCILIATION": {
+      "exists": true,
+      "route": "/admin/reconciliation"
+    }
+  },
+  "productionSafetyAudit": {
+    "backendGateStatus": "CLOSED",
+    "uiClaimsLivePayout": false,
+    "safe": true
+  }
+}
