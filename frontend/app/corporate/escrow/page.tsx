@@ -67,13 +67,13 @@ function LegacyBuyerEscrowDashboard() {
                     <Card>
                         <CardContent className="p-6">
                             <p className="text-sm font-medium text-slate-500">Total Contract Value</p>
-                            <p className="text-3xl font-bold text-slate-900 mt-2">${totalPipelineValue.toLocaleString()}</p>
+                            <p className="text-3xl font-bold text-slate-900 mt-2">₹{totalPipelineValue.toLocaleString("en-IN")}</p>
                         </CardContent>
                     </Card>
                     <Card>
                         <CardContent className="p-6">
                             <p className="text-sm font-medium text-slate-500">Active Deals In Escrow</p>
-                            <p className="text-3xl font-bold text-blue-600 mt-2">${activeValue.toLocaleString()}</p>
+                            <p className="text-3xl font-bold text-blue-600 mt-2">₹{activeValue.toLocaleString("en-IN")}</p>
                         </CardContent>
                     </Card>
                     <Card>
@@ -121,7 +121,7 @@ function LegacyBuyerEscrowDashboard() {
                                         </span>
                                     </div>
                                     <p className="text-xs font-mono text-slate-500 mt-1">Seller ID: {deal.sellerId}</p>
-                                    <p className="text-xs font-medium text-slate-700 mt-1">Target Escrow: ${deal.totalAmount?.toLocaleString()} {deal.currency}</p>
+                                    <p className="text-xs font-medium text-slate-700 mt-1">Target Escrow: ₹{deal.totalAmount?.toLocaleString("en-IN")} {deal.currency}</p>
                                 </div>
                                 <div className="flex shrink-0">
                                     <Link href={`/corporate/projects/${deal.id}`}>

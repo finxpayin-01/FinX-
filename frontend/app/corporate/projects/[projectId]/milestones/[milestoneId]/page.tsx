@@ -8,13 +8,14 @@ import { Card, CardContent } from "@/components/ui/Card";
 import { MilestoneStatusBadge } from "@/components/ui/MilestoneStatusBadge";
 import { EscrowTimeline } from "@/components/escrow/EscrowTimeline";
 import { BlockchainEscrow } from "@/components/escrow/BlockchainEscrow";
-import { Milestone, EscrowAccount, Payment } from "@/types";
+import { Milestone, EscrowAccount, Payment, Deal } from "@/types";
 import { milestoneService } from "@/services/milestone.service";
 import { escrowService } from "@/services/escrow.service";
 import { paymentService } from "@/services/payment.service";
+import { dealService } from "@/services/deal.service";
 import { Button } from "@/components/ui/Button";
 import Link from "next/link";
-import { ArrowLeft, Clock, DollarSign, FileCheck, CheckCircle2, XCircle, Unlock, Wallet, AlertCircle, Loader2, ShieldCheck, RefreshCw } from "lucide-react";
+import { ArrowLeft, Clock, DollarSign, FileCheck, CheckCircle2, XCircle, Unlock, Wallet, AlertCircle, Loader2, ShieldCheck, RefreshCw, Lock, AlertTriangle } from "lucide-react";
 
 export default function CorporateMilestoneDetails() {
     const { projectId, milestoneId } = useParams();
@@ -22,6 +23,7 @@ export default function CorporateMilestoneDetails() {
     const [blockchain, setBlockchain] = useState(true);
     useEffect(() => { void paymentService.getPaymentConfig().then(c => setBlockchain(c.rail === "BLOCKCHAIN")).catch(() => {}); }, []);
     const [milestone, setMilestone] = useState<Milestone | null>(null);
+    const [deal, setDeal] = useState<Deal | null>(null);
     const [escrowAccount, setEscrowAccount] = useState<EscrowAccount | null>(null);
     const [payments, setPayments] = useState<Payment[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -32,12 +34,16 @@ export default function CorporateMilestoneDetails() {
         if (!milestoneId) return;
         setIsLoading(true);
         try {
-            const [milestoneData, escrowData, paymentsData] = await Promise.all([
+            const [milestoneData, dealData, escrowData, paymentsData] = await Promise.all([
                 milestoneService.getMilestone(milestoneId as string),
+                projectId ? dealService.getDealById(projectId as string).catch(() => null) : Promise.resolve(null),
                 projectId ? escrowService.getDealEscrow(projectId as string).catch(() => null) : Promise.resolve(null),
                 projectId ? paymentService.getProjectPayments(projectId as string).catch(() => []) : Promise.resolve([])
             ]);
             setMilestone(milestoneData);
+            if (dealData) {
+                setDeal(dealData);
+            }
             if (escrowData) {
                 setEscrowAccount(escrowData);
             }
@@ -224,13 +230,29 @@ export default function CorporateMilestoneDetails() {
                                 )}
                             </div>
 
-                            {!isFunded && !isReleased && (
-                                <Link href={`/corporate/projects/${projectId}/milestones/${milestoneId}/payment`}>
-                                    <Button className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm">
-                                        <Wallet size={16} /> Fund Milestone (₹{milestoneValue.toLocaleString()})
-                                    </Button>
-                                </Link>
-                            )}
+                            {!isFunded && !isReleased && (() => {
+                                const hasBuyerOrg = Boolean(deal?.buyerOrganizationId);
+                                const hasSellerOrg = Boolean(deal?.sellerOrganizationId);
+                                const isAgreementFullySigned = deal?.agreementStatus === "FULLY_SIGNED";
+                                const isFundingReady = Boolean(deal && hasBuyerOrg && hasSellerOrg && isAgreementFullySigned);
+
+                                return isFundingReady ? (
+                                    <Link href={`/corporate/projects/${projectId}/milestones/${milestoneId}/payment`}>
+                                        <Button className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm">
+                                            <Wallet size={16} /> Fund Milestone (₹{milestoneValue.toLocaleString()})
+                                        </Button>
+                                    </Link>
+                                ) : (
+                                    <div className="flex flex-col items-end gap-1">
+                                        <Button disabled className="gap-2 bg-slate-100 text-slate-400 border border-slate-200 font-medium shadow-none cursor-not-allowed">
+                                            <Lock size={16} /> Fund Milestone (Locked)
+                                        </Button>
+                                        <span className="text-[11px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                                            Requires verified buyer & vendor orgs + signed agreement
+                                        </span>
+                                    </div>
+                                );
+                            })()}
                         </div>
                     </CardContent>
                 </Card>
@@ -280,13 +302,29 @@ export default function CorporateMilestoneDetails() {
                         </div>
                         <div className="flex flex-wrap items-center gap-3">
                             {/* PENDING: Pay & Fund Escrow */}
-                            {!blockchain && milestone.status === 'PENDING' && !isFunded && (
-                                <Link href={`/corporate/projects/${projectId}/milestones/${milestoneId}/payment`}>
-                                    <Button className="gap-2 bg-slate-900 hover:bg-slate-800 text-white">
-                                        <Wallet size={16} /> Pay & Fund Escrow
-                                    </Button>
-                                </Link>
-                            )}
+                            {!blockchain && milestone.status === 'PENDING' && !isFunded && (() => {
+                                const hasBuyerOrg = Boolean(deal?.buyerOrganizationId);
+                                const hasSellerOrg = Boolean(deal?.sellerOrganizationId);
+                                const isAgreementFullySigned = deal?.agreementStatus === "FULLY_SIGNED";
+                                const isFundingReady = Boolean(deal && hasBuyerOrg && hasSellerOrg && isAgreementFullySigned);
+
+                                return isFundingReady ? (
+                                    <Link href={`/corporate/projects/${projectId}/milestones/${milestoneId}/payment`}>
+                                        <Button className="gap-2 bg-slate-900 hover:bg-slate-800 text-white">
+                                            <Wallet size={16} /> Pay & Fund Escrow
+                                        </Button>
+                                    </Link>
+                                ) : (
+                                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                                        <span className="text-xs text-amber-800 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg">
+                                            Funding locked: Organization verification and bilateral agreement required.
+                                        </span>
+                                        <Button disabled className="gap-2 bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed">
+                                            <Lock size={16} /> Pay & Fund Escrow (Locked)
+                                        </Button>
+                                    </div>
+                                );
+                            })()}
 
                             {/* UNDER_REVIEW or SUBMITTED: Review, Approve, Reject */}
                             {['UNDER_REVIEW', 'SUBMITTED'].includes(milestone.status) && (
@@ -311,31 +349,44 @@ export default function CorporateMilestoneDetails() {
                             )}
 
                             {/* APPROVED: If funded -> Release Escrow Funds; If not funded -> prompt to fund */}
-                            {!blockchain && milestone.status === 'APPROVED' && (
-                                <>
-                                    {!isFunded ? (
-                                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-                                            <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg">
-                                                Deliverables approved. Fund milestone to enable vendor release.
-                                            </span>
-                                            <Link href={`/corporate/projects/${projectId}/milestones/${milestoneId}/payment`}>
-                                                <Button className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm">
-                                                    <Wallet size={16} /> Fund Milestone (₹{milestoneValue.toLocaleString()})
-                                                </Button>
-                                            </Link>
-                                        </div>
-                                    ) : (
-                                        <Button
-                                            onClick={handleReleaseEscrow}
-                                            isLoading={isActionLoading}
-                                            disabled={isActionLoading}
-                                            className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"
-                                        >
-                                            <Unlock size={16} /> Release Escrow Funds to Vendor
-                                        </Button>
-                                    )}
-                                </>
-                            )}
+                            {!blockchain && milestone.status === 'APPROVED' && (() => {
+                                const hasBuyerOrg = Boolean(deal?.buyerOrganizationId);
+                                const hasSellerOrg = Boolean(deal?.sellerOrganizationId);
+                                const isAgreementFullySigned = deal?.agreementStatus === "FULLY_SIGNED";
+                                const isFundingReady = Boolean(deal && hasBuyerOrg && hasSellerOrg && isAgreementFullySigned);
+
+                                return (
+                                    <>
+                                        {!isFunded ? (
+                                            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                                                <span className="text-xs text-amber-800 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg">
+                                                    Deliverables approved. Escrow account holds ₹0.00 — funding is required before vendor release can be executed.
+                                                </span>
+                                                {isFundingReady ? (
+                                                    <Link href={`/corporate/projects/${projectId}/milestones/${milestoneId}/payment`}>
+                                                        <Button className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm">
+                                                            <Wallet size={16} /> Fund Milestone (₹{milestoneValue.toLocaleString()})
+                                                        </Button>
+                                                    </Link>
+                                                ) : (
+                                                    <Button disabled className="gap-2 bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed">
+                                                        <Lock size={16} /> Fund Milestone (Locked)
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <Button
+                                                onClick={handleReleaseEscrow}
+                                                isLoading={isActionLoading}
+                                                disabled={isActionLoading}
+                                                className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"
+                                            >
+                                                <Unlock size={16} /> Release Escrow Funds to Vendor
+                                            </Button>
+                                        )}
+                                    </>
+                                );
+                            })()}
 
                             {/* RELEASED or COMPLETED */}
                             {['RELEASED', 'COMPLETED'].includes(milestone.status) && (

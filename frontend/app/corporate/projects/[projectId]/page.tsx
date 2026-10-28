@@ -8,14 +8,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { dealService } from "@/services/deal.service";
 import { projectManagerService } from "@/services/project-manager.service";
-import { Deal, Milestone, DealProjectManagerInfo, ProjectManagerSummary } from "@/types";
+import { escrowService } from "@/services/escrow.service";
+import { Deal, Milestone, DealProjectManagerInfo, ProjectManagerSummary, EscrowAccount } from "@/types";
 import { milestoneService } from "@/services/milestone.service";
 import { MilestoneStatusBadge } from "@/components/ui/MilestoneStatusBadge";
 import Link from "next/link";
 import {
     ArrowLeft, RefreshCw, AlertCircle, Calendar, DollarSign, User, ShieldCheck,
     XCircle, CheckCircle2, Plus, Eye, CreditCard, AlertTriangle, Layers, Building2,
-    UserCheck, UserPlus, Mail, Clock
+    UserCheck, UserPlus, Mail, Clock, Lock, FileText, ShieldAlert
 } from "lucide-react";
 
 export default function ProjectDetailsPage() {
@@ -25,6 +26,8 @@ export default function ProjectDetailsPage() {
 
     const [deal, setDeal] = useState<Deal | null>(null);
     const [milestones, setMilestones] = useState<Milestone[]>([]);
+    const [escrowAccount, setEscrowAccount] = useState<EscrowAccount | null>(null);
+    const [isEscrowLoading, setIsEscrowLoading] = useState(true);
     const [isMilestonesLoading, setIsMilestonesLoading] = useState(true);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -80,11 +83,25 @@ export default function ProjectDetailsPage() {
         }
     }, [projectId]);
 
+    const fetchEscrow = useCallback(async () => {
+        setIsEscrowLoading(true);
+        try {
+            const data = await escrowService.getDealEscrow(projectId);
+            setEscrowAccount(data);
+        } catch (e) {
+            console.warn("Could not retrieve escrow account details:", e);
+            setEscrowAccount(null);
+        } finally {
+            setIsEscrowLoading(false);
+        }
+    }, [projectId]);
+
     useEffect(() => {
         if (!projectId) return;
         fetchDeal();
         fetchMilestones();
         fetchPmInfo();
+        fetchEscrow();
 
         let intervalId: any;
         // Auto-refresh while waiting for vendor or PM
@@ -94,6 +111,7 @@ export default function ProjectDetailsPage() {
                     if (updated && updated.status !== deal?.status) {
                         setDeal(updated);
                         fetchMilestones();
+                        fetchEscrow();
                     }
                 }).catch(() => { });
                 projectManagerService.getDealProjectManager(projectId).then(setPmInfo).catch(() => {});
@@ -103,7 +121,7 @@ export default function ProjectDetailsPage() {
         return () => {
             if (intervalId) clearInterval(intervalId);
         };
-    }, [deal?.status, fetchDeal, fetchMilestones, fetchPmInfo, pmInfo?.activeInvitation, projectId]);
+    }, [deal?.status, fetchDeal, fetchMilestones, fetchPmInfo, fetchEscrow, pmInfo?.activeInvitation, projectId]);
 
     const handleOpenInviteModal = async () => {
         setShowInviteModal(true);
@@ -281,8 +299,19 @@ export default function ProjectDetailsPage() {
                                 </CardHeader>
                                 <CardContent className="pt-4 space-y-4">
                                     <div>
-                                        <p className="text-sm font-medium text-slate-500">Total Amount</p>
-                                        <p className="text-2xl font-bold text-slate-900">${deal.totalAmount?.toLocaleString()} <span className="text-sm text-slate-500">{deal.currency}</span></p>
+                                        <p className="text-sm font-medium text-slate-500">Total Deal Value</p>
+                                        <p className="text-2xl font-bold text-slate-900">₹{Number(deal.totalAmount || 0).toLocaleString("en-IN")} <span className="text-sm text-slate-500">{deal.currency || "INR"}</span></p>
+                                    </div>
+                                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                                        <div>
+                                            <p className="text-xs font-medium text-slate-500">Escrow Vault Held</p>
+                                            <p className="text-base font-semibold text-slate-900">
+                                                ₹{Number(escrowAccount?.balance || 0).toLocaleString("en-IN")} <span className="text-xs text-slate-400 font-normal">{escrowAccount?.currency || deal.currency || "INR"}</span>
+                                            </p>
+                                        </div>
+                                        <span className={`px-2 py-0.5 text-[11px] font-semibold rounded-full border ${Number(escrowAccount?.balance || 0) > 0 ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-slate-100 text-slate-600 border-slate-200"}`}>
+                                            {Number(escrowAccount?.balance || 0) > 0 ? "Funded in Escrow" : "Unfunded (₹0 held)"}
+                                        </span>
                                     </div>
                                 </CardContent>
                             </Card>
@@ -433,7 +462,7 @@ export default function ProjectDetailsPage() {
                                 </Link>
                             </div>
 
-                            {/* Vendor Acceptance Notice / Project State Notice */}
+                            {/* Vendor Acceptance Notice / Governance & Funding Readiness */}
                             {(deal.status === "DRAFT" || deal.status === "PENDING_VENDOR_ACCEPTANCE") && (
                                 <div className="p-4 rounded-xl bg-amber-50/90 border border-amber-200/80 flex items-start gap-3 shadow-xs">
                                     <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
@@ -454,26 +483,144 @@ export default function ProjectDetailsPage() {
                                 </div>
                             )}
 
-                            {['ACCEPTED', 'MILESTONES_PENDING', 'AWAITING_FUNDING', 'FUNDED', 'IN_PROGRESS'].includes(deal.status) && (
-                                <div className="p-4 rounded-xl bg-emerald-50/90 border border-emerald-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-                                    <div className="flex items-center gap-3">
-                                        <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
-                                        <div>
-                                            <h4 className="text-sm font-semibold text-emerald-900">
-                                                Vendor Accepted · Project Active
-                                            </h4>
-                                            <p className="text-xs text-emerald-700 mt-0.5 leading-relaxed">
-                                                The assigned vendor accepted this project. You can now fund milestones to authorize deliverable execution.
-                                            </p>
+                            {(() => {
+                                const isVendorAccepted = ['ACCEPTED', 'MILESTONES_PENDING', 'AWAITING_FUNDING', 'FUNDED', 'IN_PROGRESS'].includes(deal.status);
+                                if (!isVendorAccepted) return null;
+
+                                const hasBuyerOrg = Boolean(deal.buyerOrganizationId);
+                                const hasSellerOrg = Boolean(deal.sellerOrganizationId);
+                                const isAgreementFullySigned = deal.agreementStatus === "FULLY_SIGNED";
+                                const isFundingReady = Boolean(hasBuyerOrg && hasSellerOrg && isAgreementFullySigned);
+                                const escrowBalance = Number(escrowAccount?.balance || 0);
+
+                                return (
+                                    <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-xs">
+                                        <div className={`p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b ${isFundingReady ? "bg-emerald-50/80 border-emerald-200" : "bg-slate-50 border-slate-200"}`}>
+                                            <div className="flex items-center gap-3">
+                                                {isFundingReady ? (
+                                                    <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
+                                                ) : (
+                                                    <Lock className="h-5 w-5 text-amber-600 shrink-0" />
+                                                )}
+                                                <div>
+                                                    <h4 className={`text-sm font-bold ${isFundingReady ? "text-emerald-950" : "text-slate-900"}`}>
+                                                        {isFundingReady ? "Vendor Accepted · Escrow Funding Ready" : "Vendor Accepted · Escrow Funding Locked"}
+                                                    </h4>
+                                                    <p className={`text-xs mt-0.5 leading-relaxed ${isFundingReady ? "text-emerald-800" : "text-slate-600"}`}>
+                                                        {isFundingReady
+                                                            ? "All enterprise governance prerequisites are satisfied. Milestone escrow deposits can proceed in sandbox mode."
+                                                            : "The vendor accepted project scope, but financial funding actions remain locked until all B2B governance prerequisites are met."}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2 shrink-0">
+                                                {deal.acceptedAt && (
+                                                    <span className="text-xs text-slate-700 bg-white px-2.5 py-1 rounded-md border border-slate-200 font-mono">
+                                                        Accepted: {new Date(deal.acceptedAt).toLocaleDateString()}
+                                                    </span>
+                                                )}
+                                                <span className={`text-xs font-semibold px-2.5 py-1 rounded-md border ${isFundingReady ? "bg-emerald-100 text-emerald-800 border-emerald-300" : "bg-amber-100 text-amber-800 border-amber-300"}`}>
+                                                    {isFundingReady ? "Funding Unlocked" : "Funding Locked"}
+                                                </span>
+                                            </div>
                                         </div>
+
+                                        {/* Governance Prerequisites Grid */}
+                                        <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 bg-slate-50/50">
+                                            <div className="p-3 bg-white border border-slate-200 rounded-lg flex items-start gap-2.5">
+                                                <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                                                <div className="min-w-0">
+                                                    <p className="text-[11px] font-semibold text-slate-500 uppercase">Vendor Scope Acceptance</p>
+                                                    <p className="text-xs font-bold text-slate-900 mt-0.5">Accepted</p>
+                                                    <p className="text-[11px] text-slate-500 truncate">Deliverables & milestones confirmed</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="p-3 bg-white border border-slate-200 rounded-lg flex items-start gap-2.5">
+                                                {hasBuyerOrg ? (
+                                                    <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                                                ) : (
+                                                    <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                                                )}
+                                                <div className="min-w-0">
+                                                    <p className="text-[11px] font-semibold text-slate-500 uppercase">Buyer Corporate Entity</p>
+                                                    <p className={`text-xs font-bold mt-0.5 ${hasBuyerOrg ? "text-slate-900" : "text-amber-700"}`}>
+                                                        {hasBuyerOrg ? "Verified & Bound" : "Pending Verification / Unbound"}
+                                                    </p>
+                                                    <p className="text-[11px] text-slate-500 truncate">
+                                                        {hasBuyerOrg ? deal.buyerOrganizationId : "Required for escrow payment instruction"}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="p-3 bg-white border border-slate-200 rounded-lg flex items-start gap-2.5">
+                                                {hasSellerOrg ? (
+                                                    <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                                                ) : (
+                                                    <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                                                )}
+                                                <div className="min-w-0">
+                                                    <p className="text-[11px] font-semibold text-slate-500 uppercase">Vendor Corporate Entity</p>
+                                                    <p className={`text-xs font-bold mt-0.5 ${hasSellerOrg ? "text-slate-900" : "text-amber-700"}`}>
+                                                        {hasSellerOrg ? "Verified & Bound" : "Pending Verification / Unbound"}
+                                                    </p>
+                                                    <p className="text-[11px] text-slate-500 truncate">
+                                                        {hasSellerOrg ? deal.sellerOrganizationId : "Required for vendor payout routing"}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="p-3 bg-white border border-slate-200 rounded-lg flex items-start gap-2.5">
+                                                {isAgreementFullySigned ? (
+                                                    <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                                                ) : (
+                                                    <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                                                )}
+                                                <div className="min-w-0">
+                                                    <p className="text-[11px] font-semibold text-slate-500 uppercase">Bilateral Agreement</p>
+                                                    <p className={`text-xs font-bold mt-0.5 ${isAgreementFullySigned ? "text-slate-900" : "text-amber-700"}`}>
+                                                        {isAgreementFullySigned ? "Fully Signed" : (deal.agreementStatus ? `${deal.agreementStatus} (Unsigned)` : "Draft (Unsigned)")}
+                                                    </p>
+                                                    <p className="text-[11px] text-slate-500 truncate">
+                                                        {isAgreementFullySigned ? "Bilateral digital signatures complete" : "Requires signatures from both parties"}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="p-3 bg-white border border-slate-200 rounded-lg flex items-start gap-2.5">
+                                                <ShieldCheck className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
+                                                <div className="min-w-0">
+                                                    <p className="text-[11px] font-semibold text-slate-500 uppercase">Escrow Vault Status</p>
+                                                    <p className="text-xs font-bold text-slate-900 mt-0.5">
+                                                        ₹{escrowBalance.toLocaleString("en-IN")} Held ({escrowAccount?.status || "ACTIVE"})
+                                                    </p>
+                                                    <p className="text-[11px] text-slate-500 truncate">
+                                                        {escrowBalance > 0 ? "Funds allocated in double-entry ledger" : "Escrow account unfunded (₹0 balance)"}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="p-3 bg-white border border-slate-200 rounded-lg flex items-start gap-2.5">
+                                                <Building2 className="h-4 w-4 text-slate-600 mt-0.5 shrink-0" />
+                                                <div className="min-w-0">
+                                                    <p className="text-[11px] font-semibold text-slate-500 uppercase">Banking Nodal Rail</p>
+                                                    <p className="text-xs font-bold text-slate-900 mt-0.5">Mock Banking Sandbox</p>
+                                                    <p className="text-[11px] text-slate-500 truncate">Real settlement disabled in test environment</p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {!isFundingReady && (
+                                            <div className="px-4 py-2.5 bg-amber-50/70 border-t border-amber-200/60 flex items-center gap-2 text-xs text-amber-800">
+                                                <AlertCircle size={14} className="text-amber-600 shrink-0" />
+                                                <span>
+                                                    <strong>Funding Locked:</strong> Direct checkout and payment instruction generation are blocked by backend security policy until organizations are bound and bilateral agreement is signed.
+                                                </span>
+                                            </div>
+                                        )}
                                     </div>
-                                    {deal.acceptedAt && (
-                                        <span className="text-xs text-emerald-800 bg-emerald-100/70 px-2.5 py-1 rounded-md font-mono shrink-0">
-                                            Accepted: {new Date(deal.acceptedAt).toLocaleDateString()}
-                                        </span>
-                                    )}
-                                </div>
-                            )}
+                                );
+                            })()}
 
                             {deal.status === "REJECTED" && (
                                 <div className="p-4 rounded-xl bg-rose-50/90 border border-rose-200/80 flex items-start gap-3 shadow-xs">
@@ -566,6 +713,10 @@ export default function ProjectDetailsPage() {
                                                     {milestones.map((m, idx) => {
                                                         const detailUrl = `/corporate/projects/${projectId}/milestones/${m.id}`;
                                                         const paymentUrl = `/corporate/projects/${projectId}/milestones/${m.id}/payment`;
+                                                        const hasBuyerOrg = Boolean(deal.buyerOrganizationId);
+                                                        const hasSellerOrg = Boolean(deal.sellerOrganizationId);
+                                                        const isAgreementFullySigned = deal.agreementStatus === "FULLY_SIGNED";
+                                                        const isFundingReady = Boolean(hasBuyerOrg && hasSellerOrg && isAgreementFullySigned);
 
                                                         return (
                                                             <tr key={m.id} className="hover:bg-slate-50/80 transition-colors">
@@ -590,16 +741,39 @@ export default function ProjectDetailsPage() {
                                                                     {m.dueDate ? new Date(m.dueDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}
                                                                 </td>
                                                                 <td className="py-3.5 px-4">
-                                                                    <MilestoneStatusBadge status={m.status} />
+                                                                    <div className="flex flex-col gap-1 items-start">
+                                                                        <MilestoneStatusBadge status={m.status} />
+                                                                        {m.status === "APPROVED" && (
+                                                                            <span className="text-[10px] font-medium text-slate-600 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">
+                                                                                Deliverables Approved · Escrow Unfunded (₹0 held)
+                                                                            </span>
+                                                                        )}
+                                                                        {m.status === "PENDING" && (
+                                                                            <span className="text-[10px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                                                                                Pending Funding (Unfunded)
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
                                                                 </td>
                                                                 <td className="py-3.5 px-4 text-right whitespace-nowrap">
                                                                     <div className="flex items-center justify-end gap-2">
                                                                         {m.status === "PENDING" && (
-                                                                            <Link href={paymentUrl}>
-                                                                                <Button size="sm" className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-7">
-                                                                                    <CreditCard size={12} /> Fund
+                                                                            isFundingReady ? (
+                                                                                <Link href={paymentUrl}>
+                                                                                    <Button size="sm" className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-7">
+                                                                                        <CreditCard size={12} /> Fund
+                                                                                    </Button>
+                                                                                </Link>
+                                                                            ) : (
+                                                                                <Button
+                                                                                    size="sm"
+                                                                                    disabled
+                                                                                    title="Funding locked: Requires verified buyer & vendor organizations and a fully signed deal agreement."
+                                                                                    className="gap-1 bg-slate-100 text-slate-400 border border-slate-200 text-xs h-7 cursor-not-allowed hover:bg-slate-100"
+                                                                                >
+                                                                                    <Lock size={12} /> Fund (Locked)
                                                                                 </Button>
-                                                                            </Link>
+                                                                            )
                                                                         )}
                                                                         <Link href={detailUrl}>
                                                                             <Button variant="outline" size="sm" className="gap-1 text-slate-700 text-xs h-7">

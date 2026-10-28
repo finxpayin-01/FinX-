@@ -27,7 +27,8 @@ import {
     CreditCard,
     TrendingUp,
     ShieldCheck,
-    CalendarClock
+    CalendarClock,
+    Lock
 } from "lucide-react";
 import Link from "next/link";
 import { MilestoneStatusBadge } from "@/components/ui/MilestoneStatusBadge";
@@ -39,6 +40,7 @@ function CorporateMilestonesContent() {
 
     const [milestones, setMilestones] = useState<Milestone[]>([]);
     const [deals, setDeals] = useState<Deal[]>([]);
+    const dealsMap = useMemo(() => new Map(deals.map(d => [d.id, d])), [deals]);
     const [selectedDealId, setSelectedDealId] = useState<string>(dealParam || "ALL");
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -597,34 +599,69 @@ function CorporateMilestonesContent() {
                                                         )}
                                                     </td>
                                                     <td className="py-4 px-4">
-                                                        <MilestoneStatusBadge status={m.status} />
-                                                    </td>
-                                                    <td className="py-4 px-4 text-right whitespace-nowrap">
-                                                        <div className="flex items-center justify-end gap-2">
-                                                            {m.status !== "RELEASED" && m.status !== "COMPLETED" && m.status !== "CANCELLED" && (
-                                                                <Button
-                                                                    variant="outline"
-                                                                    size="sm"
-                                                                    onClick={() => setSelectedMilestoneForDeadline(m)}
-                                                                    className="gap-1 text-slate-700 border-slate-200 hover:bg-slate-100 text-xs h-8"
-                                                                    title="Update Submission Deadline"
-                                                                >
-                                                                    <CalendarClock size={13} /> Deadline
-                                                                </Button>
+                                                        <div className="flex flex-col gap-1 items-start">
+                                                            <MilestoneStatusBadge status={m.status} />
+                                                            {m.status === "APPROVED" && (
+                                                                <span className="text-[10px] font-medium text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">
+                                                                    Deliverables Approved · Escrow Unfunded
+                                                                </span>
                                                             )}
                                                             {m.status === "PENDING" && (
-                                                                <Link href={paymentUrl}>
-                                                                    <Button size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8">
-                                                                        <CreditCard size={13} /> Fund
-                                                                    </Button>
-                                                                </Link>
+                                                                <span className="text-[10px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                                                                    Pending Funding (Unfunded)
+                                                                </span>
                                                             )}
-                                                            <Link href={detailUrl}>
-                                                                <Button variant="outline" size="sm" className="gap-1 text-slate-700 border-slate-200 hover:bg-slate-100 text-xs h-8">
-                                                                    <Eye size={13} /> View
-                                                                </Button>
-                                                            </Link>
                                                         </div>
+                                                    </td>
+                                                    <td className="py-4 px-4 text-right whitespace-nowrap">
+                                                        {(() => {
+                                                            const dealForMilestone = dealsMap.get(m.projectId) || dealsMap.get(m.dealId || "");
+                                                            const isFundingReady = Boolean(
+                                                                dealForMilestone &&
+                                                                dealForMilestone.buyerOrganizationId &&
+                                                                dealForMilestone.sellerOrganizationId &&
+                                                                dealForMilestone.agreementStatus === "FULLY_SIGNED"
+                                                            );
+
+                                                            return (
+                                                                <div className="flex items-center justify-end gap-2">
+                                                                    {m.status !== "RELEASED" && m.status !== "COMPLETED" && m.status !== "CANCELLED" && (
+                                                                        <Button
+                                                                            variant="outline"
+                                                                            size="sm"
+                                                                            onClick={() => setSelectedMilestoneForDeadline(m)}
+                                                                            className="gap-1 text-slate-700 border-slate-200 hover:bg-slate-100 text-xs h-8"
+                                                                            title="Update Submission Deadline"
+                                                                        >
+                                                                            <CalendarClock size={13} /> Deadline
+                                                                        </Button>
+                                                                    )}
+                                                                    {m.status === "PENDING" && (
+                                                                        isFundingReady ? (
+                                                                            <Link href={paymentUrl}>
+                                                                                <Button size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8">
+                                                                                    <CreditCard size={13} /> Fund
+                                                                                </Button>
+                                                                            </Link>
+                                                                        ) : (
+                                                                            <Button
+                                                                                size="sm"
+                                                                                disabled
+                                                                                title="Funding locked: Requires verified buyer and vendor organizations and fully signed deal agreement."
+                                                                                className="gap-1 bg-slate-100 text-slate-400 border border-slate-200 text-xs h-8 cursor-not-allowed hover:bg-slate-100"
+                                                                            >
+                                                                                <Lock size={12} /> Fund (Locked)
+                                                                            </Button>
+                                                                        )
+                                                                    )}
+                                                                    <Link href={detailUrl}>
+                                                                        <Button variant="outline" size="sm" className="gap-1 text-slate-700 border-slate-200 hover:bg-slate-100 text-xs h-8">
+                                                                            <Eye size={13} /> View
+                                                                        </Button>
+                                                                    </Link>
+                                                                </div>
+                                                            );
+                                                        })()}
                                                     </td>
                                                 </tr>
                                             );

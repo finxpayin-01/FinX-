@@ -6,9 +6,10 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/Card";
 import { milestoneService } from "@/services/milestone.service";
 import { paymentService, CreatePaymentOrderResponse, PaymentConfig } from "@/services/payment.service";
-import { Milestone } from "@/types";
+import { dealService } from "@/services/deal.service";
+import { Milestone, Deal } from "@/types";
 import { Button } from "@/components/ui/Button";
-import { ArrowLeft, Wallet, ShieldCheck, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { ArrowLeft, Wallet, ShieldCheck, CheckCircle2, AlertCircle, Loader2, Lock, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { loadRazorpay } from "@/lib/razorpay";
 import { BlockchainEscrow } from "@/components/escrow/BlockchainEscrow";
@@ -19,6 +20,7 @@ export default function FundMilestoneCheckout() {
     const { user } = useAuth();
 
     const [milestone, setMilestone] = useState<Milestone | null>(null);
+    const [deal, setDeal] = useState<Deal | null>(null);
     const [paymentConfig, setPaymentConfig] = useState<PaymentConfig | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -35,6 +37,16 @@ export default function FundMilestoneCheckout() {
     }, []);
 
     useEffect(() => {
+        if (projectId) {
+            dealService.getDealById(projectId as string)
+                .then(setDeal)
+                .catch((err) => {
+                    console.warn("Could not load deal details:", err);
+                });
+        }
+    }, [projectId]);
+
+    useEffect(() => {
         if (milestoneId) {
             setIsLoading(true);
             milestoneService.getMilestone(milestoneId as string)
@@ -46,8 +58,17 @@ export default function FundMilestoneCheckout() {
         }
     }, [milestoneId]);
 
+    const hasBuyerOrg = Boolean(deal?.buyerOrganizationId);
+    const hasSellerOrg = Boolean(deal?.sellerOrganizationId);
+    const isAgreementFullySigned = deal?.agreementStatus === "FULLY_SIGNED";
+    const isFundingReady = Boolean(deal && hasBuyerOrg && hasSellerOrg && isAgreementFullySigned);
+
     const handlePayAndFund = async () => {
         if (!milestone) return;
+        if (!isFundingReady) {
+            setError("Funding instructions cannot be generated: Deal requires verified buyer & vendor organizations and a fully signed bilateral agreement.");
+            return;
+        }
         setError(null);
         setIsProcessing(true);
 
@@ -164,14 +185,38 @@ export default function FundMilestoneCheckout() {
                     </p>
                 </div>
 
+                {/* Governance Prerequisites Warning */}
+                {!isFundingReady && (
+                    <div className="p-4 bg-amber-50 border border-amber-300 rounded-xl space-y-2.5">
+                        <div className="flex items-center gap-2 text-amber-950 font-bold text-sm">
+                            <Lock size={18} className="text-amber-700 shrink-0" />
+                            <span>Escrow Funding Blocked by Governance Policy</span>
+                        </div>
+                        <p className="text-xs text-amber-800 leading-relaxed">
+                            The platform security policy strictly enforces verified buyer and vendor corporate entities and a fully executed bilateral agreement before payment instructions can be generated or settled.
+                        </p>
+                        <div className="pt-1.5 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                            <div className={`p-2 rounded border ${hasBuyerOrg ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-white text-amber-900 border-amber-200"}`}>
+                                Buyer Org: <strong>{hasBuyerOrg ? "Verified" : "Pending / Unbound"}</strong>
+                            </div>
+                            <div className={`p-2 rounded border ${hasSellerOrg ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-white text-amber-900 border-amber-200"}`}>
+                                Vendor Org: <strong>{hasSellerOrg ? "Verified" : "Pending / Unbound"}</strong>
+                            </div>
+                            <div className={`p-2 rounded border ${isAgreementFullySigned ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-white text-amber-900 border-amber-200"}`}>
+                                Agreement: <strong>{isAgreementFullySigned ? "Signed" : (deal?.agreementStatus || "Draft / Unsigned")}</strong>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Security / Mode Trust Notice */}
                 {paymentConfig && !paymentConfig.configured ? (
                     <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
                         <AlertCircle size={20} className="text-amber-600 shrink-0 mt-0.5" />
                         <div>
-                            <h4 className="text-sm font-semibold text-amber-900">Razorpay is not configured</h4>
+                            <h4 className="text-sm font-semibold text-amber-900">Payment Gateway Not Configured</h4>
                             <p className="text-xs text-amber-800 mt-1 leading-relaxed">
-                                Payments cannot be initiated or verified because Razorpay credentials (RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET) are missing on the backend environment.
+                                Payments cannot be initiated or verified because gateway credentials are missing on the backend environment.
                             </p>
                         </div>
                     </div>
@@ -186,7 +231,7 @@ export default function FundMilestoneCheckout() {
                             </h4>
                             <p className="text-xs text-emerald-800 mt-1 leading-relaxed">
                                 {paymentConfig?.sandboxMode || paymentConfig?.mode === "TEST"
-                                    ? "This payment is processed in Razorpay Test Mode. Escrow and ledger balances are tracked in the FINX platform sandbox."
+                                    ? "This payment is processed in Sandbox Test Mode. Escrow and ledger balances are tracked in the FINX platform sandbox without moving real money."
                                     : "Your payment is deposited into an immutable escrow account. Funds are safeguarded and released to the vendor only after you inspect and approve the completed milestone deliverables."}
                             </p>
                         </div>
@@ -240,18 +285,27 @@ export default function FundMilestoneCheckout() {
                         <div className="pt-2">
                             <Button
                                 onClick={handlePayAndFund}
-                                disabled={isProcessing || isVerifying || success || (paymentConfig !== null && !paymentConfig.configured)}
+                                disabled={!isFundingReady || isProcessing || isVerifying || success || (paymentConfig !== null && !paymentConfig.configured)}
                                 isLoading={isProcessing || isVerifying}
-                                className="w-full gap-2 bg-slate-900 hover:bg-slate-800 text-white py-3 text-base shadow-sm"
+                                className={`w-full gap-2 text-white py-3 text-base shadow-sm ${!isFundingReady ? "bg-slate-300 hover:bg-slate-300 cursor-not-allowed text-slate-500" : "bg-slate-900 hover:bg-slate-800"}`}
                             >
-                                <Wallet size={18} />
-                                {isVerifying
-                                    ? "Verifying Payment & Crediting Escrow..."
-                                    : isProcessing
-                                        ? "Connecting to Razorpay..."
-                                        : paymentConfig !== null && !paymentConfig.configured
-                                            ? "Gateway Not Configured"
-                                            : `Pay ₹${milestone?.amount?.toLocaleString() || "0"} & Fund Escrow`}
+                                {!isFundingReady ? (
+                                    <>
+                                        <Lock size={18} />
+                                        Funding Prerequisites Incomplete (Locked)
+                                    </>
+                                ) : (
+                                    <>
+                                        <Wallet size={18} />
+                                        {isVerifying
+                                            ? "Verifying Payment & Crediting Escrow..."
+                                            : isProcessing
+                                                ? "Connecting to Payment Gateway..."
+                                                : paymentConfig !== null && !paymentConfig.configured
+                                                    ? "Gateway Not Configured"
+                                                    : `Pay ₹${milestone?.amount?.toLocaleString() || "0"} & Fund Escrow`}
+                                    </>
+                                )}
                             </Button>
                         </div>
                     </CardContent>

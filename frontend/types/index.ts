@@ -80,6 +80,13 @@ export type DealStatus = 'DRAFT' | 'PENDING_VENDOR_ACCEPTANCE' | 'ACCEPTED' | 'M
 export interface Deal {
   id: string;
   projectId?: string;
+  dealReference?: string;
+  buyerOrganizationId?: string | null;
+  sellerOrganizationId?: string | null;
+  agreementStatus?: 'DRAFT' | 'PENDING_BUYER_SIGNATURE' | 'PENDING_SELLER_SIGNATURE' | 'FULLY_SIGNED' | 'REJECTED' | string | null;
+  invitationEmail?: string;
+  invitationPhone?: string;
+  invitationGstin?: string;
   title: string;
   description: string;
   buyerId: string;
@@ -101,6 +108,13 @@ export interface Deal {
 export interface DealResponse {
   id: string;
   projectId?: string;
+  dealReference?: string;
+  buyerOrganizationId?: string | null;
+  sellerOrganizationId?: string | null;
+  agreementStatus?: 'DRAFT' | 'PENDING_BUYER_SIGNATURE' | 'PENDING_SELLER_SIGNATURE' | 'FULLY_SIGNED' | 'REJECTED' | string | null;
+  invitationEmail?: string;
+  invitationPhone?: string;
+  invitationGstin?: string;
   title: string;
   description: string;
   buyerId: string;

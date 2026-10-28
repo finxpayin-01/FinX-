@@ -12,16 +12,19 @@ export default function DashboardRedirect() {
         if (!isLoading) {
             if (!user) {
                 router.push("/login");
-            } else if (user.role === "ADMIN") {
-                router.push("/admin");
-            } else if (user.role === "FINANCE") {
-                router.push("/finance");
-            } else if (user.role === "PROJECT_MANAGER") {
-                router.push("/project-manager");
-            } else if (user.role === "VENDOR") {
-                router.push("/vendor");
             } else {
-                router.push("/corporate");
+                const role = (user.role || "").toUpperCase();
+                if (role === "ADMIN") {
+                    router.push("/admin");
+                } else if (role === "FINANCE") {
+                    router.push("/finance");
+                } else if (role === "PROJECT_MANAGER" || role === "PROJ_MANAGER") {
+                    router.push("/project-manager");
+                } else if (role === "VENDOR" || role === "SELLER") {
+                    router.push("/vendor");
+                } else {
+                    router.push("/corporate");
+                }
             }
         }
     }, [user, isLoading, router]);

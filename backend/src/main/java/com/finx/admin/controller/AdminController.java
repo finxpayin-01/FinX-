@@ -1,7 +1,9 @@
 package com.finx.admin.controller;
 
+import com.finx.admin.dto.request.AdminResetPasswordRequest;
 import com.finx.audit.entity.AuditLog;
 import com.finx.audit.service.AuditService;
+import com.finx.auth.repository.RefreshTokenRepository;
 import com.finx.common.response.ApiResponse;
 import com.finx.deal.entity.Deal;
 import com.finx.deal.entity.DealStatus;
@@ -11,21 +13,25 @@ import com.finx.escrow.entity.EscrowAccount;
 import com.finx.escrow.entity.EscrowLedger;
 import com.finx.escrow.repository.EscrowAccountRepository;
 import com.finx.escrow.repository.EscrowLedgerRepository;
+import com.finx.exception.ResourceNotFoundException;
 import com.finx.payment.entity.Payment;
 import com.finx.payment.entity.PaymentStatus;
 import com.finx.payment.repository.PaymentRepository;
+import com.finx.security.service.UserPrincipal;
 import com.finx.user.entity.User;
 import com.finx.user.repository.UserRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -43,6 +49,8 @@ public class AdminController {
     private final EscrowLedgerRepository escrowLedgerRepository;
     private final DisputeRepository disputeRepository;
     private final AuditService auditService;
+    private final PasswordEncoder passwordEncoder;
+    private final RefreshTokenRepository refreshTokenRepository;
 
     public AdminController(UserRepository userRepository,
                            DealRepository dealRepository,
@@ -50,7 +58,9 @@ public class AdminController {
                            EscrowAccountRepository escrowAccountRepository,
                            EscrowLedgerRepository escrowLedgerRepository,
                            DisputeRepository disputeRepository,
-                           AuditService auditService) {
+                           AuditService auditService,
+                           PasswordEncoder passwordEncoder,
+                           RefreshTokenRepository refreshTokenRepository) {
         this.userRepository = userRepository;
         this.dealRepository = dealRepository;
         this.paymentRepository = paymentRepository;
@@ -58,6 +68,8 @@ public class AdminController {
         this.escrowLedgerRepository = escrowLedgerRepository;
         this.disputeRepository = disputeRepository;
         this.auditService = auditService;
+        this.passwordEncoder = passwordEncoder;
+        this.refreshTokenRepository = refreshTokenRepository;
     }
 
     /**
@@ -161,5 +173,26 @@ public class AdminController {
         }).collect(Collectors.toList());
 
         return ResponseEntity.ok(ApiResponse.success(mapped));
+    }
+
+    @PostMapping("/users/{id}/reset-password")
+    @Operation(summary = "Reset user password", description = "Administrative password reset for user accounts")
+    public ResponseEntity<ApiResponse<Void>> resetPassword(
+            @PathVariable UUID id,
+            @Valid @RequestBody AdminResetPasswordRequest request,
+            @AuthenticationPrincipal UserPrincipal adminUser) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", id));
+        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+        refreshTokenRepository.revokeAllActiveUserTokens(user, Instant.now());
+        auditService.logEvent(
+                adminUser.getId(),
+                "ADMIN_PASSWORD_RESET",
+                "USER",
+                user.getId().toString(),
+                "Password administratively reset for: " + user.getEmail()
+        );
+        return ResponseEntity.ok(ApiResponse.success("Password reset successfully", null));
     }
 }

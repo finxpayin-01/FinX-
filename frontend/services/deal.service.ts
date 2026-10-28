@@ -12,43 +12,48 @@ export interface CreateDealRequest {
 export const dealService = {
     getDeals: async (): Promise<Deal[]> => {
         const response = await api.get<ApiResponse<Deal[]> | Deal[]>("/deals");
-        const data = (response.data as ApiResponse<Deal[]>)?.data || (response.data as Deal[]);
-        return data || [];
+        const body: any = response.data;
+        const data = body?.data !== undefined ? body.data : body;
+        if (Array.isArray(data)) return data;
+        if (Array.isArray(data?.content)) return data.content;
+        return [];
     },
 
     getDealById: async (id: string): Promise<Deal> => {
         const response = await api.get<ApiResponse<Deal> | Deal>(`/deals/${id}`);
-        const data = (response.data as ApiResponse<Deal>)?.data || (response.data as Deal);
-        return data;
+        const body: any = response.data;
+        return (body?.data !== undefined ? body.data : body) as Deal;
     },
 
     createDeal: async (request: CreateDealRequest): Promise<Deal> => {
         const response = await api.post<ApiResponse<Deal> | Deal>("/deals", request);
-        const data = (response.data as ApiResponse<Deal>)?.data || (response.data as Deal);
-        return data;
+        const body: any = response.data;
+        return (body?.data !== undefined ? body.data : body) as Deal;
     },
 
     getSellers: async (): Promise<SellerSummary[]> => {
         const response = await api.get<ApiResponse<SellerSummary[]> | SellerSummary[]>("/deals/sellers");
-        const data = (response.data as ApiResponse<SellerSummary[]>)?.data || (response.data as SellerSummary[]);
-        return data || [];
+        const body: any = response.data;
+        const data = body?.data !== undefined ? body.data : body;
+        if (Array.isArray(data)) return data;
+        return [];
     },
 
     acceptDeal: async (id: string): Promise<Deal> => {
         const response = await api.patch<ApiResponse<Deal> | Deal>(`/deals/${id}/accept`);
-        const data = (response.data as ApiResponse<Deal>)?.data || (response.data as Deal);
-        return data;
+        const body: any = response.data;
+        return (body?.data !== undefined ? body.data : body) as Deal;
     },
 
     rejectDeal: async (id: string, reason?: string): Promise<Deal> => {
         const response = await api.post<ApiResponse<Deal> | Deal>(`/deals/${id}/reject`, { reason });
-        const data = (response.data as ApiResponse<Deal>)?.data || (response.data as Deal);
-        return data;
+        const body: any = response.data;
+        return (body?.data !== undefined ? body.data : body) as Deal;
     },
 
     cancelDeal: async (id: string): Promise<Deal> => {
         const response = await api.patch<ApiResponse<Deal> | Deal>(`/deals/${id}/cancel`);
-        const data = (response.data as ApiResponse<Deal>)?.data || (response.data as Deal);
-        return data;
+        const body: any = response.data;
+        return (body?.data !== undefined ? body.data : body) as Deal;
     }
 };

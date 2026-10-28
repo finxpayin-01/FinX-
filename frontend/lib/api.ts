@@ -56,10 +56,25 @@ export const getRefreshToken = () => {
     return null;
 };
 
-// Request interceptor to attach token and dynamic baseURL
+// Clear session helper
+export const clearAuthSession = () => {
+    if (typeof window !== "undefined") {
+        localStorage.removeItem("accessToken");
+        localStorage.removeItem("refreshToken");
+        localStorage.removeItem("user");
+    }
+};
+
+// Request interceptor to attach token, dynamic baseURL, and normalize double prefixes
 api.interceptors.request.use(
     (config) => {
         config.baseURL = getApiBaseUrl();
+
+        // Prevent double prefix hazards: e.g. /api/deals or /api/v1/...
+        if (config.url && config.url.startsWith("/api/")) {
+            config.url = config.url.replace(/^\/api/, "");
+        }
+
         const token = getAccessToken();
         if (token && config.headers) {
             config.headers.Authorization = `Bearer ${token}`;
@@ -74,7 +89,15 @@ api.interceptors.response.use(
     (response) => response,
     async (error) => {
         const originalRequest = error.config;
-        if (error.response?.status === 401 && !originalRequest._retry) {
+        const requestUrl = originalRequest?.url || "";
+
+        // NEVER attempt refresh on authentication endpoints (login, register, refresh)
+        const isAuthEndpoint =
+            requestUrl.includes("/auth/login") ||
+            requestUrl.includes("/auth/register") ||
+            requestUrl.includes("/auth/refresh");
+
+        if (error.response?.status === 401 && !originalRequest?._retry && !isAuthEndpoint) {
             originalRequest._retry = true;
             try {
                 const refreshToken = getRefreshToken();
@@ -103,11 +126,9 @@ api.interceptors.response.use(
                 originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
                 return api(originalRequest);
             } catch (err) {
-                // Refresh failed, logout user
+                // Refresh failed, logout user cleanly
+                clearAuthSession();
                 if (typeof window !== "undefined") {
-                    localStorage.removeItem("accessToken");
-                    localStorage.removeItem("refreshToken");
-                    localStorage.removeItem("user");
                     window.location.href = "/login";
                 }
                 return Promise.reject(err);

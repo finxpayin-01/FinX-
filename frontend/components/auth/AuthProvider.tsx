@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { User, Role } from "@/types";
 import { authService } from "@/services/auth.service";
+import { clearAuthSession } from "@/lib/api";
 import { useRouter, usePathname } from "next/navigation";
 
 interface AuthContextType {
@@ -12,7 +13,7 @@ interface AuthContextType {
     register: (data: Record<string, any>) => Promise<void>;
     googleLogin: (code: string) => Promise<void>;
     setSession: (accessToken: string, refreshToken: string, user: User) => void;
-    logout: () => void;
+    logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -31,7 +32,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         else if (r === "PROJECT_MANAGER" || r === "PROJ_MANAGER") target = "/project-manager";
         else if (r === "VENDOR" || r === "SELLER") target = "/vendor";
         else if (r === "BUYER" || r === "CORPORATE") target = "/corporate";
-        
+
         router.push(target);
         if (typeof window !== "undefined") {
             setTimeout(() => {
@@ -56,8 +57,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     useEffect(() => {
         const initAuth = async () => {
-            const token = localStorage.getItem("accessToken");
-            const storedUser = localStorage.getItem("user");
+            const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
+            const storedUser = typeof window !== "undefined" ? localStorage.getItem("user") : null;
 
             if (token) {
                 if (storedUser) {
@@ -78,12 +79,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                     freshUser.name = freshUser.name || freshUser.fullName || "User";
                     localStorage.setItem("user", JSON.stringify(freshUser));
                     setUser(freshUser);
-                } catch (e) {
-                    console.warn("Session verification failed, clearing auth state");
-                    localStorage.removeItem("accessToken");
-                    localStorage.removeItem("refreshToken");
-                    localStorage.removeItem("user");
-                    setUser(null);
+                } catch (e: any) {
+                    // Only clear session if backend explicitly rejected with 401/403
+                    if (e?.response?.status === 401 || e?.response?.status === 403) {
+                        console.warn("Session verification rejected (401/403), clearing auth state");
+                        clearAuthSession();
+                        setUser(null);
+                    } else {
+                        // Transient network issue or backend starting up - retain cached user
+                        console.warn("Backend not yet responding to /me; retaining cached session");
+                    }
                 }
             }
             setIsLoading(false);
@@ -110,9 +115,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         redirectBasedOnRole(data.user.role);
     };
 
-    const logout = () => {
-        authService.logout();
+    const logout = async () => {
         setUser(null);
+        clearAuthSession();
+        try {
+            await authService.logout();
+        } catch {
+            // Local cleanup already completed
+        }
         router.push("/login");
     };
 
@@ -120,7 +130,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     useEffect(() => {
         if (isLoading) return;
 
-        const isPublicRoute = ["/", "/login", "/register"].includes(pathname as string) ||
+        const isPublicRoute = ["/", "/login", "/register", "/contact", "/blockchain", "/forgot-password"].includes(pathname as string) ||
             pathname?.startsWith("/auth/callback");
 
         if (!user && !isPublicRoute) {
@@ -128,7 +138,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             return;
         }
 
-        if (user && isPublicRoute && pathname !== "/" && !pathname?.startsWith("/auth/callback")) {
+        if (user && isPublicRoute && pathname !== "/" && pathname !== "/blockchain" && pathname !== "/contact" && !pathname?.startsWith("/auth/callback")) {
             redirectBasedOnRole(user.role);
             return;
         }

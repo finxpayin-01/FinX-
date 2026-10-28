@@ -13,6 +13,10 @@ export const adminService = {
     getAuditLogs: async () => {
         const { data } = await api.get('/admin/audit-logs');
         return data.data || data;
+    },
+    resetPassword: async (userId: string, newPassword: string) => {
+        const { data } = await api.post(`/admin/users/${userId}/reset-password`, { newPassword });
+        return data.data || data;
     }
 };
 

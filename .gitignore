@@ -32,3 +32,6 @@ temp/
 cmd_output.log
 cors*.txt
 failures.txt
+playwright-report/
+test-results/
+
